@@ -81,3 +81,37 @@ describe('setup page lock', async () => {
     expect(bad.status).toBe(403)
   })
 })
+
+describe('devices enrolled by someone else', async () => {
+  let hub: TestHub
+  afterAll(async () => { await hub?.stop() })
+  hub = await testHub()
+  const { makeEnrollCode, redeemEnrollCode } = await import('../../src/auth/enroll')
+  const { approveToken } = await import('../../src/auth/tokens')
+
+  const read = async (token: string, p: string) => {
+    const r = await fetch(hub.url + '/mcp', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'read_file', arguments: { path: p } } }) })
+    const j = await r.json() as any
+    return { isError: !!j.result?.isError, text: (j.result?.content ?? []).map((c: any) => c.text).join('') }
+  }
+
+  test("an admin's code cannot open the person's personal folder until they approve the device", async () => {
+    const admin = await hub.user('adm', { role: 'admin' })
+    const park = await hub.user('park2')
+    hub.write(`users/${park.id}/diary.md`, 'PRIVATE-PARK')
+    hub.write('shared/team.md', 'TEAM-OK')
+    const byAdmin = redeemEnrollCode(hub.ctx.db, makeEnrollCode(hub.ctx.db, park.id, admin.id).code, 'pc', 'https://hub.example')!
+    expect(byAdmin.approved).toBe(false)
+    expect((await read(byAdmin.token, 'shared/team.md')).text).toContain('TEAM-OK')
+    const before = await read(byAdmin.token, `users/${park.id}/diary.md`)
+    expect(before.isError).toBe(true)
+    expect(before.text).not.toContain('PRIVATE-PARK')
+    expect(approveToken(hub.ctx.db, byAdmin.tokenId, park.id)).toBe(true)
+    expect((await read(byAdmin.token, `users/${park.id}/diary.md`)).text).toContain('PRIVATE-PARK')
+    // a code the person made is approved from the start
+    const own = redeemEnrollCode(hub.ctx.db, makeEnrollCode(hub.ctx.db, park.id, park.id).code, 'pc2')!
+    expect(own.approved).toBe(true)
+    expect((await read(own.token, `users/${park.id}/diary.md`)).text).toContain('PRIVATE-PARK')
+  })
+})

@@ -24,15 +24,15 @@ export function makeEnrollCode(db: Database, userId: string, createdBy: string |
 const normalize = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
 /** Trade a code for a device token. Null when the code is unknown, used, expired or the account is off. */
-export function redeemEnrollCode(db: Database, code: string, deviceName: string): { userId: string; tokenId: string; token: string } | null {
+export function redeemEnrollCode(db: Database, code: string, deviceName: string, hubUrl?: string | null): { userId: string; tokenId: string; token: string; approved: boolean } | null {
   const h = sha256(normalize(code))
   return db.transaction(() => {
-    const row = db.query('SELECT user_id, expires_at, used_at FROM enroll_codes WHERE code_hash = ?').get(h) as { user_id: string; expires_at: string; used_at: string | null } | null
+    const row = db.query('SELECT user_id, created_by, expires_at, used_at FROM enroll_codes WHERE code_hash = ?').get(h) as { user_id: string; created_by: string | null; expires_at: string; used_at: string | null } | null
     if (!row || row.used_at || row.expires_at < nowIso()) return null
     if (!loadPrincipal(db, row.user_id)) return null
-    const t = issueToken(db, row.user_id, 'device', deviceName || 'PC')
+    const t = issueToken(db, row.user_id, 'device', deviceName || 'PC', { createdBy: row.created_by, hubUrl: hubUrl ?? null })
     db.query('UPDATE enroll_codes SET used_at = ?, token_id = ? WHERE code_hash = ?').run(nowIso(), t.id, h)
-    return { userId: row.user_id, tokenId: t.id, token: t.token }
+    return { userId: row.user_id, tokenId: t.id, token: t.token, approved: row.created_by === row.user_id }
   })()
 }
 

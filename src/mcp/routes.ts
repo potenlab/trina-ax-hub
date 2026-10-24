@@ -74,6 +74,7 @@ export async function handle(ctx: Ctx, auth: TokenAuth, msg: unknown): Promise<R
     case 'initialize': {
       const user = loadPrincipal(ctx.db, auth.user.id)
       if (!user) return fail(id, -32001, 'this account is disabled')
+      if (auth.restricted) user.noPersonal = true
       const asked = params.protocolVersion
       return ok(id, {
         protocolVersion: typeof asked === 'string' && KNOWN_PROTOCOL_VERSIONS.includes(asked) ? asked : DEFAULT_PROTOCOL_VERSION,
@@ -90,6 +91,7 @@ export async function handle(ctx: Ctx, auth: TokenAuth, msg: unknown): Promise<R
       const name = params.name
       if (typeof name !== 'string' || !name) return fail(id, -32602, 'Invalid params: tool name missing')
       const user = loadPrincipal(ctx.db, auth.user.id)
+      if (user && auth.restricted) user.noPersonal = true
       if (!user) {
         recordToolEvent(ctx, auth.user.id, auth.token.id, name, { summary: 'account disabled', isError: true })
         return ok(id, { content: [{ type: 'text', text: 'Error: this account is disabled.' }], isError: true })

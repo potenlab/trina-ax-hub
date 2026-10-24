@@ -5,7 +5,11 @@ import { PRODUCT } from '../product'
 
 export type Access = 'none' | 'read' | 'write'
 export type Role = 'owner' | 'admin' | 'member'
-export interface Principal { id: string; name: string; role: Role; groups: string[] }
+export interface Principal {
+  id: string; name: string; role: Role; groups: string[]
+  /** set for a device someone else enrolled that the person has not approved: their own users/<id>/ stays closed */
+  noPersonal?: boolean
+}
 
 interface Rule { subject_type: 'everyone' | 'role' | 'group' | 'user'; subject_id: string | null; access: Access }
 const RANK: Record<Access, number> = { none: 0, read: 1, write: 2 }
@@ -39,7 +43,7 @@ export class RuleSet {
     // users/<id>/ (tab 2 rules 2-3): the person's own folder is always write; anyone else's is none for every role,
     // owner and admin included, and rules there are ignored (the admin API refuses them; a moved folder or a
     // restored backup could still bring one in).
-    if (segs[0] === 'users' && segs.length >= 2) return segs[1] === p.id ? 'write' : 'none'
+    if (segs[0] === 'users' && segs.length >= 2) return segs[1] === p.id && !p.noPersonal ? 'write' : 'none'
     // users/ itself only holds the personal folders: nobody writes there directly (no files beside the folders, no
     // folder for a person who does not exist yet, no renaming or trashing the whole tree)
     if (segs.length === 1 && segs[0] === 'users') return 'read'
@@ -57,11 +61,11 @@ export class RuleSet {
   hasVisibleDescendant(p: Principal, segs: readonly string[]): boolean {
     if (segs.length && segs[0] === PRODUCT.systemDir) return false
     if (segs[0] === 'users') {
-      if (segs.length === 1) return true // own personal folder below
-      return segs[1] === p.id
+      if (segs.length === 1) return !p.noPersonal // own personal folder below
+      return segs[1] === p.id && !p.noPersonal
     }
     if (p.role === 'owner' || p.role === 'admin') return true
-    const cands = [...this.ruleFolders().map((f) => (f === '' ? [] : f.split('/'))).filter((c) => c[0] !== 'users'), ['users', p.id]]
+    const cands = [...this.ruleFolders().map((f) => (f === '' ? [] : f.split('/'))).filter((c) => c[0] !== 'users'), ...(p.noPersonal ? [] : [['users', p.id]])]
     for (const c of cands) {
       if (c.length > segs.length && segs.every((s, i) => s === c[i]) && atLeast(this.access(p, c), 'read')) return true
     }

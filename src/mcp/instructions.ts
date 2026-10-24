@@ -40,8 +40,11 @@ export function buildInstructions(ctx: Ctx, user: Principal): string {
       + 'relative to the team folder such as "shared/report.md" (never local paths, "/" or "~"). '
       + `Every call runs with ${name}'s folder permissions: a folder they may not see looks exactly like one that does not exist, `
       + 'and read-only places refuse changes. Overwritten and deleted files are kept on the hub, and an admin can restore them.',
-    `${name}'s personal folder is users/${user.id}/ (only they can see it). Use it for drafts and personal notes; `
-      + 'save work that others should see in the matching team folder.',
+    user.noPersonal
+      ? `${name}'s personal folder stays closed on this computer until ${name} approves it on their 내 PC page (someone else set it up). `
+        + 'Save work in the matching team folder.'
+      : `${name}'s personal folder is users/${user.id}/ (only they can see it). Use it for drafts and personal notes; `
+        + 'save work that others should see in the matching team folder.',
   ].join('\n')
 
   const rulesText = rulesFor(ctx.fx.root, rules, user, 4000)

@@ -66,7 +66,7 @@ export const normalizeCode = (code: string) => code.toUpperCase().replace(/[^A-Z
 export function enroll(ctx: Ctx, input: { code: string; deviceName?: string; os?: string }, ip: string, hub: string): EnrollResponse | null {
   const os = osName(input.os)
   const deviceName = cleanDeviceName(input.deviceName, os)
-  const r = redeemEnrollCode(ctx.db, input.code, deviceName)
+  const r = redeemEnrollCode(ctx.db, input.code, deviceName, hub)
   if (!r) return null
   const user = getUser(ctx.db, r.userId)
   audit(ctx.db, { actor: r.userId, action: 'device.enroll', target: r.tokenId, detail: { device: deviceName, os, ip } })
