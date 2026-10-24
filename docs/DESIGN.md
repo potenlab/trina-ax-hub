@@ -24,7 +24,7 @@ customer owns (`<dataDir>/secrets/anthropic-api-key`).
 | Path | What | Owner |
 |---|---|---|
 | `src/config.ts`, `src/db.ts`, `migrations/`, `src/context.ts`, `src/http/`, `src/auth/`, `src/policy/`, `src/secrets.ts`, `src/log.ts`, `src/audit.ts`, `src/ids.ts`, `src/product.ts`, `src/server.ts`, `src/main.ts` | foundation | lead |
-| `src/skills/catalog.ts`, `src/usage/budgets.ts`, `src/usage/report.ts` | shared services | lead |
+| `src/skills/catalog.ts`, `src/usage/budgets.ts`, `src/usage/report.ts`, `src/ui/` | shared services, page shell (`Page`, `Csrf`, `CopyBlock`, CSS) and formatters | lead |
 | `src/relay/` | model relay, pricing, skill counting | relay |
 | `src/mcp/`, `src/files/` | MCP endpoint, file service, text extraction, search | files |
 | `src/skills/marketplace.ts`, `src/skills/zip.ts`, `src/skills/routes.ts`, `src/install/`, `installer/` | marketplace, PC installer, enrollment | install |
