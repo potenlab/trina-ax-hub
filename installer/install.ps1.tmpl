@@ -1,0 +1,374 @@
+# Trina AX — 이 PC를 회사 허브에 연결해요 (Windows PowerShell 5.1 이상)
+#
+#   연결:  & ([scriptblock]::Create((irm @@HUB_URL@@/install.ps1))) <연결 코드>
+#   해제:  & ([scriptblock]::Create((irm @@HUB_URL@@/install.ps1))) -Uninstall
+#
+# 하는 일
+#   1. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.ps1)로 설치해요.
+#   2. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
+#   3. Claude Code 사용자 설정(%USERPROFILE%\.claude\settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
+#        env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN   모델 요청이 회사 허브를 거쳐요 (회사 API 키로 결제)
+#        extraKnownMarketplaces["@@MARKETPLACE@@"]               회사 스킬 마켓플레이스 (자동 업데이트)
+#        enabledPlugins["@@PLUGIN@@"]                  회사 스킬 플러그인
+#   4. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
+#   -Uninstall 은 이 스크립트가 더한 것만 되돌려요 (바꾸기 전 값이 있었다면 그 값으로).
+#
+# 옵션: -Name <이 PC 이름>   허브의 "내 PC" 목록에 보일 이름 (기본: 컴퓨터 이름)
+param(
+  [Parameter(Position = 0)][string]$Code = '',
+  [switch]$Uninstall,
+  [string]$Name = ''
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 1
+
+$HubUrl = '@@HUB_URL@@'
+$Marketplace = '@@MARKETPLACE@@'
+$Plugin = '@@PLUGIN@@'
+$McpName = '@@MCP_NAME@@'
+$TokenPrefix = '@@TOKEN_PREFIX@@'
+$ScriptVersion = '@@VERSION@@'
+$EnvKeys = @('ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN')
+$Containers = @('env', 'extraKnownMarketplaces', 'enabledPlugins')
+
+# ---------------------------------------------------------------------------------------------------------------
+# output (this runs inside the person's own PowerShell window: never `exit`, only throw)
+
+function Say([string]$Text) { Write-Host $Text }
+function Info([string]$Text) { Write-Host "  · $Text" }
+function Warn([string]$Text) { Write-Host "  ! $Text" -ForegroundColor Yellow }
+function Fail([string]$Text) { throw $Text }
+function Hide-Token([string]$Text) {
+  if (-not $Text) { return '' }
+  return [regex]::Replace($Text, [regex]::Escape($TokenPrefix) + '[A-Za-z0-9_-]+', $TokenPrefix + '***')
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# JSON on PSCustomObjects (ConvertFrom-Json / ConvertTo-Json)
+
+$JsonDateKind = (Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')
+function From-Json([string]$Text) {
+  # PowerShell 7 turns date-looking strings into DateTime unless told not to
+  if ($JsonDateKind) { return ($Text | ConvertFrom-Json -DateKind String) }
+  return ($Text | ConvertFrom-Json)
+}
+function To-Json($Value) { return (ConvertTo-Json -InputObject $Value -Depth 64) }
+function Is-Obj($Value) { return ($Value -is [System.Management.Automation.PSCustomObject]) }
+function Has-Prop($Obj, [string]$Key) { return ($null -ne $Obj.PSObject.Properties[$Key]) }
+function Get-Prop($Obj, [string]$Key) {
+  if ($null -eq $Obj -or -not (Is-Obj $Obj)) { return $null }
+  $p = $Obj.PSObject.Properties[$Key]
+  if ($null -eq $p) { return $null }
+  return , $p.Value
+}
+function Set-Prop($Obj, [string]$Key, $Value) {
+  if (Has-Prop $Obj $Key) { $Obj.PSObject.Properties[$Key].Value = $Value }
+  else { Add-Member -InputObject $Obj -NotePropertyName $Key -NotePropertyValue $Value }
+}
+function Remove-Prop($Obj, [string]$Key) { $Obj.PSObject.Properties.Remove($Key) }
+function Is-Empty($Obj) { return (@($Obj.PSObject.Properties).Count -eq 0) }
+
+$Utf8 = New-Object System.Text.UTF8Encoding $false
+function Read-JsonFile([string]$Path, [switch]$Lenient) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+  try { $text = [System.IO.File]::ReadAllText($Path) } catch { if ($Lenient) { return $null }; Fail "$Path 파일을 읽지 못했어요. 권한을 확인해 주세요." }
+  if ($text.Trim().Length -eq 0) { return [pscustomobject]@{} }
+  try { $v = From-Json $text } catch { if ($Lenient) { return $null }; Fail "$Path 파일이 올바른 JSON이 아니에요. 파일을 고친 뒤 다시 실행해 주세요. 아무것도 바꾸지 않았어요." }
+  if (-not (Is-Obj $v)) { if ($Lenient) { return $null }; Fail "$Path 파일의 모양이 예상과 달라요. 아무것도 바꾸지 않았어요." }
+  return $v
+}
+# write "$Path" atomically; a symlinked settings.json is written through, not replaced
+function Write-JsonFile([string]$Path, $Value) {
+  $text = (To-Json $Value) + "`n"
+  $item = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+  if ($item -and $item.LinkType) { [System.IO.File]::WriteAllText($Path, $text, $Utf8); return }
+  $tmp = "$Path.trina-tmp"
+  [System.IO.File]::WriteAllText($tmp, $text, $Utf8)
+  Move-Item -LiteralPath $tmp -Destination $Path -Force
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# settings.json merge (same rules as install.sh)
+
+function Merge-Install($S, $State, [string]$Hub, [string]$Token, [string]$MarketplaceUrl, [string]$Now) {
+  foreach ($c in $Containers) {
+    $v = Get-Prop $S $c
+    if ($null -ne $v -and -not (Is-Obj $v)) { Fail "settings.json의 $c 값이 객체가 아니에요. 아무것도 바꾸지 않았어요." }
+  }
+  $e = Get-Prop $S 'env'
+  $oldToken = ''
+  if ($e) { $t = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; if ($t -is [string]) { $oldToken = $t } }
+  $oursBefore = $oldToken.StartsWith($TokenPrefix)
+  $prev = Get-Prop $State 'previous'
+  $created = Get-Prop $State 'created'
+  if ((Is-Obj $prev) -and (Is-Obj (Get-Prop $prev 'env')) -and ($created -is [array])) {
+    $created = @($created) # keep what was there before the very first install
+  } else {
+    $prev = [pscustomobject]@{ env = [pscustomobject]@{} }
+    $created = @($Containers | Where-Object { -not (Is-Obj (Get-Prop $S $_)) })
+    if ($e -and -not $oursBefore) {
+      foreach ($k in $EnvKeys) { if (Has-Prop $e $k) { Set-Prop $prev.env $k (Get-Prop $e $k) } }
+    }
+  }
+  # the old token of this same hub is revoked after the switch (never sent anywhere else)
+  $revoke = ''
+  if ($oursBefore -and (Get-Prop $e 'ANTHROPIC_BASE_URL') -eq $Hub -and $oldToken -ne $Token) { $revoke = $oldToken }
+  foreach ($c in $Containers) { if (-not (Is-Obj (Get-Prop $S $c))) { Set-Prop $S $c ([pscustomobject]@{}) } }
+  Set-Prop $S.env 'ANTHROPIC_BASE_URL' $Hub
+  Set-Prop $S.env 'ANTHROPIC_AUTH_TOKEN' $Token
+  Set-Prop $S.extraKnownMarketplaces $Marketplace ([pscustomobject]@{
+      source     = [pscustomobject]@{ source = 'url'; url = $MarketplaceUrl; headers = [pscustomobject]@{ Authorization = "Bearer $Token" } }
+      autoUpdate = $true
+    })
+  Set-Prop $S.enabledPlugins $Plugin $true
+  $newState = [pscustomobject]@{
+    product = 'trina-ax'; hubUrl = $Hub; marketplace = $Marketplace; plugin = $Plugin; installedAt = $Now
+    created = [string[]]$created; previous = $prev
+  }
+  return [pscustomobject]@{ Settings = $S; State = $newState; Revoke = $revoke }
+}
+
+function Restore-Key($Obj, [string]$Key, $Previous) {
+  if (Has-Prop $Previous $Key) { Set-Prop $Obj $Key (Get-Prop $Previous $Key) } else { Remove-Prop $Obj $Key }
+}
+
+function Merge-Uninstall($S, $State, [string]$Hub) {
+  $prev = Get-Prop $State 'previous'
+  $previous = Get-Prop $prev 'env'
+  if (-not (Is-Obj $previous)) { $previous = [pscustomobject]@{} }
+  $created = Get-Prop $State 'created'
+  if (-not ($created -is [array])) { $created = @() }
+  $hubs = @($Hub)
+  $stateHub = Get-Prop $State 'hubUrl'
+  if ($stateHub -is [string]) { $hubs += $stateHub }
+  $revoke = ''; $changed = $false
+  $e = Get-Prop $S 'env'
+  if (Is-Obj $e) {
+    $tok = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; $base = Get-Prop $e 'ANTHROPIC_BASE_URL'
+    $oursTok = ($tok -is [string]) -and $tok.StartsWith($TokenPrefix)
+    $oursBase = ($base -is [string]) -and ($hubs -contains $base)
+    if ($oursTok -and $base -eq $Hub) { $revoke = $tok }
+    if ($oursTok) { Restore-Key $e 'ANTHROPIC_AUTH_TOKEN' $previous; $changed = $true }
+    if ($oursBase) { Restore-Key $e 'ANTHROPIC_BASE_URL' $previous; $changed = $true }
+  }
+  $m = Get-Prop $S 'extraKnownMarketplaces'
+  if ((Is-Obj $m) -and (Has-Prop $m $Marketplace)) { Remove-Prop $m $Marketplace; $changed = $true }
+  $p = Get-Prop $S 'enabledPlugins'
+  if ((Is-Obj $p) -and (Has-Prop $p $Plugin)) { Remove-Prop $p $Plugin; $changed = $true }
+  foreach ($k in $created) {
+    $v = Get-Prop $S ([string]$k)
+    if (($Containers -contains $k) -and (Is-Obj $v) -and (Is-Empty $v)) { Remove-Prop $S ([string]$k); $changed = $true }
+  }
+  return [pscustomobject]@{ Settings = $S; Revoke = $revoke; Changed = $changed }
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Claude Code and the hub
+
+function Find-Claude {
+  $cmd = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($cmd) { return $cmd.Path }
+  foreach ($p in @((Join-Path $HOME '.local\bin\claude.exe'), (Join-Path $HOME '.local/bin/claude'))) {
+    if (Test-Path -LiteralPath $p -PathType Leaf) { return $p }
+  }
+  return $null
+}
+
+# Runs claude without showing its output (kept, with tokens hidden, for error messages).
+function Invoke-Claude([string]$Claude, [string[]]$ArgList) {
+  $eap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue' # Windows PowerShell turns native stderr into errors otherwise
+  try {
+    $out = (& $Claude @ArgList 2>&1 | ForEach-Object { "$_" }) -join "`n"
+    $code = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $eap }
+  $text = Hide-Token $out
+  $tail = (($text -split "`n") | Where-Object { $_.Trim() } | Select-Object -Last 3) -join ' '
+  return [pscustomobject]@{ Ok = ($code -eq 0); Output = $text; Tail = $tail }
+}
+
+function Get-HttpError($Err) {
+  $text = $null
+  if ($Err.ErrorDetails -and $Err.ErrorDetails.Message) { $text = $Err.ErrorDetails.Message }
+  elseif ($Err.Exception.Response -and ($Err.Exception.Response | Get-Member -Name GetResponseStream)) {
+    try { $text = (New-Object System.IO.StreamReader($Err.Exception.Response.GetResponseStream())).ReadToEnd() } catch {}
+  }
+  if ($text) {
+    try { $j = From-Json $text; $msg = Get-Prop (Get-Prop $j 'error') 'message'; if ($msg) { return [string]$msg } } catch {}
+  }
+  return $Err.Exception.Message
+}
+
+function Revoke-Token([string]$Token) {
+  if (-not $Token) { return }
+  try { Invoke-RestMethod -Method Post -Uri "$HubUrl/api/unenroll" -Headers @{ Authorization = "Bearer $Token" } -TimeoutSec 20 | Out-Null } catch {}
+}
+
+function Get-OsName {
+  if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) { return 'windows' }
+  return 'other'
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# install
+
+function Install-TrinaAX([string]$Code, [string]$DeviceName) {
+  Say "Trina AX: 이 PC를 회사 허브($HubUrl)에 연결해요."
+  $os = Get-OsName
+  $claude = Find-Claude
+  if ($claude) { Info "Claude Code가 이미 있어요: $claude" }
+  else {
+    if ($os -ne 'windows') { Fail "Claude Code가 없어요. macOS와 Linux에서는 install.sh를 써 주세요." }
+    Say 'Claude Code를 설치해요 (공식 설치 스크립트)…'
+    $shell = (Get-Process -Id $PID).Path
+    & $shell -NoProfile -ExecutionPolicy Bypass -Command 'irm https://claude.ai/install.ps1 | iex'
+    $bin = Join-Path $HOME '.local\bin'
+    if (($env:Path -split ';') -notcontains $bin) { $env:Path = "$bin;$env:Path" }
+    $claude = Find-Claude
+    if (-not $claude) { Fail 'Claude Code를 설치하지 못했어요. https://code.claude.com 의 안내대로 설치한 뒤 다시 실행해 주세요.' }
+    Info "Claude Code를 설치했어요: $claude"
+  }
+
+  if (-not $Code) { $Code = Read-Host '연결 코드를 입력하세요 (예: ABCD-EFGH-JKLM)' }
+  $Code = ($Code -replace '\s', '')
+  if ($Code -notmatch '^[A-Za-z0-9-]+$') { Fail '연결 코드는 영문과 숫자예요 (예: ABCD-EFGH-JKLM). 다시 확인해 주세요.' }
+  if (-not $DeviceName) { $DeviceName = [System.Environment]::MachineName }
+
+  $body = [pscustomobject]@{ code = $Code; deviceName = $DeviceName; os = $os } | ConvertTo-Json -Compress
+  try {
+    $resp = Invoke-RestMethod -Method Post -Uri "$HubUrl/api/enroll" -ContentType 'application/json; charset=utf-8' `
+      -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -Headers @{ Accept = 'application/json' } -TimeoutSec 60
+  } catch {
+    Fail ("연결 코드를 확인하지 못했어요: " + (Get-HttpError $_))
+  }
+  $token = [string](Get-Prop $resp 'token')
+  if (-not $token.StartsWith($TokenPrefix)) { Fail '허브의 응답에 토큰이 없어요. 관리자에게 알려 주세요.' }
+  $hub = [string]$resp.hubUrl; $mcpUrl = [string]$resp.mcpUrl; $marketplaceUrl = [string]$resp.marketplaceUrl
+  Info ("{0} 님 ({1}) 으로 연결해요." -f $resp.user.name, $resp.companyName)
+
+  $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
+  $settingsPath = Join-Path $configDir 'settings.json'
+  $statePath = Join-Path $configDir 'trina-ax.json'
+  New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+  $backup = $null
+  try {
+    $settings = Read-JsonFile $settingsPath
+    if ($null -eq $settings) { $settings = [pscustomobject]@{} }
+    $state = Read-JsonFile $statePath -Lenient
+    $merged = Merge-Install $settings $state $hub $token $marketplaceUrl ([DateTime]::UtcNow.ToString('o'))
+    if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
+      $backup = "$settingsPath.trina-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+      Copy-Item -LiteralPath $settingsPath -Destination $backup
+    }
+    Write-JsonFile $settingsPath $merged.Settings
+    Write-JsonFile $statePath $merged.State
+  } catch {
+    Revoke-Token $token
+    throw
+  }
+  if ($backup) { Info "설정을 바꿨어요: $settingsPath (백업: $backup)" } else { Info "설정을 만들었어요: $settingsPath" }
+
+  $null = Invoke-Claude $claude @('mcp', 'remove', $McpName, '--scope', 'user')
+  $r = Invoke-Claude $claude @('mcp', 'add', '--transport', 'http', $McpName, '--scope', 'user', $mcpUrl, '--header', "Authorization: Bearer $token")
+  $mcpOk = $r.Ok
+  if ($mcpOk) { Info "회사 파일(MCP 서버 '$McpName')을 연결했어요." } else { Warn ("회사 파일(MCP) 등록에 실패했어요: " + $r.Tail) }
+
+  $pluginOk = $false
+  if ($resp.skillsReady -eq $true) {
+    # A short local-only session (/cost makes no model request) lets Claude Code register the marketplace from
+    # settings.json, with its auth header, and download the plugin; then the install is recorded.
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ("trina-ax-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+    $saved = @{}
+    foreach ($k in @('CLAUDE_CODE_SYNC_PLUGIN_INSTALL', 'CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS')) { $saved[$k] = [Environment]::GetEnvironmentVariable($k, 'Process') }
+    Push-Location $work
+    try {
+      $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL = '1'
+      $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS = '180000'
+      $null = Invoke-Claude $claude @('-p', '/cost', '--no-session-persistence', '--setting-sources', 'user')
+    } finally {
+      Pop-Location
+      foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k], 'Process') }
+      Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $r = Invoke-Claude $claude @('plugin', 'install', $Plugin, '--scope', 'user')
+    $list = Invoke-Claude $claude @('plugin', 'list', '--json')
+    $pluginOk = $list.Ok -and $list.Output.Contains('"' + $Plugin + '"')
+    if ($pluginOk) { Info "회사 스킬(플러그인 $Plugin)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요." }
+    else { Warn ("회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. (" + $r.Tail + ")") }
+  }
+
+  if ($merged.Revoke) { Revoke-Token $merged.Revoke }
+
+  Say ''
+  Say '✓ 연결을 마쳤어요.'
+  Say '  - 모델: Claude의 요청이 회사 허브를 거쳐요. 비용은 회사가 내요.'
+  if ($mcpOk) { Say "  - 회사 파일: Claude가 mcp__$($McpName)__* 도구로 회사 폴더를 읽고 써요." }
+  if ($pluginOk) { Say ("  - 회사 스킬: /{0}:<스킬 이름> 으로 쓸 수 있어요." -f ($Plugin -split '@')[0]) }
+  foreach ($n in @($resp.notices)) { if ($n) { Say "  ! $n" } }
+  Say ''
+  Say "  되돌리기: & ([scriptblock]::Create((irm $HubUrl/install.ps1))) -Uninstall"
+  if ($backup) { Say "  원래 설정 파일: $backup" }
+  Say '  이제 새 터미널에서 claude 를 실행해 보세요.'
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# uninstall
+
+function Uninstall-TrinaAX {
+  Say 'Trina AX: 이 PC의 회사 허브 연결을 해제해요.'
+  $claude = Find-Claude
+  if ($claude) {
+    # while the settings still carry the token (Claude Code needs some login to run these)
+    $null = Invoke-Claude $claude @('plugin', 'uninstall', $Plugin, '--scope', 'user')
+    $null = Invoke-Claude $claude @('plugin', 'marketplace', 'remove', $Marketplace, '--scope', 'user')
+    $null = Invoke-Claude $claude @('mcp', 'remove', $McpName, '--scope', 'user')
+    Info '회사 스킬과 회사 파일(MCP) 연결을 지웠어요.'
+  } else {
+    Warn 'claude 명령을 찾지 못해서 플러그인과 MCP 등록은 그대로예요.'
+  }
+
+  $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
+  $settingsPath = Join-Path $configDir 'settings.json'
+  $statePath = Join-Path $configDir 'trina-ax.json'
+  $settings = Read-JsonFile $settingsPath
+  if ($null -eq $settings) { $settings = [pscustomobject]@{} }
+  $state = Read-JsonFile $statePath -Lenient
+  $r = Merge-Uninstall $settings $state $HubUrl
+  if ($r.Changed) {
+    $backup = "$settingsPath.trina-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    Copy-Item -LiteralPath $settingsPath -Destination $backup
+    Write-JsonFile $settingsPath $r.Settings
+    Info "설정에서 Trina AX 항목을 지웠어요: $settingsPath (백업: $backup)"
+  } else {
+    Info '설정에 Trina AX 항목이 없어요.'
+  }
+  if ($r.Revoke) { Revoke-Token $r.Revoke; Info '허브에서 이 PC의 토큰을 지웠어요.' }
+  Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+
+  Say ''
+  Say '✓ 연결을 해제했어요. Claude Code는 그대로 남아 있어요.'
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+
+if ($PSVersionTable.PSVersion.Major -lt 5) { Write-Host '✗ PowerShell 5.1 이상이 필요해요.' -ForegroundColor Red; return }
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+  # Windows PowerShell 5.1 otherwise writes some arrays as {"value":[…],"Count":n}
+  Remove-TypeData System.Array -ErrorAction SilentlyContinue
+  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+}
+if ($Code -eq '--uninstall' -or $Code -eq 'uninstall') { $Uninstall = [switch]$true; $Code = '' }
+if ($Code -eq '--help' -or $Code -eq '-h') {
+  Say "Trina AX PC 연결 (스크립트 $ScriptVersion)"
+  Say "  연결:  & ([scriptblock]::Create((irm $HubUrl/install.ps1))) <연결 코드>"
+  Say "  해제:  & ([scriptblock]::Create((irm $HubUrl/install.ps1))) -Uninstall"
+  return
+}
+try {
+  if ($Uninstall) { Uninstall-TrinaAX } else { Install-TrinaAX $Code $Name }
+} catch {
+  Write-Host ''
+  Write-Host ('✗ ' + (Hide-Token ([string]$_.Exception.Message))) -ForegroundColor Red
+}
