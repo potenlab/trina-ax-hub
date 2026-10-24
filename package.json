@@ -1,0 +1,26 @@
+{
+  "name": "trina-ax",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Trina AX hub: company files, skills, model relay and usage for Claude running on each employee's PC",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "cli": "bun src/cli.ts",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test tests/unit",
+    "test:e2e": "bun test tests/e2e --timeout 180000"
+  },
+  "dependencies": {
+    "croner": "9.1.0",
+    "fflate": "0.8.2",
+    "hono": "4.13.13",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.12",
+    "typescript": "5.9.3"
+  }
+}

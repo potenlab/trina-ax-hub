@@ -1,0 +1,4 @@
+// install routes — see docs/DESIGN.md. Placeholder until the module lands.
+import type { Register } from '../http/app'
+
+export const register: Register = () => {}
