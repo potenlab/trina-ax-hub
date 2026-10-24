@@ -1,0 +1,27 @@
+# systemd unit for a Linux hub (hosted or on-prem server).
+#   sudo useradd --system --create-home --home-dir /srv/trina-ax trina-ax
+#   sudo -u trina-ax git clone … /srv/trina-ax/app && cd /srv/trina-ax/app && sudo -u trina-ax bun install --production
+#   sudo cp deploy/linux/trina-ax.service /etc/systemd/system/ && sudo systemctl enable --now trina-ax
+[Unit]
+Description=Trina AX hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=trina-ax
+Group=trina-ax
+Environment=TRINA_AX_HOME=/srv/trina-ax
+Environment=TRINA_AX_HOST=127.0.0.1
+WorkingDirectory=/srv/trina-ax/app
+ExecStart=/usr/local/bin/bun /srv/trina-ax/app/src/main.ts
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/srv/trina-ax
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
