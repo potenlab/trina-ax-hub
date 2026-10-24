@@ -1,0 +1,670 @@
+#!/usr/bin/env bash
+# Trina AX — 이 PC를 회사 허브에 연결해요 (macOS, Linux)
+#
+#   연결:  curl -fsSL @@HUB_URL@@/install.sh | bash -s -- <연결 코드>
+#   해제:  curl -fsSL @@HUB_URL@@/install.sh | bash -s -- --uninstall
+#
+# 하는 일
+#   1. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.sh)로 설치해요.
+#   2. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
+#   3. Claude Code 사용자 설정(~/.claude/settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
+#        env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN   모델 요청이 회사 허브를 거쳐요 (회사 API 키로 결제)
+#        extraKnownMarketplaces["@@MARKETPLACE@@"]               회사 스킬 마켓플레이스 (자동 업데이트)
+#        enabledPlugins["@@PLUGIN@@"]                  회사 스킬 플러그인
+#   4. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
+#   --uninstall 은 이 스크립트가 더한 것만 되돌려요 (바꾸기 전 값이 있었다면 그 값으로).
+#
+# 옵션: --name <이 PC 이름>   허브의 "내 PC" 목록에 보일 이름 (기본: 컴퓨터 이름)
+set -euo pipefail
+
+HUB_URL='@@HUB_URL@@'
+MARKETPLACE='@@MARKETPLACE@@'
+PLUGIN='@@PLUGIN@@'
+MCP_NAME='@@MCP_NAME@@'
+TOKEN_PREFIX='@@TOKEN_PREFIX@@'
+SCRIPT_VERSION='@@VERSION@@'
+
+# ---------------------------------------------------------------------------------------------------------------
+# output
+
+say()  { printf '%s\n' "$*"; }
+info() { printf '  · %s\n' "$*"; }
+warn() { printf '  ! %s\n' "$*" >&2; }
+die()  { printf '\n✗ %s\n' "$*" >&2; exit 1; }
+# hide anything that looks like a token before showing tool output
+redact() { sed -E "s/${TOKEN_PREFIX}[A-Za-z0-9_-]+/${TOKEN_PREFIX}***/g"; }
+
+usage() {
+  cat <<EOF
+Trina AX PC 연결 (스크립트 ${SCRIPT_VERSION})
+
+  연결:  curl -fsSL ${HUB_URL}/install.sh | bash -s -- <연결 코드>
+  해제:  curl -fsSL ${HUB_URL}/install.sh | bash -s -- --uninstall
+
+  --name <이름>   허브에 보일 이 PC의 이름
+EOF
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# arguments and environment
+
+MODE=install
+CODE="${TRINA_CODE:-}"
+DEVICE_NAME=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --uninstall|uninstall) MODE=uninstall ;;
+    --name) [ $# -ge 2 ] || die "--name 다음에 이름을 적어 주세요."; DEVICE_NAME="$2"; shift ;;
+    --name=*) DEVICE_NAME="${1#--name=}" ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "모르는 옵션이에요: $1 (도움말: --help)" ;;
+    *) CODE="$1" ;;
+  esac
+  shift
+done
+
+case "$(uname -s)" in
+  Darwin) OS=macos ;;
+  Linux) OS=linux ;;
+  *) die "이 스크립트는 macOS와 Linux용이에요. Windows에서는 PowerShell 명령을 써 주세요." ;;
+esac
+
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+SETTINGS="$CONFIG_DIR/settings.json"
+STATE="$CONFIG_DIR/trina-ax.json"
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/trina-ax.XXXXXX")"
+chmod 700 "$WORK"
+cleanup() { rm -rf "$WORK"; rm -f "$SETTINGS.trina-tmp.$$" "$STATE.trina-tmp.$$"; }
+trap cleanup EXIT
+
+# ---------------------------------------------------------------------------------------------------------------
+# JSON helper. Claude Code's settings.json is read, merged and written by a small program: on macOS with JavaScript
+# for Automation (/usr/bin/osascript, always present), on Linux with python3 or node. Inputs are passed in TRINA_*
+# environment variables, never as arguments, so the token never shows up in a process list. Results go to a file.
+
+write_js_helper() {
+  cat >"$WORK/settings.js" <<'JS'
+var IS_NODE = typeof process !== 'undefined' && !!(process.versions && process.versions.node);
+var ENV = null;
+function env(k) {
+  if (IS_NODE) return process.env[k] || '';
+  if (!ENV) ENV = ObjC.deepUnwrap($.NSProcessInfo.processInfo.environment) || {};
+  return ENV[k] == null ? '' : String(ENV[k]);
+}
+function fail(code) { throw new Error('TRINA_E_' + code); }
+function readText(p) {
+  if (!p) return null;
+  if (IS_NODE) {
+    var fs = require('fs');
+    try { return fs.readFileSync(p, 'utf8'); } catch (e) { if (e && e.code === 'ENOENT') return null; fail('READ'); }
+  }
+  if (!$.NSFileManager.defaultManager.fileExistsAtPath(p)) return null;
+  var s = ObjC.unwrap($.NSString.stringWithContentsOfFileEncodingError(p, $.NSUTF8StringEncoding, null));
+  if (typeof s !== 'string') fail('READ');
+  return s;
+}
+function writeText(p, text) {
+  if (IS_NODE) { require('fs').writeFileSync(p, text, { mode: 384 }); return; }
+  if (!$(text).writeToFileAtomicallyEncodingError(p, false, $.NSUTF8StringEncoding, null)) fail('WRITE');
+}
+function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function isEmpty(o) { for (var k in o) if (has(o, k)) return false; return true; }
+function parseDoc(text, what) {
+  if (text === null || /^\s*$/.test(text)) return {};
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  var v;
+  try { v = JSON.parse(text); } catch (e) { fail('PARSE_' + what); }
+  if (!isObj(v)) fail('SHAPE_' + what);
+  return v;
+}
+function readState() {
+  try { var t = readText(env('TRINA_STATE')); var v = t ? JSON.parse(t) : null; return isObj(v) ? v : null; } catch (e) { return null; }
+}
+function dump(v) { return JSON.stringify(v, null, 2) + '\n'; }
+function oneLine(v) { return (typeof v === 'string' ? v : JSON.stringify(v)).replace(/[\r\n]+/g, ' '); }
+
+var ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'];
+var CONTAINERS = ['env', 'extraKnownMarketplaces', 'enabledPlugins'];
+
+function install() {
+  var s = parseDoc(readText(env('TRINA_SETTINGS')), 'SETTINGS');
+  var state = readState();
+  var hub = env('TRINA_HUB'), token = env('TRINA_TOKEN'), prefix = env('TRINA_PREFIX');
+  var name = env('TRINA_MARKETPLACE'), plugin = env('TRINA_PLUGIN');
+  var i;
+  for (i = 0; i < CONTAINERS.length; i++) {
+    var c = s[CONTAINERS[i]];
+    if (c !== undefined && c !== null && !isObj(c)) fail('SHAPE_SETTINGS');
+  }
+  var e = isObj(s.env) ? s.env : null;
+  var oldToken = e && typeof e.ANTHROPIC_AUTH_TOKEN === 'string' ? e.ANTHROPIC_AUTH_TOKEN : '';
+  var oursBefore = oldToken.indexOf(prefix) === 0;
+  var previous, created;
+  if (state && isObj(state.previous) && isObj(state.previous.env) && Array.isArray(state.created)) {
+    previous = state.previous; created = state.created; // keep what was there before the very first install
+  } else {
+    previous = { env: {} }; created = [];
+    for (i = 0; i < CONTAINERS.length; i++) if (!isObj(s[CONTAINERS[i]])) created.push(CONTAINERS[i]);
+    if (e && !oursBefore) for (i = 0; i < ENV_KEYS.length; i++) if (has(e, ENV_KEYS[i])) previous.env[ENV_KEYS[i]] = e[ENV_KEYS[i]];
+  }
+  // the old token of this same hub is revoked after the switch (never sent anywhere else)
+  var revoke = oursBefore && e.ANTHROPIC_BASE_URL === hub && oldToken !== token ? oldToken : '';
+  for (i = 0; i < CONTAINERS.length; i++) if (!isObj(s[CONTAINERS[i]])) s[CONTAINERS[i]] = {};
+  s.env.ANTHROPIC_BASE_URL = hub;
+  s.env.ANTHROPIC_AUTH_TOKEN = token;
+  s.extraKnownMarketplaces[name] = {
+    source: { source: 'url', url: env('TRINA_MARKETPLACE_URL'), headers: { Authorization: 'Bearer ' + token } },
+    autoUpdate: true
+  };
+  s.enabledPlugins[plugin] = true;
+  writeText(env('TRINA_SETTINGS_OUT'), dump(s));
+  writeText(env('TRINA_STATE_OUT'), dump({
+    product: 'trina-ax', hubUrl: hub, marketplace: name, plugin: plugin, installedAt: env('TRINA_NOW'),
+    created: created, previous: previous
+  }));
+  return revoke;
+}
+
+function restore(o, k, previous) { if (has(previous, k)) o[k] = previous[k]; else delete o[k]; }
+
+function uninstall() {
+  var s = parseDoc(readText(env('TRINA_SETTINGS')), 'SETTINGS');
+  var state = readState();
+  var hub = env('TRINA_HUB'), prefix = env('TRINA_PREFIX');
+  var name = env('TRINA_MARKETPLACE'), plugin = env('TRINA_PLUGIN');
+  var previous = state && isObj(state.previous) && isObj(state.previous.env) ? state.previous.env : {};
+  var created = state && Array.isArray(state.created) ? state.created : [];
+  var hubs = [hub];
+  if (state && typeof state.hubUrl === 'string') hubs.push(state.hubUrl);
+  var revoke = '', changed = false, i;
+  if (isObj(s.env)) {
+    var tok = s.env.ANTHROPIC_AUTH_TOKEN, base = s.env.ANTHROPIC_BASE_URL;
+    var oursTok = typeof tok === 'string' && tok.indexOf(prefix) === 0;
+    var oursBase = typeof base === 'string' && hubs.indexOf(base) >= 0;
+    if (oursTok && base === hub) revoke = tok;
+    if (oursTok) { restore(s.env, 'ANTHROPIC_AUTH_TOKEN', previous); changed = true; }
+    if (oursBase) { restore(s.env, 'ANTHROPIC_BASE_URL', previous); changed = true; }
+  }
+  if (isObj(s.extraKnownMarketplaces) && has(s.extraKnownMarketplaces, name)) { delete s.extraKnownMarketplaces[name]; changed = true; }
+  if (isObj(s.enabledPlugins) && has(s.enabledPlugins, plugin)) { delete s.enabledPlugins[plugin]; changed = true; }
+  for (i = 0; i < created.length; i++) {
+    var k = String(created[i]);
+    if (CONTAINERS.indexOf(k) >= 0 && isObj(s[k]) && isEmpty(s[k])) { delete s[k]; changed = true; }
+  }
+  if (changed) writeText(env('TRINA_SETTINGS_OUT'), dump(s));
+  return revoke + '\n' + (changed ? 'changed' : 'unchanged');
+}
+
+function get() {
+  var doc;
+  try { doc = JSON.parse(env('TRINA_JSON')); } catch (e) { fail('PARSE_RESPONSE'); }
+  var fields = env('TRINA_FIELDS').split(','), out = [], i, j;
+  for (i = 0; i < fields.length; i++) {
+    var v = doc, parts = fields[i].split('.');
+    for (j = 0; j < parts.length && v !== null && v !== undefined; j++) v = isObj(v) ? v[parts[j]] : undefined;
+    if (Array.isArray(v)) { for (j = 0; j < v.length; j++) out.push(oneLine(v[j])); }
+    else out.push(v === null || v === undefined ? '' : oneLine(v));
+  }
+  return out.join('\n');
+}
+
+function body() {
+  var device = Array.from ? Array.from(env('TRINA_DEVICE')).slice(0, 80).join('') : env('TRINA_DEVICE').slice(0, 80);
+  return JSON.stringify({ code: env('TRINA_CODE'), deviceName: device, os: env('TRINA_OS') });
+}
+
+function main() {
+  var op = env('TRINA_OP'), out;
+  if (op === 'install') out = install();
+  else if (op === 'uninstall') out = uninstall();
+  else if (op === 'get') out = get();
+  else if (op === 'body') out = body();
+  else fail('OP');
+  writeText(env('TRINA_RESULT'), out + '\n');
+  return '';
+}
+function run() { return main(); } // osascript calls run()
+if (IS_NODE) {
+  try { main(); } catch (e) { process.stderr.write(String((e && e.message) || e) + '\n'); process.exit(1); }
+}
+JS
+}
+
+write_py_helper() {
+  cat >"$WORK/settings.py" <<'PY'
+import json, os, sys
+
+ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN']
+CONTAINERS = ['env', 'extraKnownMarketplaces', 'enabledPlugins']
+
+class Fail(Exception):
+    pass
+
+def env(k):
+    return os.environ.get(k, '')
+
+def fail(code):
+    raise Fail('TRINA_E_' + code)
+
+def read_text(p):
+    if not p:
+        return None
+    try:
+        with open(p, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError):
+        fail('READ')
+
+def write_text(p, text):
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(text)
+
+def is_obj(v):
+    return isinstance(v, dict)
+
+def parse_doc(text, what):
+    if text is None or not text.strip():
+        return {}
+    if text.startswith('﻿'):
+        text = text[1:]
+    try:
+        v = json.loads(text)
+    except ValueError:
+        fail('PARSE_' + what)
+    if not is_obj(v):
+        fail('SHAPE_' + what)
+    return v
+
+def read_state():
+    try:
+        t = read_text(env('TRINA_STATE'))
+        v = json.loads(t) if t else None
+    except (Fail, ValueError):
+        return None
+    return v if is_obj(v) else None
+
+def dump(v):
+    return json.dumps(v, indent=2, ensure_ascii=False) + '\n'
+
+def one_line(v):
+    s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+    return s.replace('\r', ' ').replace('\n', ' ')
+
+def install():
+    s = parse_doc(read_text(env('TRINA_SETTINGS')), 'SETTINGS')
+    state = read_state()
+    hub, token, prefix = env('TRINA_HUB'), env('TRINA_TOKEN'), env('TRINA_PREFIX')
+    name, plugin = env('TRINA_MARKETPLACE'), env('TRINA_PLUGIN')
+    for c in CONTAINERS:
+        if s.get(c) is not None and not is_obj(s.get(c)):
+            fail('SHAPE_SETTINGS')
+    e = s['env'] if is_obj(s.get('env')) else None
+    old_token = e.get('ANTHROPIC_AUTH_TOKEN') if e is not None and isinstance(e.get('ANTHROPIC_AUTH_TOKEN'), str) else ''
+    ours_before = old_token.startswith(prefix)
+    if state and is_obj(state.get('previous')) and is_obj(state['previous'].get('env')) and isinstance(state.get('created'), list):
+        previous, created = state['previous'], state['created']
+    else:
+        previous, created = {'env': {}}, [c for c in CONTAINERS if not is_obj(s.get(c))]
+        if e is not None and not ours_before:
+            for k in ENV_KEYS:
+                if k in e:
+                    previous['env'][k] = e[k]
+    revoke = old_token if ours_before and e.get('ANTHROPIC_BASE_URL') == hub and old_token != token else ''
+    for c in CONTAINERS:
+        if not is_obj(s.get(c)):
+            s[c] = {}
+    s['env']['ANTHROPIC_BASE_URL'] = hub
+    s['env']['ANTHROPIC_AUTH_TOKEN'] = token
+    s['extraKnownMarketplaces'][name] = {
+        'source': {'source': 'url', 'url': env('TRINA_MARKETPLACE_URL'), 'headers': {'Authorization': 'Bearer ' + token}},
+        'autoUpdate': True,
+    }
+    s['enabledPlugins'][plugin] = True
+    write_text(env('TRINA_SETTINGS_OUT'), dump(s))
+    write_text(env('TRINA_STATE_OUT'), dump({
+        'product': 'trina-ax', 'hubUrl': hub, 'marketplace': name, 'plugin': plugin, 'installedAt': env('TRINA_NOW'),
+        'created': created, 'previous': previous,
+    }))
+    return revoke
+
+def restore(o, k, previous):
+    if k in previous:
+        o[k] = previous[k]
+    else:
+        o.pop(k, None)
+
+def uninstall():
+    s = parse_doc(read_text(env('TRINA_SETTINGS')), 'SETTINGS')
+    state = read_state()
+    hub, prefix = env('TRINA_HUB'), env('TRINA_PREFIX')
+    name, plugin = env('TRINA_MARKETPLACE'), env('TRINA_PLUGIN')
+    prev = state.get('previous') if state else None
+    previous = prev['env'] if is_obj(prev) and is_obj(prev.get('env')) else {}
+    created = state['created'] if state and isinstance(state.get('created'), list) else []
+    hubs = [hub] + ([state['hubUrl']] if state and isinstance(state.get('hubUrl'), str) else [])
+    revoke, changed = '', False
+    if is_obj(s.get('env')):
+        tok, base = s['env'].get('ANTHROPIC_AUTH_TOKEN'), s['env'].get('ANTHROPIC_BASE_URL')
+        ours_tok = isinstance(tok, str) and tok.startswith(prefix)
+        ours_base = isinstance(base, str) and base in hubs
+        if ours_tok and base == hub:
+            revoke = tok
+        if ours_tok:
+            restore(s['env'], 'ANTHROPIC_AUTH_TOKEN', previous)
+            changed = True
+        if ours_base:
+            restore(s['env'], 'ANTHROPIC_BASE_URL', previous)
+            changed = True
+    if is_obj(s.get('extraKnownMarketplaces')) and name in s['extraKnownMarketplaces']:
+        del s['extraKnownMarketplaces'][name]
+        changed = True
+    if is_obj(s.get('enabledPlugins')) and plugin in s['enabledPlugins']:
+        del s['enabledPlugins'][plugin]
+        changed = True
+    for k in created:
+        if k in CONTAINERS and is_obj(s.get(k)) and not s[k]:
+            del s[k]
+            changed = True
+    if changed:
+        write_text(env('TRINA_SETTINGS_OUT'), dump(s))
+    return revoke + '\n' + ('changed' if changed else 'unchanged')
+
+def get():
+    try:
+        doc = json.loads(env('TRINA_JSON'))
+    except ValueError:
+        fail('PARSE_RESPONSE')
+    out = []
+    for field in env('TRINA_FIELDS').split(','):
+        v = doc
+        for part in field.split('.'):
+            v = v.get(part) if is_obj(v) else None
+        if isinstance(v, list):
+            out.extend(one_line(x) for x in v)
+        else:
+            out.append('' if v is None else one_line(v))
+    return '\n'.join(out)
+
+def body():
+    # a host name that is not valid UTF-8 must not stop the install
+    device = env('TRINA_DEVICE').encode('utf-8', 'surrogateescape').decode('utf-8', 'replace')[:80]
+    return json.dumps({'code': env('TRINA_CODE'), 'deviceName': device, 'os': env('TRINA_OS')}, ensure_ascii=False)
+
+def main():
+    ops = {'install': install, 'uninstall': uninstall, 'get': get, 'body': body}
+    op = ops.get(env('TRINA_OP'))
+    if op is None:
+        fail('OP')
+    write_text(env('TRINA_RESULT'), op() + '\n')
+
+try:
+    main()
+except Fail as e:
+    sys.stderr.write(str(e) + '\n')
+    sys.exit(1)
+PY
+}
+
+pick_json_engine() {
+  ENGINE="${TRINA_JSON_ENGINE:-}"
+  if [ -z "$ENGINE" ]; then
+    if [ "$OS" = macos ] && [ -x /usr/bin/osascript ]; then ENGINE=osascript
+    elif command -v python3 >/dev/null 2>&1; then ENGINE=python3
+    elif command -v node >/dev/null 2>&1; then ENGINE=node
+    else die "설정 파일을 고치려면 python3 또는 node가 필요해요. 둘 중 하나를 설치한 뒤 다시 실행해 주세요."
+    fi
+  fi
+  case "$ENGINE" in
+    osascript) [ -x /usr/bin/osascript ] || die "osascript가 없어요." ; write_js_helper ;;
+    node) command -v node >/dev/null 2>&1 || die "node가 없어요." ; write_js_helper ;;
+    python3) command -v python3 >/dev/null 2>&1 || die "python3가 없어요." ; write_py_helper ;;
+    *) die "TRINA_JSON_ENGINE은 osascript, python3, node 중 하나여야 해요." ;;
+  esac
+}
+
+# json_op <op>: runs the helper with the TRINA_* variables already exported; the result is in "$WORK/result"
+json_op() {
+  local rc=0
+  : >"$WORK/result"
+  case "$ENGINE" in
+    osascript) TRINA_OP="$1" TRINA_RESULT="$WORK/result" /usr/bin/osascript -l JavaScript "$WORK/settings.js" >/dev/null 2>"$WORK/json.err" || rc=$? ;;
+    node)      TRINA_OP="$1" TRINA_RESULT="$WORK/result" node "$WORK/settings.js" >/dev/null 2>"$WORK/json.err" || rc=$? ;;
+    python3)   TRINA_OP="$1" TRINA_RESULT="$WORK/result" python3 -I "$WORK/settings.py" >/dev/null 2>"$WORK/json.err" || rc=$? ;;
+  esac
+  if [ "$rc" -ne 0 ]; then
+    JSON_ERROR="$(grep -o 'TRINA_E_[A-Z_]*' "$WORK/json.err" | head -n 1 || true)"
+    [ -n "$JSON_ERROR" ] || JSON_ERROR="TRINA_E_ENGINE"
+    return 1
+  fi
+  return 0
+}
+
+json_error_message() {
+  case "$JSON_ERROR" in
+    TRINA_E_PARSE_SETTINGS) printf '%s' "$SETTINGS 파일이 올바른 JSON이 아니에요. 파일을 고친 뒤 다시 실행해 주세요. 아무것도 바꾸지 않았어요." ;;
+    TRINA_E_SHAPE_SETTINGS) printf '%s' "$SETTINGS 파일의 모양이 예상과 달라요 (env, extraKnownMarketplaces, enabledPlugins는 객체여야 해요). 아무것도 바꾸지 않았어요." ;;
+    TRINA_E_READ) printf '%s' "$SETTINGS 파일을 읽지 못했어요 (UTF-8 텍스트인지, 읽기 권한이 있는지 확인해 주세요)." ;;
+    TRINA_E_WRITE) printf '%s' "$CONFIG_DIR 폴더에 쓰지 못했어요. 권한을 확인해 주세요." ;;
+    TRINA_E_PARSE_RESPONSE) printf '%s' "허브의 응답을 읽지 못했어요. 주소(${HUB_URL})가 맞는지 확인해 주세요." ;;
+    *) printf '%s' "설정 도우미($ENGINE)가 실패했어요: $(head -c 300 "$WORK/json.err" | redact)" ;;
+  esac
+}
+
+# read_fields <json> <field,field,...>: one value per line in "$WORK/result"
+read_fields() {
+  TRINA_JSON="$1" TRINA_FIELDS="$2" json_op get
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Claude Code
+
+find_claude() {
+  CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
+  if [ -z "$CLAUDE_BIN" ] && [ -x "$HOME/.local/bin/claude" ]; then CLAUDE_BIN="$HOME/.local/bin/claude"; fi
+}
+
+install_claude() {
+  find_claude
+  if [ -n "$CLAUDE_BIN" ]; then info "Claude Code가 이미 있어요: $CLAUDE_BIN"; return; fi
+  say "Claude Code를 설치해요 (공식 설치 스크립트)…"
+  curl -fsSL https://claude.ai/install.sh | bash || die "Claude Code 설치에 실패했어요. https://code.claude.com 의 안내대로 설치한 뒤 다시 실행해 주세요."
+  export PATH="$HOME/.local/bin:$PATH"
+  find_claude
+  [ -n "$CLAUDE_BIN" ] || die "Claude Code를 설치했지만 찾지 못했어요. 새 터미널을 열고 다시 실행해 주세요."
+  info "Claude Code를 설치했어요: $CLAUDE_BIN"
+}
+
+# claude_quiet <args…>: runs claude, keeps its output (redacted) in "$WORK/claude.out" instead of the terminal
+claude_quiet() {
+  local rc=0
+  "$CLAUDE_BIN" "$@" >"$WORK/claude.raw" 2>&1 </dev/null || rc=$?
+  redact <"$WORK/claude.raw" >"$WORK/claude.out"
+  rm -f "$WORK/claude.raw"
+  return "$rc"
+}
+claude_said() { tail -n 3 "$WORK/claude.out" | tr '\n' ' ' | head -c 300; }
+
+plugin_installed() {
+  claude_quiet plugin list --json && grep -q "\"$PLUGIN\"" "$WORK/claude.out"
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# settings.json
+
+backup_settings() {
+  BACKUP=''
+  [ -f "$SETTINGS" ] || return 0
+  BACKUP="$SETTINGS.trina-backup-$(date +%Y%m%d-%H%M%S)"
+  cp -p "$SETTINGS" "$BACKUP"
+  chmod 600 "$BACKUP"
+}
+
+# replace "$1" with "$2" atomically; a symlinked settings.json (dotfiles) is written through, not replaced
+put_file() {
+  local target="$1" tmp="$2"
+  chmod 600 "$tmp"
+  if [ -L "$target" ]; then cat "$tmp" >"$target"; rm -f "$tmp"; else mv -f "$tmp" "$target"; fi
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# hub
+
+# enroll: trades $CODE for a device token; sets TOKEN, HUB, MCP_URL, MARKETPLACE_URL, USER_NAME, COMPANY, SKILLS_READY
+enroll() {
+  local device os_label resp status json
+  device="$DEVICE_NAME"
+  if [ -z "$device" ]; then
+    if [ "$OS" = macos ]; then device="$(scutil --get ComputerName 2>/dev/null || true)"; fi
+    [ -n "$device" ] || device="$(hostname 2>/dev/null || true)"
+  fi
+  device="$(printf '%s' "$device" | tr -d '\000-\037')"
+  TRINA_CODE="$CODE" TRINA_DEVICE="$device" TRINA_OS="$OS" json_op body || die "$(json_error_message)"
+  resp="$(curl -sS --connect-timeout 15 --max-time 60 -X POST \
+    -H 'content-type: application/json; charset=utf-8' -H 'accept: application/json' \
+    --data-binary @"$WORK/result" -w '\n%{http_code}' "$HUB_URL/api/enroll" 2>"$WORK/curl.err")" \
+    || die "허브(${HUB_URL})에 연결하지 못했어요. 인터넷 연결과 주소를 확인해 주세요. ($(head -c 200 "$WORK/curl.err"))"
+  status="${resp##*$'\n'}"
+  json="${resp%$'\n'*}"
+  if [ "$status" != 200 ]; then
+    local msg=''
+    if read_fields "$json" 'error.message'; then msg="$(head -n 1 "$WORK/result")"; fi
+    [ -n "$msg" ] || msg="허브가 HTTP $status 로 답했어요."
+    die "연결 코드를 확인하지 못했어요: $msg"
+  fi
+  read_fields "$json" 'token,hubUrl,mcpUrl,marketplaceUrl,user.name,companyName,skillsReady' || die "$(json_error_message)"
+  {
+    IFS= read -r TOKEN; IFS= read -r HUB; IFS= read -r MCP_URL; IFS= read -r MARKETPLACE_URL
+    IFS= read -r USER_NAME; IFS= read -r COMPANY; IFS= read -r SKILLS_READY
+  } <"$WORK/result" || true
+  case "$TOKEN" in "$TOKEN_PREFIX"?*) ;; *) die "허브의 응답에 토큰이 없어요. 관리자에게 알려 주세요." ;; esac
+  [ -n "$HUB" ] && [ -n "$MCP_URL" ] && [ -n "$MARKETPLACE_URL" ] || die "허브의 응답이 모자라요. 관리자에게 알려 주세요."
+  NOTICES=''
+  if read_fields "$json" 'notices'; then NOTICES="$(cat "$WORK/result")"; fi
+}
+
+# revoke <token>: tells the hub this token is no longer used (best effort; the token goes in a header via stdin)
+revoke() {
+  [ -n "$1" ] || return 0
+  printf 'header = "Authorization: Bearer %s"\n' "$1" |
+    curl -sS -o /dev/null --connect-timeout 10 --max-time 20 -X POST -K - "$HUB_URL/api/unenroll" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# install
+
+do_install() {
+  say "Trina AX: 이 PC를 회사 허브(${HUB_URL})에 연결해요."
+  install_claude
+  pick_json_engine
+
+  if [ -z "$CODE" ]; then
+    if (exec </dev/tty) 2>/dev/null; then
+      printf '연결 코드를 입력하세요 (예: ABCD-EFGH-JKLM): ' >/dev/tty
+      IFS= read -r CODE </dev/tty || true
+    else
+      die "연결 코드가 필요해요: curl -fsSL ${HUB_URL}/install.sh | bash -s -- <연결 코드>"
+    fi
+  fi
+  CODE="$(printf '%s' "$CODE" | tr -d '[:space:]')"
+  case "$CODE" in ''|*[!A-Za-z0-9-]*) die "연결 코드는 영문과 숫자예요 (예: ABCD-EFGH-JKLM). 다시 확인해 주세요." ;; esac
+
+  enroll
+  info "${USER_NAME:-사용자} 님 (${COMPANY:-회사}) 으로 연결해요."
+
+  mkdir -p "$CONFIG_DIR"
+  backup_settings
+  export TRINA_SETTINGS="$SETTINGS" TRINA_STATE="$STATE" TRINA_PREFIX="$TOKEN_PREFIX"
+  export TRINA_SETTINGS_OUT="$SETTINGS.trina-tmp.$$" TRINA_STATE_OUT="$STATE.trina-tmp.$$"
+  export TRINA_HUB="$HUB" TRINA_MARKETPLACE="$MARKETPLACE" TRINA_PLUGIN="$PLUGIN" TRINA_MARKETPLACE_URL="$MARKETPLACE_URL"
+  export TRINA_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local old_token
+  if ! TRINA_TOKEN="$TOKEN" json_op install; then
+    revoke "$TOKEN"
+    die "$(json_error_message)"
+  fi
+  old_token="$(head -n 1 "$WORK/result")"
+  put_file "$SETTINGS" "$TRINA_SETTINGS_OUT"
+  put_file "$STATE" "$TRINA_STATE_OUT"
+  info "설정을 바꿨어요: $SETTINGS${BACKUP:+ (백업: $BACKUP)}"
+
+  local mcp_ok=1
+  claude_quiet mcp remove "$MCP_NAME" --scope user || true
+  if claude_quiet mcp add --transport http "$MCP_NAME" --scope user "$MCP_URL" --header "Authorization: Bearer $TOKEN"; then
+    info "회사 파일(MCP 서버 '$MCP_NAME')을 연결했어요."
+  else
+    mcp_ok=0
+    warn "회사 파일(MCP) 등록에 실패했어요: $(claude_said)"
+  fi
+
+  local plugin_ok=0
+  if [ "$SKILLS_READY" = true ]; then
+    # A short local-only session (/cost makes no model request) lets Claude Code register the marketplace from
+    # settings.json, with its auth header, and download the plugin; then the install is recorded.
+    (cd "$WORK" && CLAUDE_CODE_SYNC_PLUGIN_INSTALL=1 CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS=180000 \
+      claude_quiet -p /cost --no-session-persistence --setting-sources user) || true
+    claude_quiet plugin install "$PLUGIN" --scope user || true
+    if plugin_installed; then plugin_ok=1; info "회사 스킬(플러그인 $PLUGIN)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요."
+    else warn "회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. ($(claude_said))"
+    fi
+  fi
+
+  chmod 600 "$SETTINGS" 2>/dev/null || true
+  if [ -n "$old_token" ]; then revoke "$old_token"; fi
+  unset TRINA_TOKEN
+
+  say ''
+  say "✓ 연결을 마쳤어요."
+  say "  - 모델: Claude의 요청이 회사 허브를 거쳐요. 비용은 회사가 내요."
+  if [ "$mcp_ok" = 1 ]; then say "  - 회사 파일: Claude가 mcp__${MCP_NAME}__* 도구로 회사 폴더를 읽고 써요."; fi
+  if [ "$plugin_ok" = 1 ]; then say "  - 회사 스킬: /${PLUGIN%%@*}:<스킬 이름> 으로 쓸 수 있어요."; fi
+  if [ -n "$NOTICES" ]; then printf '%s\n' "$NOTICES" | while IFS= read -r line; do [ -n "$line" ] && say "  ! $line"; done; fi
+  say ''
+  say "  되돌리기: curl -fsSL ${HUB_URL}/install.sh | bash -s -- --uninstall"
+  if [ -n "$BACKUP" ]; then say "  원래 설정 파일: $BACKUP"; fi
+  if ! command -v claude >/dev/null 2>&1; then say "  새 터미널을 열면 claude 명령을 쓸 수 있어요 ($CLAUDE_BIN)."; fi
+  say "  이제 터미널에서 claude 를 실행해 보세요."
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# uninstall
+
+do_uninstall() {
+  say "Trina AX: 이 PC의 회사 허브 연결을 해제해요."
+  pick_json_engine
+  find_claude
+  if [ -n "$CLAUDE_BIN" ]; then
+    # while the settings still carry the token (Claude Code needs some login to run these)
+    claude_quiet plugin uninstall "$PLUGIN" --scope user || true
+    claude_quiet plugin marketplace remove "$MARKETPLACE" --scope user || true
+    claude_quiet mcp remove "$MCP_NAME" --scope user || true
+    info "회사 스킬과 회사 파일(MCP) 연결을 지웠어요."
+  else
+    warn "claude 명령을 찾지 못해서 플러그인과 MCP 등록은 그대로예요."
+  fi
+
+  backup_settings
+  export TRINA_SETTINGS="$SETTINGS" TRINA_STATE="$STATE" TRINA_PREFIX="$TOKEN_PREFIX" TRINA_HUB="$HUB_URL"
+  export TRINA_SETTINGS_OUT="$SETTINGS.trina-tmp.$$" TRINA_MARKETPLACE="$MARKETPLACE" TRINA_PLUGIN="$PLUGIN"
+  json_op uninstall || die "$(json_error_message)"
+  local token changed
+  { IFS= read -r token; IFS= read -r changed; } <"$WORK/result" || true
+  if [ "$changed" = changed ]; then
+    put_file "$SETTINGS" "$TRINA_SETTINGS_OUT"
+    info "설정에서 Trina AX 항목을 지웠어요: $SETTINGS${BACKUP:+ (백업: $BACKUP)}"
+  else
+    [ -z "$BACKUP" ] || rm -f "$BACKUP"
+    info "설정에 Trina AX 항목이 없어요."
+  fi
+  if [ -n "$token" ]; then revoke "$token"; info "허브에서 이 PC의 토큰을 지웠어요."; fi
+  rm -f "$STATE"
+
+  say ''
+  say "✓ 연결을 해제했어요. Claude Code는 그대로 남아 있어요."
+}
+
+if [ "$MODE" = uninstall ]; then do_uninstall; else do_install; fi
