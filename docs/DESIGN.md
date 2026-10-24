@@ -16,6 +16,11 @@ shared subscription and without running every session on one small server.
      (install a PC, my usage), phone chat.
 - **Tokens are billed to the customer's own Anthropic account.** No subscription is shared; no token is resold.
 
+Verified end to end with Claude Code 2.1.309 (`tests/e2e/full-flow.test.ts`): installer → plugin with the person's
+skills → PC model calls through the relay with the company key → company files over MCP (rules and skills reach the
+model) → phone chat as a hub session. With an MCP server configured, Claude Code also fetches Anthropic's public MCP
+registry from api.anthropic.com; that request carries none of our credentials.
+
 Never share a Claude subscription login or OAuth token between people. The relay only ever uses an API key the
 customer owns (`<dataDir>/secrets/anthropic-api-key`).
 
