@@ -288,3 +288,22 @@ describe('marketplace over HTTP', async () => {
     expect(m.plugins[0].description).toContain('없어요')
   })
 })
+
+describe('archive links follow the address the PC used', async () => {
+  const { testHub } = await import('../lib/hub')
+  const hub = await testHub()
+  const u = await hub.user('origin-user')
+  hub.write('skills/company/a/SKILL.md', '---\nname: a\ndescription: a\n---\n')
+  hub.ctx.config.publicUrl = 'https://new-name.example.com'
+  test('a PC that reached the hub through an older public name keeps getting archives there', async () => {
+    const r = await fetch(hub.url + '/plugins/marketplace.json', { headers: { authorization: 'Bearer ' + hub.token(u.id), host: 'old-name.example.com', 'x-forwarded-proto': 'https', 'cf-ray': '1' } })
+    const j = await r.json() as any
+    expect(j.plugins[0].source.url.startsWith('https://old-name.example.com/plugins/company-')).toBe(true)
+  })
+  test('without a forwarded https origin the configured public address is used', async () => {
+    const r = await fetch(hub.url + '/plugins/marketplace.json', { headers: { authorization: 'Bearer ' + hub.token(u.id) } })
+    const j = await r.json() as any
+    expect(j.plugins[0].source.url.startsWith('https://new-name.example.com/plugins/company-')).toBe(true)
+    await hub.stop()
+  })
+})

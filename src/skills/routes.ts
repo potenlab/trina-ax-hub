@@ -3,19 +3,34 @@
 //
 //   GET /plugins/marketplace.json        the person's marketplace (one plugin, "company")
 //   GET /plugins/company-<sha12>.zip     the person's current plugin archive; any other sha → 404
-import type { Register } from '../http/app'
+import type { C, Register } from '../http/app'
 import { requireToken } from '../http/app'
 import { jsonError } from '../http/errors'
 import { archiveSha12, hubBase, marketplaceFor, pluginFor } from './marketplace'
 
 const NO_STORE = { 'cache-control': 'no-store' }
+const HOST = /^[a-z0-9.-]{1,253}(:\d{1,5})?$/i
+
+/**
+ * The https origin this PC used to reach us (through the Cloudflare tunnel: Host = the public name, x-forwarded-proto
+ * = https). Claude Code sends the marketplace's auth header only to archive URLs on the same origin as the
+ * marketplace.json it fetched, so archive links must use that origin, not whatever the public address is today
+ * (a PC set up before the address changed would otherwise get 401 on every update).
+ */
+function pcOrigin(c: C): string | null {
+  if (c.get('localDirect')) return null
+  const proto = (c.req.header('x-forwarded-proto') ?? '').split(',')[0]!.trim().toLowerCase()
+  const host = (c.req.header('host') ?? '').trim()
+  if (proto !== 'https' || !HOST.test(host) || /^(localhost|127\.|0\.0\.0\.0)/i.test(host)) return null
+  return `https://${host.toLowerCase()}`
+}
 
 export const register: Register = (app, ctx) => {
   app.use('/plugins/*', requireToken(ctx, 'json'))
 
   app.get('/plugins/marketplace.json', (c) => {
     const { user } = c.get('tokenAuth')!
-    const { json } = marketplaceFor(ctx, user, hubBase(ctx.config, c.req.url))
+    const { json } = marketplaceFor(ctx, user, pcOrigin(c) ?? hubBase(ctx.config, c.req.url))
     return c.json(json, 200, NO_STORE)
   })
 
