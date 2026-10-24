@@ -48,7 +48,9 @@ export function authorize(fx: FsCtx, rules: RuleSet, user: Principal, input: unk
     // told the AI tools (read, list, glob, grep, make_file sources, share_file) which hidden folders exist under a
     // folder the caller can read (security r3). The HTTP routes already answered both with the same 404.
     if (mustExist && op !== 'write') throw new Denied(hidden(input))
-    if (mustExist) throw new ToolError(`not found: '${full.join('/')}'`, 'not_found')
+    // a missing path answers exactly like a hidden one, for writes too (edit / move / delete of 'x' must not tell a
+    // missing x from a folder the caller may not see)
+    if (mustExist) throw new Denied(hidden(input))
     if (w.missing.length > 1 && !opts.createDirs) throw new ToolError(`folder does not exist: '${full.slice(0, -1).join('/')}'`, 'not_found')
     if (!w.st.isDirectory()) throw new Denied(`not a folder: '${w.actual.join('/')}'`)
     // refuse creating a sibling that differs from an existing entry only by case / Unicode form / width.

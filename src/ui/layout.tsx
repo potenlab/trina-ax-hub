@@ -44,7 +44,7 @@ const COPY_JS = `document.addEventListener('click',e=>{const b=e.target.closest(
 
 export interface NavItem { href: string; label: string }
 
-export function Page(p: { title: string; user?: Principal | null; nav?: NavItem[]; active?: string; narrow?: boolean; children: Child; head?: Child }) {
+export function Page(p: { title: string; user?: Principal | null; nav?: NavItem[]; active?: string; narrow?: boolean; children: Child; head?: Child; csrf?: string }) {
   return (
     <html lang="ko">
       <head>
@@ -61,7 +61,7 @@ export function Page(p: { title: string; user?: Principal | null; nav?: NavItem[
           {p.user ? (
             <div class="who">
               <span>{p.user.name}</span>
-              <form class="inline" method="post" action="/logout"><button class="btn small" type="submit">로그아웃</button></form>
+              <form class="inline" method="post" action="/logout">{p.csrf ? <Csrf token={p.csrf} /> : null}<button class="btn small" type="submit">로그아웃</button></form>
             </div>
           ) : null}
         </header>

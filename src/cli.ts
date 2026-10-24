@@ -63,6 +63,10 @@ switch (cmd) {
     console.log(`  API key    ${secrets.apiKeyHint() ?? '(없음: 관리자 설정 또는 `set-key`로 넣어 주세요)'}`)
     console.log(`  claude     ${config.claudeBin ?? '(없음: 휴대폰·예약 작업이 꺼져 있어요)'}`)
     console.log(`  people     ${users.length} (${users.filter((x) => x.status === 'active').length} active)`)
+    if (!users.length) {
+      const t = secrets.ensureSetupToken()
+      console.log(`  setup      이 컴퓨터: http://127.0.0.1:${config.port}/setup  ·  다른 컴퓨터: ${u.best}/setup?t=${t}`)
+    }
     break
   }
   case 'init': {
@@ -72,6 +76,7 @@ switch (cmd) {
     const password = await readSecretLine('소유자 비밀번호: ')
     const owner = await createUser(db, { username, name, role: 'owner', password })
     if (flag('--company')) setSetting(db, 'companyName', flag('--company'))
+    secrets.clearSetupToken()
     initTeamFolder(db, config.teamRoot)
     console.log(`소유자 ${owner.username}을(를) 만들었어요. ${urls().best}/login 에서 로그인하세요.`)
     break

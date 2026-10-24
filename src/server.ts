@@ -25,6 +25,8 @@ export function serve(ctx: Ctx, o: { background?: boolean } = {}): Running {
     maxRequestBodySize: 64 * 1024 * 1024,
     fetch: (req, srv) => app.fetch(req, { ip: srv.requestIP(req)?.address ?? '' }),
   })
+  // port 0 = pick a free one; write back the real port so URLs built from the config are right
+  if (!ctx.config.port) ctx.config.port = server.port!
   const timers: Timer[] = []
   let stopHub: (() => Promise<void>) | null = null
   if (o.background !== false) {

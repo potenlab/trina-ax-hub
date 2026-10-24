@@ -14,9 +14,29 @@ import { PRODUCT } from '../product'
 import { HttpError, jsonError } from './errors'
 
 export type AppEnv = {
-  Variables: { session: SessionAuth | null; tokenAuth: TokenAuth | null; clientIp: string }
+  /** clientIp = the real client address (see clientAddress); localDirect = a browser/program on this very machine,
+   *  not something forwarded by the Cloudflare tunnel (which also connects from loopback) */
+  Variables: { session: SessionAuth | null; tokenAuth: TokenAuth | null; clientIp: string; localDirect: boolean }
   Bindings: { ip?: string }
 }
+
+const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/
+const IP_TEXT = /^[0-9A-Fa-f:.]{2,45}$/
+
+/**
+ * The client's address. cloudflared runs next to the hub and connects from loopback; for those requests the address
+ * Cloudflare saw is in `cf-connecting-ip`, which Cloudflare sets itself (a visitor cannot choose it). Nothing else is
+ * trusted: `x-forwarded-for` keeps whatever the visitor sent first.
+ */
+export function clientAddress(peer: string, headers: Headers): string {
+  if (!peer || LOOPBACK.test(peer)) {
+    const cf = headers.get('cf-connecting-ip')?.trim()
+    if (cf && IP_TEXT.test(cf)) return cf
+  }
+  return peer || 'unknown'
+}
+
+const forwarded = (h: Headers) => h.has('cf-connecting-ip') || h.has('x-forwarded-for') || h.has('cf-ray')
 export type App = Hono<AppEnv>
 export type C = Context<AppEnv>
 
@@ -61,7 +81,9 @@ export type Register = (app: App, ctx: Ctx) => void
 export function createApp(ctx: Ctx, modules: Register[]): App {
   const app = new Hono<AppEnv>()
   app.use('*', async (c, next) => {
-    c.set('clientIp', c.env?.ip ?? '')
+    const peer = c.env?.ip ?? ''
+    c.set('clientIp', clientAddress(peer, c.req.raw.headers))
+    c.set('localDirect', LOOPBACK.test(peer) && !forwarded(c.req.raw.headers))
     c.set('session', null)
     c.set('tokenAuth', null)
     await next()

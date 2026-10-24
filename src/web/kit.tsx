@@ -43,20 +43,8 @@ export class FlashStore {
   }
 }
 
-/** Failed-attempt limiter: `blocked` is checked before a login is tried, only failures count. */
-export class FailureLimiter {
-  private hits = new Map<string, number[]>()
-  constructor(private max: number, private windowMs: number) {}
-  private live(key: string, now: number) { return (this.hits.get(key) ?? []).filter((t) => t > now - this.windowMs) }
-  blocked(key: string, now = Date.now()) { return this.live(key, now).length >= this.max }
-  fail(key: string, now = Date.now()) {
-    const xs = this.live(key, now)
-    xs.push(now)
-    this.hits.set(key, xs)
-    if (this.hits.size > 10_000) for (const [k] of this.hits) if (!this.live(k, now).length) this.hits.delete(k)
-  }
-  clear(key: string) { this.hits.delete(key) }
-}
+import { FailureLimiter } from '../auth/rate-limit'
+export { FailureLimiter }
 
 export interface Web {
   ctx: Ctx
@@ -84,17 +72,8 @@ export const isHttps = (c: C) =>
 /** The address the browser used (scheme honours x-forwarded-proto behind the tunnel). */
 export const requestOrigin = (c: C) => `${isHttps(c) ? 'https' : 'http'}://${c.req.header('host') ?? new URL(c.req.url).host}`
 
-const LOOPBACK_IP = /^(127\.|::1$|::ffff:127\.)/
-
-/** Client IP. Behind a proxy on this machine (cloudflared connects from loopback) the forwarded address is used. */
-export function clientIp(c: C): string {
-  const peer = c.get('clientIp') || ''
-  if (!peer || LOOPBACK_IP.test(peer)) {
-    const fwd = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]
-    if (fwd?.trim()) return fwd.trim().slice(0, 64)
-  }
-  return peer || 'unknown'
-}
+/** Client IP (the foundation already resolves Cloudflare's cf-connecting-ip for tunnelled requests). */
+export const clientIp = (c: C): string => c.get('clientIp') || 'unknown'
 
 /** A local path to go back to after login (never another site). */
 export function safeNext(v: unknown): string | null {
@@ -285,7 +264,7 @@ export const WebHead = () => (<><style>{raw(WEB_CSS)}</style><script>{raw(CONFIR
 export function Shell(p: { c: C; title: string; active: string; narrow?: boolean; flashes?: Flash[]; children: Child }) {
   const s = p.c.get('session')
   return (
-    <Page title={p.title} user={s?.user ?? null} nav={navFor(s?.user.role)} active={p.active} narrow={p.narrow} head={<WebHead />}>
+    <Page title={p.title} user={s?.user ?? null} nav={navFor(s?.user.role)} active={p.active} narrow={p.narrow} head={<WebHead />} csrf={s?.csrf}>
       {(p.flashes ?? []).filter((f): f is Extract<Flash, { text: string }> => 'text' in f).map((f) => (
         <div class={'notice' + (f.kind === 'ok' ? '' : ' ' + f.kind)} role="status">{f.text}</div>
       ))}

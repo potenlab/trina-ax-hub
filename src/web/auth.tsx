@@ -8,6 +8,7 @@ import { initTeamFolder } from '../policy/rules-admin'
 import { audit } from '../audit'
 import { HttpError } from '../http/errors'
 import { PRODUCT } from '../product'
+import { safeEqual } from '../ids'
 import { Page, Csrf } from '../ui/layout'
 import {
   type Web, type Form, WebHead, render, field, rawField, preForm, preCsrfToken, sessionForm, CsrfError, csrfRefused,
@@ -26,10 +27,26 @@ function startSession(web: Web, c: C, userId: string) {
 const homeFor = (role: string) => (role === 'owner' || role === 'admin' ? '/admin' : '/me')
 
 // setup ----------------------------------------------------------------------------------------------------------------
+// Until the owner exists, /setup opens only on the hub computer itself (a browser there, not through the Cloudflare
+// tunnel) or with the one-time token printed in the server log and by `trina-ax status`. Otherwise whoever reaches a
+// fresh hub first through its public address could make themselves the owner.
+
+function setupAllowed(web: Web, c: C, given: string | undefined): boolean {
+  if (c.get('localDirect')) return true
+  const t = web.ctx.secrets.setupToken()
+  return !!t && !!given && given.length === t.length && safeEqual(given, t)
+}
+
+const SetupLocked = () => (
+  <Page title="처음 설정" narrow head={<WebHead />}>
+    <h1>처음 설정</h1>
+    <div class="notice warn">처음 설정은 허브 컴퓨터(맥미니)에서 열거나, 서버 로그나 <code>trina-ax status</code>에 나온 설정 주소로 열어 주세요.</div>
+  </Page>
+)
 
 interface SetupValues { companyName: string; username: string; name: string }
 
-function SetupPage(p: { csrf: string; values?: SetupValues; error?: string }) {
+function SetupPage(p: { csrf: string; token?: string; values?: SetupValues; error?: string }) {
   const v = p.values ?? { companyName: '', username: '', name: '' }
   return (
     <Page title="처음 설정" narrow head={<WebHead />}>
@@ -38,6 +55,7 @@ function SetupPage(p: { csrf: string; values?: SetupValues; error?: string }) {
       {p.error ? <div class="notice bad" role="alert">{p.error}</div> : null}
       <form method="post" action="/setup" class="card">
         <Csrf token={p.csrf} />
+        {p.token ? <input type="hidden" name="setup" value={p.token} /> : null}
         <div class="field"><label for="companyName">회사 이름</label>
           <input id="companyName" name="companyName" value={v.companyName} required maxlength={60} placeholder="예: 트리나치과" autocomplete="organization" /></div>
         <h3>소유자 계정</h3>
@@ -73,6 +91,7 @@ async function doSetup(web: Web, f: Form): Promise<{ userId: string }> {
   web.ctx.rulesChanged()
   saveSetting(web.ctx, 'companyName', values.companyName)
   if (key) web.ctx.secrets.setApiKey(key)
+  web.ctx.secrets.clearSetupToken()
   audit(db, { actor: owner.id, action: 'setup', target: owner.id, detail: { companyName: values.companyName, apiKey: !!key } })
   return { userId: owner.id }
 }
@@ -139,14 +158,18 @@ export function mountAuth(app: App, web: Web) {
   // setup ------------------------------------------------------------------------------------------------------------
   app.get('/setup', (c) => {
     if (countUsers(db) > 0) return c.redirect(c.get('session') ? '/' : '/login')
-    return render(c, <SetupPage csrf={preCsrfToken(c)} />)
+    const token = c.req.query('t')
+    if (!setupAllowed(web, c, token)) return render(c, <SetupLocked />, 403)
+    return render(c, <SetupPage csrf={preCsrfToken(c)} token={token} />)
   })
 
   app.post('/setup', async (c) => {
     if (countUsers(db) > 0 || web.settingUp) return c.redirect('/login', 303)
     const { form, ok } = await preForm(c)
     const values = { companyName: field(form, 'companyName'), username: field(form, 'username'), name: field(form, 'name') }
-    if (!ok) return render(c, <SetupPage csrf={preCsrfToken(c)} values={values} error="페이지가 오래됐어요. 다시 한 번 눌러 주세요." />, 403)
+    const token = rawField(form, 'setup') || undefined
+    if (!setupAllowed(web, c, token)) return render(c, <SetupLocked />, 403)
+    if (!ok) return render(c, <SetupPage csrf={preCsrfToken(c)} token={token} values={values} error="페이지가 오래됐어요. 다시 한 번 눌러 주세요." />, 403)
     // the check above and this flag run without an await in between: a second post waits for nothing and is refused
     if (countUsers(db) > 0 || web.settingUp) return c.redirect('/login', 303)
     web.settingUp = true
@@ -155,7 +178,7 @@ export function mountAuth(app: App, web: Web) {
       startSession(web, c, userId)
       return c.redirect('/admin', 303)
     } catch (e) {
-      if (e instanceof HttpError) return render(c, <SetupPage csrf={preCsrfToken(c)} values={values} error={e.message} />, 400)
+      if (e instanceof HttpError) return render(c, <SetupPage csrf={preCsrfToken(c)} token={token} values={values} error={e.message} />, 400)
       throw e
     } finally {
       web.settingUp = false
