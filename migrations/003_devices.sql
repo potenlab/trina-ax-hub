@@ -6,3 +6,5 @@
 ALTER TABLE tokens ADD COLUMN created_by TEXT;
 ALTER TABLE tokens ADD COLUMN approved_at TEXT;
 ALTER TABLE tokens ADD COLUMN hub_url TEXT;
+-- devices that existed before this change were set up the old way: treat them as approved
+UPDATE tokens SET approved_at = created_at WHERE kind = 'device' AND approved_at IS NULL;

@@ -170,7 +170,7 @@ describe('web: usage', () => {
     expect(csv.headers.get('content-type')).toContain('text/csv')
     expect(csv.headers.get('content-disposition')).toMatch(/attachment; filename="trina-usage-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv"/)
     const lines = (await csv.text()).trim().split('\n')
-    expect(lines[0]).toBe('started_at,username,source,model,input_tokens,output_tokens,cache_read,cache_write,cost_usd,status')
+    expect(lines[0].replace(/^\uFEFF/, '')).toBe('시각,이름,아이디,그룹,사용처,모델,입력 토큰,출력 토큰,캐시 읽기 토큰,캐시 쓰기 토큰,비용(USD),응답 코드')
     expect(lines.length).toBe(1 + 3) // b1 (budgets test), u1, u2
     expect(lines.some((l) => l.includes('claude-opus-5-5') && l.includes(',lee,'))).toBe(true)
     const last = (await (await get(hub, '/admin/usage.csv?range=last', owner)).text()).trim().split('\n')

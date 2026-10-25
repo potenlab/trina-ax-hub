@@ -9,10 +9,13 @@ import { serve } from './server'
 import { initTeamFolder } from './policy/rules-admin'
 import { countUsers } from './auth/users'
 import { PRODUCT } from './product'
+import { ensureUsageRollup } from './usage/rollup'
 
 const config = loadConfig()
 const log = consoleLog()
 const db = openDb(path.join(config.dataDir, 'hub.db'))
+const rollup = ensureUsageRollup(db)
+if (rollup.added || rollup.rebuilt) log.info('usage rollup caught up', rollup as unknown as Record<string, unknown>)
 const ctx = makeCtx({ config, db, secrets: fileSecrets(config.dataDir), log })
 initTeamFolder(db, ctx.fx.root)
 const running = serve(ctx)
