@@ -7,11 +7,21 @@
 #   1. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.ps1)로 설치해요.
 #   2. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
 #   3. Claude Code 사용자 설정(%USERPROFILE%\.claude\settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
-#        env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN   모델 요청이 회사 허브를 거쳐요 (회사 API 키로 결제)
+#        env.*                                        허브가 이 사람의 방식에 맞춰 알려 주는 값만 (아래 두 가지 중 하나)
 #        extraKnownMarketplaces["@@MARKETPLACE@@"]               회사 스킬 마켓플레이스 (자동 업데이트)
 #        enabledPlugins["@@PLUGIN@@"]                  회사 스킬 플러그인
 #   4. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
 #   -Uninstall 은 이 스크립트가 더한 것만 되돌려요 (바꾸기 전 값이 있었다면 그 값으로).
+#
+# 사람마다 Claude를 쓰는 방식이 둘 중 하나예요. 어느 쪽인지는 허브가 정하고, 이 스크립트는 허브가 준 env 값을
+# 그대로 적을 뿐이에요.
+#   구독 (subscription)   AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요.
+#                         ANTHROPIC_* 는 건드리지 않아요 (본인 로그인을 덮어쓰면 안 돼서요). 대신 Claude Code의
+#                         OpenTelemetry 내보내기(CLAUDE_CODE_ENABLE_TELEMETRY, OTEL_*)를 허브로 켜요.
+#                         처음이면 claude 를 실행해 /login 으로 본인 구독에 로그인해야 해요.
+#   회사 키 (company_key) AI 사용료는 회사 계정으로 나가요. env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN 이
+#                         회사 허브를 가리켜서 모델 요청이 허브를 거쳐요.
+# 다른 방식으로 바뀐 뒤 다시 실행하면, 전에 더한 값 중 필요 없어진 것은 지우고 원래 값이 있었다면 되돌려요.
 #
 # 옵션: -Name <이 PC 이름>   허브의 "내 PC" 목록에 보일 이름 (기본: 컴퓨터 이름)
 param(
@@ -29,7 +39,8 @@ $Plugin = '@@PLUGIN@@'
 $McpName = '@@MCP_NAME@@'
 $TokenPrefix = '@@TOKEN_PREFIX@@'
 $ScriptVersion = '@@VERSION@@'
-$EnvKeys = @('ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN')
+# installs before the generic env handling always set these two (state files without setKeys)
+$LegacyKeys = @('ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN')
 $Containers = @('env', 'extraKnownMarketplaces', 'enabledPlugins')
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -91,32 +102,59 @@ function Write-JsonFile([string]$Path, $Value) {
 # ---------------------------------------------------------------------------------------------------------------
 # settings.json merge (same rules as install.sh)
 
-function Merge-Install($S, $State, [string]$Hub, [string]$Token, [string]$MarketplaceUrl, [string]$Now) {
+# The hub decides the environment: $EnvSet is the response's `env` (the settings env keys to set), $EnvOwned its
+# `envOwned` (every key either mode may set).
+
+# The device token in our marketplace entry's Authorization header (set in both modes), and the entry's URL.
+function Get-OurMarketplace($S) {
+  $token = ''; $url = ''
+  $m = Get-Prop (Get-Prop $S 'extraKnownMarketplaces') $Marketplace
+  $src = Get-Prop $m 'source'
+  $u = Get-Prop $src 'url'
+  if ($u -is [string]) { $url = $u }
+  $h = Get-Prop (Get-Prop $src 'headers') 'Authorization'
+  if (($h -is [string]) -and $h.StartsWith("Bearer $TokenPrefix")) { $token = $h.Substring(7) }
+  return [pscustomobject]@{ Token = $token; Url = $url }
+}
+
+function Restore-Key($Obj, [string]$Key, $Previous) {
+  if (Has-Prop $Previous $Key) { Set-Prop $Obj $Key (Get-Prop $Previous $Key) } else { Remove-Prop $Obj $Key }
+}
+
+function Merge-Install($S, $State, [string]$Hub, [string]$Token, [string]$MarketplaceUrl, [string]$Now, $EnvSet, [string[]]$EnvOwned) {
   foreach ($c in $Containers) {
     $v = Get-Prop $S $c
     if ($null -ne $v -and -not (Is-Obj $v)) { Fail "settings.json의 $c 값이 객체가 아니에요. 아무것도 바꾸지 않았어요." }
   }
+  $keys = @($EnvSet.PSObject.Properties | ForEach-Object { $_.Name })
+  $managed = @($EnvOwned) + @($keys | Where-Object { $EnvOwned -notcontains $_ })
   $e = Get-Prop $S 'env'
-  $oldToken = ''
-  if ($e) { $t = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; if ($t -is [string]) { $oldToken = $t } }
-  $oursBefore = $oldToken.StartsWith($TokenPrefix)
+  $old = Get-OurMarketplace $S
+  $envTok = ''
+  if ($e) { $t = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; if ($t -is [string]) { $envTok = $t } }
+  $legacyOurs = $envTok.StartsWith($TokenPrefix)
+  $oursBefore = $legacyOurs -or ($old.Token -ne '')
   $prev = Get-Prop $State 'previous'
   $created = Get-Prop $State 'created'
+  $savedKeys = Get-Prop $State 'setKeys'
   if ((Is-Obj $prev) -and (Is-Obj (Get-Prop $prev 'env')) -and ($created -is [array])) {
     $created = @($created) # keep what was there before the very first install
+    if ($savedKeys -is [array]) { $setBefore = @($savedKeys | ForEach-Object { [string]$_ }) } else { $setBefore = $LegacyKeys }
   } else {
     $prev = [pscustomobject]@{ env = [pscustomobject]@{} }
     $created = @($Containers | Where-Object { -not (Is-Obj (Get-Prop $S $_)) })
+    if ($legacyOurs) { $setBefore = $LegacyKeys } else { $setBefore = @() }
     if ($e -and -not $oursBefore) {
-      foreach ($k in $EnvKeys) { if (Has-Prop $e $k) { Set-Prop $prev.env $k (Get-Prop $e $k) } }
+      foreach ($k in $managed) { if (Has-Prop $e $k) { Set-Prop $prev.env $k (Get-Prop $e $k) } }
     }
   }
   # the old token of this same hub is revoked after the switch (never sent anywhere else)
   $revoke = ''
-  if ($oursBefore -and (Get-Prop $e 'ANTHROPIC_BASE_URL') -eq $Hub -and $oldToken -ne $Token) { $revoke = $oldToken }
+  if ($old.Token -ne '' -and $old.Token -ne $Token -and $old.Url.StartsWith("$Hub/")) { $revoke = $old.Token }
   foreach ($c in $Containers) { if (-not (Is-Obj (Get-Prop $S $c))) { Set-Prop $S $c ([pscustomobject]@{}) } }
-  Set-Prop $S.env 'ANTHROPIC_BASE_URL' $Hub
-  Set-Prop $S.env 'ANTHROPIC_AUTH_TOKEN' $Token
+  # keys the other mode set before: back to what the person had, or gone
+  foreach ($k in $setBefore) { if ($keys -notcontains $k) { Restore-Key $S.env ([string]$k) $prev.env } }
+  foreach ($k in $keys) { Set-Prop $S.env $k ([string](Get-Prop $EnvSet $k)) }
   Set-Prop $S.extraKnownMarketplaces $Marketplace ([pscustomobject]@{
       source     = [pscustomobject]@{ source = 'url'; url = $MarketplaceUrl; headers = [pscustomobject]@{ Authorization = "Bearer $Token" } }
       autoUpdate = $true
@@ -124,13 +162,9 @@ function Merge-Install($S, $State, [string]$Hub, [string]$Token, [string]$Market
   Set-Prop $S.enabledPlugins $Plugin $true
   $newState = [pscustomobject]@{
     product = 'trina-ax'; hubUrl = $Hub; marketplace = $Marketplace; plugin = $Plugin; installedAt = $Now
-    created = [string[]]$created; previous = $prev
+    created = [string[]]$created; previous = $prev; setKeys = [string[]]$keys
   }
   return [pscustomobject]@{ Settings = $S; State = $newState; Revoke = $revoke }
-}
-
-function Restore-Key($Obj, [string]$Key, $Previous) {
-  if (Has-Prop $Previous $Key) { Set-Prop $Obj $Key (Get-Prop $Previous $Key) } else { Remove-Prop $Obj $Key }
 }
 
 function Merge-Uninstall($S, $State, [string]$Hub) {
@@ -139,18 +173,28 @@ function Merge-Uninstall($S, $State, [string]$Hub) {
   if (-not (Is-Obj $previous)) { $previous = [pscustomobject]@{} }
   $created = Get-Prop $State 'created'
   if (-not ($created -is [array])) { $created = @() }
-  $hubs = @($Hub)
-  $stateHub = Get-Prop $State 'hubUrl'
-  if ($stateHub -is [string]) { $hubs += $stateHub }
+  $savedKeys = Get-Prop $State 'setKeys'
+  $old = Get-OurMarketplace $S
   $revoke = ''; $changed = $false
+  if ($old.Token -ne '' -and $old.Url.StartsWith("$Hub/")) { $revoke = $old.Token }
   $e = Get-Prop $S 'env'
   if (Is-Obj $e) {
-    $tok = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; $base = Get-Prop $e 'ANTHROPIC_BASE_URL'
-    $oursTok = ($tok -is [string]) -and $tok.StartsWith($TokenPrefix)
-    $oursBase = ($base -is [string]) -and ($hubs -contains $base)
-    if ($oursTok -and $base -eq $Hub) { $revoke = $tok }
-    if ($oursTok) { Restore-Key $e 'ANTHROPIC_AUTH_TOKEN' $previous; $changed = $true }
-    if ($oursBase) { Restore-Key $e 'ANTHROPIC_BASE_URL' $previous; $changed = $true }
+    if ($savedKeys -is [array]) {
+      foreach ($k in $savedKeys) {
+        if ((Has-Prop $e ([string]$k)) -or (Has-Prop $previous ([string]$k))) { Restore-Key $e ([string]$k) $previous; $changed = $true }
+      }
+    } else {
+      # state files from before the modes: the two ANTHROPIC_* keys, recognised by the token prefix and the hub URL
+      $hubs = @($Hub)
+      $stateHub = Get-Prop $State 'hubUrl'
+      if ($stateHub -is [string]) { $hubs += $stateHub }
+      $tok = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; $base = Get-Prop $e 'ANTHROPIC_BASE_URL'
+      $oursTok = ($tok -is [string]) -and $tok.StartsWith($TokenPrefix)
+      $oursBase = ($base -is [string]) -and ($hubs -contains $base)
+      if ($revoke -eq '' -and $oursTok -and $base -eq $Hub) { $revoke = $tok }
+      if ($oursTok) { Restore-Key $e 'ANTHROPIC_AUTH_TOKEN' $previous; $changed = $true }
+      if ($oursBase) { Restore-Key $e 'ANTHROPIC_BASE_URL' $previous; $changed = $true }
+    }
   }
   $m = Get-Prop $S 'extraKnownMarketplaces'
   if ((Is-Obj $m) -and (Has-Prop $m $Marketplace)) { Remove-Prop $m $Marketplace; $changed = $true }
@@ -186,6 +230,14 @@ function Invoke-Claude([string]$Claude, [string[]]$ArgList) {
   $text = Hide-Token $out
   $tail = (($text -split "`n") | Where-Object { $_.Trim() } | Select-Object -Last 3) -join ' '
   return [pscustomobject]@{ Ok = ($code -eq 0); Output = $text; Tail = $tail }
+}
+
+# True when Claude Code has a login (`claude auth status --json` exits 0 and does not say "loggedIn": false).
+# A failing command (an older Claude Code, say) counts as not logged in.
+function Test-LoggedIn([string]$Claude) {
+  $r = Invoke-Claude $Claude @('auth', 'status', '--json')
+  if (-not $r.Ok) { return $false }
+  return -not ($r.Output -match '"loggedIn"\s*:\s*false')
 }
 
 function Get-HttpError($Err) {
@@ -245,6 +297,16 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
   $token = [string](Get-Prop $resp 'token')
   if (-not $token.StartsWith($TokenPrefix)) { Fail '허브의 응답에 토큰이 없어요. 관리자에게 알려 주세요.' }
   $hub = [string]$resp.hubUrl; $mcpUrl = [string]$resp.mcpUrl; $marketplaceUrl = [string]$resp.marketplaceUrl
+  $mode = [string](Get-Prop $resp 'mode')
+  $envSet = Get-Prop $resp 'env'
+  $envOwnedRaw = Get-Prop $resp 'envOwned'
+  if (($mode -ne 'subscription' -and $mode -ne 'company_key') -or -not (Is-Obj $envSet) -or -not ($envOwnedRaw -is [array])) {
+    Revoke-Token $token
+    Fail '허브의 응답이 모자라요. 관리자에게 알려 주세요.'
+  }
+  $envOwned = @($envOwnedRaw | ForEach-Object { [string]$_ })
+  $loginHint = [string](Get-Prop $resp 'loginHint')
+  if (-not $loginHint) { $loginHint = '터미널에서 claude 를 실행하고 /login 으로 본인 Claude 구독에 로그인해 주세요.' }
   Info ("{0} 님 ({1}) 으로 연결해요." -f $resp.user.name, $resp.companyName)
 
   $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
@@ -256,7 +318,7 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
     $settings = Read-JsonFile $settingsPath
     if ($null -eq $settings) { $settings = [pscustomobject]@{} }
     $state = Read-JsonFile $statePath -Lenient
-    $merged = Merge-Install $settings $state $hub $token $marketplaceUrl ([DateTime]::UtcNow.ToString('o'))
+    $merged = Merge-Install $settings $state $hub $token $marketplaceUrl ([DateTime]::UtcNow.ToString('o')) $envSet $envOwned
     if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
       $backup = "$settingsPath.trina-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
       Copy-Item -LiteralPath $settingsPath -Destination $backup
@@ -273,6 +335,10 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
   $r = Invoke-Claude $claude @('mcp', 'add', '--transport', 'http', $McpName, '--scope', 'user', $mcpUrl, '--header', "Authorization: Bearer $token")
   $mcpOk = $r.Ok
   if ($mcpOk) { Info "회사 파일(MCP 서버 '$McpName')을 연결했어요." } else { Warn ("회사 파일(MCP) 등록에 실패했어요: " + $r.Tail) }
+
+  # subscription: the person signs in to Claude Code themselves; find out whether they already have
+  $loggedIn = $true
+  if ($mode -eq 'subscription') { $loggedIn = Test-LoggedIn $claude }
 
   $pluginOk = $false
   if ($resp.skillsReady -eq $true) {
@@ -296,6 +362,7 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
     $list = Invoke-Claude $claude @('plugin', 'list', '--json')
     $pluginOk = $list.Ok -and $list.Output.Contains('"' + $Plugin + '"')
     if ($pluginOk) { Info "회사 스킬(플러그인 $Plugin)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요." }
+    elseif (-not $loggedIn) { Info '회사 스킬은 로그인한 뒤 Claude Code를 처음 열 때 자동으로 설치돼요.' }
     else { Warn ("회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. (" + $r.Tail + ")") }
   }
 
@@ -303,14 +370,23 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
 
   Say ''
   Say '✓ 연결을 마쳤어요.'
-  Say '  - 모델: Claude의 요청이 회사 허브를 거쳐요. 비용은 회사가 내요.'
+  if ($mode -eq 'subscription') { Say '  - 모델: AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요.' }
+  else { Say '  - 모델: Claude의 요청이 회사 허브를 거쳐요. AI 사용료는 회사 계정으로 나가요.' }
   if ($mcpOk) { Say "  - 회사 파일: Claude가 mcp__$($McpName)__* 도구로 회사 폴더를 읽고 써요." }
   if ($pluginOk) { Say ("  - 회사 스킬: /{0}:<스킬 이름> 으로 쓸 수 있어요." -f ($Plugin -split '@')[0]) }
   foreach ($n in @($resp.notices)) { if ($n) { Say "  ! $n" } }
   Say ''
   Say "  되돌리기: & ([scriptblock]::Create((irm $HubUrl/install.ps1))) -Uninstall"
   if ($backup) { Say "  원래 설정 파일: $backup" }
-  Say '  이제 새 터미널에서 claude 를 실행해 보세요.'
+  if (-not $loggedIn) {
+    Say ''
+    Write-Host '  ┌──────────────────────────────────────────────────────────' -ForegroundColor Yellow
+    Write-Host '  │ ! 마지막으로 한 가지만 남았어요' -ForegroundColor Yellow
+    Write-Host "  │   $loginHint" -ForegroundColor Yellow
+    Write-Host '  └──────────────────────────────────────────────────────────' -ForegroundColor Yellow
+  } else {
+    Say '  이제 새 터미널에서 claude 를 실행해 보세요.'
+  }
 }
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -320,7 +396,7 @@ function Uninstall-TrinaAX {
   Say 'Trina AX: 이 PC의 회사 허브 연결을 해제해요.'
   $claude = Find-Claude
   if ($claude) {
-    # while the settings still carry the token (Claude Code needs some login to run these)
+    # while the settings still carry the marketplace entry (and, in company-key mode, the relay token)
     $null = Invoke-Claude $claude @('plugin', 'uninstall', $Plugin, '--scope', 'user')
     $null = Invoke-Claude $claude @('plugin', 'marketplace', 'remove', $Marketplace, '--scope', 'user')
     $null = Invoke-Claude $claude @('mcp', 'remove', $McpName, '--scope', 'user')
