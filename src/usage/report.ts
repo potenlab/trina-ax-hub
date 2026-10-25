@@ -1,41 +1,32 @@
-// Usage reports for the admin and personal pages. Days follow the server's local calendar.
+// Usage reports for the admin and personal pages. Days follow the server's local calendar. Totals come from the daily
+// rollup (src/usage/rollup.ts; whole days) plus raw rows for partial days at the ends of a range; the CSV export
+// lists raw rows.
 import type { Database } from 'bun:sqlite'
+import { syncUsageRollup, usageSlice } from './rollup'
 
 export type GroupBy = 'user' | 'day' | 'model' | 'group' | 'source'
 export interface UsageRow { key: string; label: string; requests: number; inputTokens: number; outputTokens: number; cacheTokens: number; costUsd: number }
 export interface UsageReport { from: string; to: string; rows: UsageRow[]; totals: Omit<UsageRow, 'key' | 'label'> }
 
-const AGG = `COUNT(*) AS requests, COALESCE(SUM(u.input_tokens), 0) AS inputTokens, COALESCE(SUM(u.output_tokens), 0) AS outputTokens,
-  COALESCE(SUM(u.cache_read + u.cache_write), 0) AS cacheTokens, COALESCE(SUM(u.cost_usd), 0) AS costUsd`
+const AGG = `COALESCE(SUM(t.requests), 0) AS requests, COALESCE(SUM(t.input), 0) AS inputTokens, COALESCE(SUM(t.output), 0) AS outputTokens,
+  COALESCE(SUM(t.cache_read + t.cache_write), 0) AS cacheTokens, COALESCE(SUM(t.cost_usd), 0) AS costUsd`
 
-const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const SOURCE_LABEL = `CASE t.source WHEN 'pc' THEN 'PC' ELSE '맥미니(휴대폰·예약)' END`
 
 export function usageReport(db: Database, o: { from: Date; to: Date; groupBy: GroupBy; userId?: string }): UsageReport {
-  const range = [o.from.toISOString(), o.to.toISOString()]
-  const who = o.userId ? ' AND u.user_id = ?' : ''
-  const args = o.userId ? [...range, o.userId] : range
-  let rows: UsageRow[]
-  if (o.groupBy === 'day') {
-    const days = new Map<string, UsageRow>()
-    const raw = db.query(`SELECT started_at, input_tokens, output_tokens, cache_read, cache_write, cost_usd FROM usage u WHERE started_at >= ? AND started_at < ?${who}`).all(...args) as any[]
-    for (const r of raw) {
-      const key = localDay(new Date(r.started_at))
-      const d = days.get(key) ?? { key, label: key, requests: 0, inputTokens: 0, outputTokens: 0, cacheTokens: 0, costUsd: 0 }
-      d.requests++; d.inputTokens += r.input_tokens; d.outputTokens += r.output_tokens; d.cacheTokens += r.cache_read + r.cache_write; d.costUsd += r.cost_usd
-      days.set(key, d)
-    }
-    rows = [...days.values()].sort((a, b) => a.key.localeCompare(b.key))
-  } else {
-    const sql = {
-      user: `SELECT u.user_id AS key, COALESCE(p.name, u.user_id) AS label, ${AGG} FROM usage u LEFT JOIN users p ON p.id = u.user_id WHERE u.started_at >= ? AND u.started_at < ?${who} GROUP BY u.user_id ORDER BY costUsd DESC`,
-      model: `SELECT u.model AS key, u.model AS label, ${AGG} FROM usage u WHERE u.started_at >= ? AND u.started_at < ?${who} GROUP BY u.model ORDER BY costUsd DESC`,
-      source: `SELECT u.source AS key, CASE u.source WHEN 'pc' THEN 'PC' ELSE '맥미니(휴대폰·예약)' END AS label, ${AGG} FROM usage u WHERE u.started_at >= ? AND u.started_at < ?${who} GROUP BY u.source ORDER BY costUsd DESC`,
-      group: `SELECT g.id AS key, g.name AS label, ${AGG} FROM usage u JOIN group_members m ON m.user_id = u.user_id JOIN groups g ON g.id = m.group_id WHERE u.started_at >= ? AND u.started_at < ?${who} GROUP BY g.id ORDER BY costUsd DESC`,
-    }[o.groupBy]
-    rows = db.query(sql).all(...args) as UsageRow[]
-  }
-  const totals = db.query(`SELECT ${AGG} FROM usage u WHERE u.started_at >= ? AND u.started_at < ?${who}`).get(...args) as UsageReport['totals']
-  return { from: range[0]!, to: range[1]!, rows, totals }
+  syncUsageRollup(db)
+  const s = usageSlice(o.from, o.to, o.userId ? { sql: 'user_id = ?', args: [o.userId] } : undefined)
+  const t = `(${s.sql}) t`
+  const sql = {
+    user: `SELECT t.user_id AS key, COALESCE(p.name, t.user_id) AS label, ${AGG} FROM ${t} LEFT JOIN users p ON p.id = t.user_id GROUP BY t.user_id ORDER BY costUsd DESC`,
+    day: `SELECT t.day AS key, t.day AS label, ${AGG} FROM ${t} GROUP BY t.day ORDER BY t.day`,
+    model: `SELECT t.model AS key, t.model AS label, ${AGG} FROM ${t} GROUP BY t.model ORDER BY costUsd DESC`,
+    source: `SELECT t.source AS key, ${SOURCE_LABEL} AS label, ${AGG} FROM ${t} GROUP BY t.source ORDER BY costUsd DESC`,
+    group: `SELECT g.id AS key, g.name AS label, ${AGG} FROM ${t} JOIN group_members m ON m.user_id = t.user_id JOIN groups g ON g.id = m.group_id GROUP BY g.id ORDER BY costUsd DESC`,
+  }[o.groupBy]
+  const rows = db.query(sql).all(...s.args) as UsageRow[]
+  const totals = db.query(`SELECT ${AGG} FROM ${t}`).get(...s.args) as UsageReport['totals']
+  return { from: o.from.toISOString(), to: o.to.toISOString(), rows, totals }
 }
 
 export interface CountRow { key: string; label: string; count: number; people: number }
@@ -56,21 +47,44 @@ export function toolReport(db: Database, from: Date, to: Date, userId?: string):
 
 /** People who used AI on how many distinct days in the window (adoption). */
 export function activeDays(db: Database, from: Date, to: Date): { userId: string; name: string; days: number; lastAt: string | null }[] {
-  const raw = db.query(`SELECT p.id AS userId, p.name AS name, u.started_at AS at FROM users p LEFT JOIN usage u ON u.user_id = p.id AND u.started_at >= ? AND u.started_at < ? WHERE p.status = 'active'`).all(from.toISOString(), to.toISOString()) as { userId: string; name: string; at: string | null }[]
-  const m = new Map<string, { userId: string; name: string; days: Set<string>; lastAt: string | null }>()
-  for (const r of raw) {
-    const e = m.get(r.userId) ?? { userId: r.userId, name: r.name, days: new Set<string>(), lastAt: null }
-    if (r.at) { e.days.add(localDay(new Date(r.at))); if (!e.lastAt || r.at > e.lastAt) e.lastAt = r.at }
-    m.set(r.userId, e)
-  }
-  return [...m.values()].map((e) => ({ userId: e.userId, name: e.name, days: e.days.size, lastAt: e.lastAt })).sort((a, b) => b.days - a.days || a.name.localeCompare(b.name))
+  syncUsageRollup(db)
+  const s = usageSlice(from, to)
+  const rows = db.query(`SELECT p.id AS userId, p.name AS name, COUNT(DISTINCT t.day) AS days, MAX(t.last_at) AS lastAt
+    FROM users p LEFT JOIN (${s.sql}) t ON t.user_id = p.id WHERE p.status = 'active' GROUP BY p.id`).all(...s.args) as { userId: string; name: string; days: number; lastAt: string | null }[]
+  return rows.sort((a, b) => b.days - a.days || a.name.localeCompare(b.name))
 }
 
-/** Usage rows as CSV (for the admin export). */
+/** Local time as YYYY-MM-DD HH:mm (the server's time zone). */
+export function localDateTime(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** One CSV cell. Text that a spreadsheet would run as a formula (= + - @ at the start) gets a leading apostrophe. */
+function cell(v: unknown): string {
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : ''
+  let s = String(v ?? '')
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+const CSV_HEAD = ['시각', '이름', '아이디', '그룹', '사용처', '모델', '입력 토큰', '출력 토큰', '캐시 읽기 토큰', '캐시 쓰기 토큰', '비용(USD)', '응답 코드']
+
+/** Usage rows as CSV for the admin export: Korean headers, local time, who (name, username, groups), plain numbers.
+ * Starts with a UTF-8 byte order mark so Excel reads the Korean text correctly. */
 export function usageCsv(db: Database, from: Date, to: Date): string {
-  const rows = db.query(`SELECT u.started_at, COALESCE(p.username, u.user_id) AS username, u.source, u.model, u.input_tokens, u.output_tokens, u.cache_read, u.cache_write, u.cost_usd, u.status
+  const rows = db.query(`SELECT u.started_at, u.user_id, p.name, p.username, u.source, u.model, u.input_tokens, u.output_tokens, u.cache_read, u.cache_write, u.cost_usd, u.status
     FROM usage u LEFT JOIN users p ON p.id = u.user_id WHERE u.started_at >= ? AND u.started_at < ? ORDER BY u.started_at`).all(from.toISOString(), to.toISOString()) as any[]
-  const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
-  const head = 'started_at,username,source,model,input_tokens,output_tokens,cache_read,cache_write,cost_usd,status'
-  return [head, ...rows.map((r) => [r.started_at, r.username, r.source, r.model, r.input_tokens, r.output_tokens, r.cache_read, r.cache_write, r.cost_usd.toFixed(6), r.status].map(esc).join(','))].join('\n') + '\n'
+  const groups = new Map<string, string[]>()
+  for (const g of db.query('SELECT m.user_id, g.name FROM group_members m JOIN groups g ON g.id = m.group_id ORDER BY g.name').all() as { user_id: string; name: string }[]) {
+    const list = groups.get(g.user_id) ?? []
+    list.push(g.name)
+    groups.set(g.user_id, list)
+  }
+  const lines = rows.map((r) => [
+    localDateTime(new Date(r.started_at)), r.name ?? '(삭제된 사람)', r.username ?? r.user_id, (groups.get(r.user_id) ?? []).join(', '),
+    r.source === 'pc' ? 'PC' : '맥미니(휴대폰·예약)', r.model, r.input_tokens, r.output_tokens, r.cache_read, r.cache_write,
+    r.cost_usd.toFixed(6), r.status,
+  ].map(cell).join(','))
+  return '\uFEFF' + [CSV_HEAD.join(','), ...lines].join('\n') + '\n'
 }

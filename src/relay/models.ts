@@ -3,6 +3,7 @@
 import type { Ctx } from '../context'
 import type { C } from '../http/app'
 import { upstreamHeaders, upstreamUrl } from './proxy'
+import { NOTED_STATUS, noteUpstream } from './upstream'
 
 const MODELS_QUERY: Record<string, RegExp> = { limit: /^\d{1,4}$/, after_id: /^[A-Za-z0-9._-]{1,100}$/, before_id: /^[A-Za-z0-9._-]{1,100}$/ }
 const TIMEOUT_MS = 10_000
@@ -35,9 +36,14 @@ async function upstreamModels(ctx: Ctx, req: Request, apiKey: string): Promise<R
       headers: upstreamHeaders(req.headers, apiKey, false), redirect: 'manual',
       signal: AbortSignal.any([req.signal, AbortSignal.timeout(TIMEOUT_MS)]),
     })
-    if (up.status === 401) ctx.log.warn('relay: Anthropic refused the company API key (401); check the key on the settings page', { path: '/v1/models' })
-    if (up.status !== 200) { await up.body?.cancel().catch(() => {}); return null }
+    if (up.status !== 200) {
+      // a refused key or exhausted credit shows on the dashboard; the built-in list answers meanwhile
+      if (NOTED_STATUS(up.status)) noteUpstream(ctx, '/v1/models', up.status, up.headers, await up.text().catch(() => ''))
+      else await up.body?.cancel().catch(() => {})
+      return null
+    }
     const text = await up.text()
+    noteUpstream(ctx, '/v1/models', up.status, up.headers, null)
     const body = JSON.parse(text) as { data?: unknown }
     if (!Array.isArray(body?.data)) return null
     return new Response(text, { headers: { 'content-type': 'application/json' } })

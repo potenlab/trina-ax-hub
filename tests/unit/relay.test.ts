@@ -6,6 +6,8 @@ import { revokeToken, issueToken } from '../../src/auth/tokens'
 import { budgetBlock, createBudget } from '../../src/usage/budgets'
 import type { Log } from '../../src/log'
 import { MSG } from '../../src/relay/proxy'
+import { relayHealth, upstreamProblem } from '../../src/relay/health'
+import { setSetting } from '../../src/db'
 
 const COMPANY_KEY = 'sk-ant-api03-company-key-for-tests'
 const enc = new TextEncoder()
@@ -16,6 +18,13 @@ const elsewhere: string[] = []
 let hangCancelled = false
 let stallAborted = false
 let releaseSlow: () => void = () => {}
+/** 'gate' answers wait here until openGates() */
+const gates: (() => void)[] = []
+const openGates = () => { for (const g of gates.splice(0)) g() }
+let costlyCalls = 0
+/** the text a 'partial' answer streams before it stalls */
+const PARTIAL_TEXT = '견적서 초안을 만들게요. Here is the draft for the quote: 1,250,000원. '.repeat(4)
+const PARTIAL_JSON = '{"file_path":"/tmp/견적서.md","content":"# 견적서"}'
 
 const event = (type: string, data: Record<string, unknown>) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`
 const USAGE_START = {
@@ -70,6 +79,42 @@ function answer(req: Request, url: URL, body: any): Response | Promise<Response>
   switch (scenario) {
     case 'error-400': return apiErr(400, 'invalid_request_error', 'prompt is too long')
     case 'error-401': return apiErr(401, 'authentication_error', 'invalid x-api-key')
+    case 'error-credit': return apiErr(400, 'invalid_request_error', 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.')
+    case 'error-403': return apiErr(403, 'permission_error', 'Your API key does not have permission to use the specified resource.')
+    case 'error-404': return apiErr(404, 'not_found_error', `model: ${model}`)
+    case 'error-413': return apiErr(413, 'request_too_large', 'Request exceeds the maximum allowed number of bytes.')
+    case 'error-529': return apiErr(529, 'overloaded_error', 'Overloaded')
+    case 'error-418': return apiErr(418, 'teapot_error', 'odd')
+    case 'stream-error': return new Response(messageStart(model) + event('error', { error: { type: 'overloaded_error', message: 'Overloaded' } }), { headers: sseHeaders })
+    case 'costly': return Bun.sleep(300).then(() => { costlyCalls++; return Response.json({ id: 'msg_costly', type: 'message', role: 'assistant', model, content: [{ type: 'text', text: 'long' }], usage: { input_tokens: 100_000, output_tokens: 10_000 } }) })
+    case 'gate': {
+      const gate = new Promise<void>((ok) => { gates.push(ok) })
+      const stream = new ReadableStream<Uint8Array>({
+        async start(ctl) {
+          ctl.enqueue(enc.encode(messageStart(model)))
+          await gate
+          ctl.enqueue(enc.encode(event('message_delta', { delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }) + event('message_stop', {})))
+          ctl.close()
+        },
+      })
+      return new Response(stream, { headers: sseHeaders })
+    }
+    case 'partial': {
+      // text, then a tool call's input, then nothing but pings until the client hangs up (no message_delta)
+      let timer: Timer
+      const stream = new ReadableStream<Uint8Array>({
+        start(ctl) {
+          ctl.enqueue(enc.encode(messageStart(model) + event('content_block_start', { index: 0, content_block: { type: 'text', text: '' } })
+            + event('content_block_delta', { index: 0, delta: { type: 'text_delta', text: PARTIAL_TEXT } }) + event('content_block_stop', { index: 0 })
+            + event('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'toolu_9', name: 'Write', input: {} } })
+            + event('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: PARTIAL_JSON } })))
+          timer = setInterval(() => { try { ctl.enqueue(enc.encode(event('ping', {}))) } catch {} }, 20)
+        },
+        cancel() { clearInterval(timer) },
+      })
+      req.signal.addEventListener('abort', () => clearInterval(timer))
+      return new Response(stream, { headers: sseHeaders })
+    }
     case 'error-429': return apiErr(429, 'rate_limit_error', 'slow down', { 'retry-after': '7' })
     case 'error-500': return apiErr(500, 'api_error', 'Internal server error')
     case 'redirect': return new Response(null, { status: 307, headers: { location: `http://127.0.0.1:${away.port}/v1/messages` } })
@@ -482,5 +527,194 @@ describe('model relay', async () => {
     await (await post('/v1/messages', p.token, ask('hi'), { 'x-trina-job': 'not a job id; drop table' })).text()
     expect(rows(p.id).map((u) => [u.source, u.job_id])).toEqual([['hub', 'job_abc123'], ['hub', null], ['hub', null]])
     expect(seen.slice(-3).every((s) => s.headers['x-trina-job'] === undefined)).toBe(true)
+  })
+
+  test('each usage row is added to the daily rollup in the same write', async () => {
+    const p = await person()
+    await (await post('/v1/messages', p.token, ask('hi'))).text()
+    await (await post('/v1/messages', p.token, ask('json', { stream: false }))).text()
+    const daily = db.query('SELECT * FROM usage_daily WHERE user_id = ? ORDER BY model').all(p.id) as any[]
+    const raw = rows(p.id)
+    expect(daily).toHaveLength(1) // same day, source and model
+    expect(daily[0]).toMatchObject({ source: 'pc', model: 'claude-sonnet-5-5', requests: 2, input: 1300, output: 370, cache_read: 50_000, cache_write: 3000 })
+    expect(daily[0].cost_usd).toBeCloseTo(raw[0].cost_usd + raw[1].cost_usd, 10)
+    expect(daily[0].last_at).toBe(raw.map((r) => r.started_at).sort().at(-1))
+    expect((db.query('SELECT last_rowid FROM usage_rollup_state').get() as any).last_rowid).toBe((db.query('SELECT MAX(rowid) AS m FROM usage').get() as any).m)
+  })
+
+  test('a hang-up before message_delta: output is estimated from the streamed text and tool input, and priced', async () => {
+    const p = await person()
+    const ac = new AbortController()
+    const r = await post('/v1/messages', p.token, ask('partial'), {}, { signal: ac.signal })
+    const reader = r.body!.getReader()
+    let got = ''
+    while (!got.includes('input_json_delta')) got += new TextDecoder().decode((await reader.read()).value)
+    ac.abort()
+    expect(await waitFor(() => rows(p.id).length === 1)).toBe(true)
+    const u = rows(p.id)[0]
+    const out = Math.ceil((PARTIAL_TEXT.length + PARTIAL_JSON.length) / 2.5)
+    expect(u).toMatchObject({ input_tokens: 1200, output_tokens: out, cache_read: 50_000, cache_write: 3000, status: 200 })
+    // sonnet-5-5 rates, with the estimated output at $10 per million
+    expect(u.cost_usd).toBeCloseTo((1200 * 2 + out * 10 + 1000 * 2.5 + 2000 * 4 + 50_000 * 0.1) / 1e6, 10)
+  })
+
+  test('in-flight cap per person (setting relayMaxInflightPerUser): 429 with a short retry-after, nothing sent', async () => {
+    const p = await person()
+    setSetting(db, 'relayMaxInflightPerUser', 2)
+    try {
+      const before = seen.length
+      const held = [post('/v1/messages', p.token, ask('gate')), post('/v1/messages', p.token, ask('gate'))]
+      expect(await waitFor(() => gates.length === 2)).toBe(true)
+      const r = await post('/v1/messages', p.token, ask('hi'))
+      expect(r.status).toBe(429)
+      expect(r.headers.get('retry-after')).toBe('2')
+      expect(r.headers.get('x-should-retry')).toBe('true')
+      expect(await r.json()).toEqual({ type: 'error', error: { type: 'rate_limit_error', message: MSG.busyUser(2) } })
+      expect(seen.length).toBe(before + 2)
+      // someone else is not held back by this person's requests; count_tokens is never capped
+      const other = await person()
+      expect((await post('/v1/messages', other.token, ask('json', { stream: false }))).status).toBe(200)
+      expect((await post('/v1/messages/count_tokens', p.token, ask('hi'))).status).toBe(200)
+      openGates()
+      for (const h of held) await (await h).text()
+      expect(await waitFor(() => rows(p.id).length === 2)).toBe(true)
+      expect((await post('/v1/messages', p.token, ask('json', { stream: false }))).status).toBe(200)
+      expect(rows(p.id)).toHaveLength(3) // the refused request left no row
+    } finally {
+      openGates()
+      db.query("DELETE FROM settings WHERE key = 'relayMaxInflightPerUser'").run()
+    }
+  })
+
+  test('in-flight cap for the company (setting relayMaxInflight); a client hang-up frees its slot', async () => {
+    const a = await person(), b = await person(), c = await person()
+    setSetting(db, 'relayMaxInflight', 2)
+    try {
+      const ac = new AbortController()
+      const held = post('/v1/messages', a.token, ask('gate'), {}, { signal: ac.signal })
+      const held2 = post('/v1/messages', b.token, ask('gate'))
+      expect(await waitFor(() => gates.length === 2)).toBe(true)
+      const r = await post('/v1/messages', c.token, ask('hi'))
+      expect(r.status).toBe(429)
+      expect((await r.json() as any).error.message).toBe(MSG.busyTotal(2))
+      ;(await held).body?.cancel().catch(() => {})
+      ac.abort()
+      expect(await waitFor(() => rows(a.id).length === 1)).toBe(true)
+      expect((await post('/v1/messages', c.token, ask('json', { stream: false }))).status).toBe(200)
+      openGates()
+      await (await held2).text()
+    } finally {
+      openGates()
+      db.query("DELETE FROM settings WHERE key = 'relayMaxInflight'").run()
+    }
+  })
+
+  test('10 parallel requests on a $0.50 budget: at most 6 reach Anthropic, then the budget blocks', async () => {
+    const p = await person()
+    createBudget(db, { subjectType: 'user', subjectId: p.id, period: 'day', limitUsd: 0.5, limitTokens: null, action: 'block' })
+    costlyCalls = 0
+    const call = () => post('/v1/messages', p.token, ask('costly', { model: 'claude-opus-5-5', stream: false })).then((r) => r.status)
+    const statuses = await Promise.all(Array.from({ length: 10 }, call))
+    expect(costlyCalls).toBe(6)
+    expect(statuses.filter((s) => s === 200)).toHaveLength(6)
+    expect(statuses.filter((s) => s === 429)).toHaveLength(4)
+    expect(await call()).toBe(403)
+    expect(costlyCalls).toBe(6)
+  })
+
+  test('a block budget whose money left is likely taken by running requests answers 429 "wait", then lets the next one through', async () => {
+    const p = await person()
+    createBudget(db, { subjectType: 'user', subjectId: p.id, period: 'day', limitUsd: 1, limitTokens: null, action: 'block' })
+    db.query("INSERT INTO usage (id, user_id, source, model, cost_usd, status, started_at) VALUES (?, ?, 'pc', 'claude-sonnet-5-5', 0.85, 200, ?)").run('avg-' + p.id, p.id, new Date().toISOString())
+    const held = post('/v1/messages', p.token, ask('gate'))
+    expect(await waitFor(() => gates.length === 1)).toBe(true)
+    const before = seen.length
+    // $0.85 spent in 1 request: one more running request at that average would pass $1
+    const r = await post('/v1/messages', p.token, ask('hi'))
+    expect(r.status).toBe(429)
+    expect(r.headers.get('retry-after')).toBe('2')
+    expect((await r.json() as any).error.message).toBe(MSG.budgetWait)
+    expect(seen.length).toBe(before)
+    openGates()
+    await (await held).text()
+    expect(await waitFor(() => rows(p.id).length === 2)).toBe(true)
+    expect((await post('/v1/messages', p.token, ask('json', { stream: false }))).status).toBe(200)
+  })
+
+  test('token budgets count input, output and cache writes, not cache reads', async () => {
+    const p = await person()
+    // the happy answer: 1200 input + 350 output + 3000 cache writes (+ 50,000 cache reads not counted) = 4550
+    createBudget(db, { subjectType: 'user', subjectId: p.id, period: 'day', limitUsd: 0, limitTokens: 4551, action: 'block' })
+    await (await post('/v1/messages', p.token, ask('hi'))).text()
+    expect(await waitFor(() => rows(p.id).length === 1)).toBe(true)
+    expect(budgetBlock(db, p.id)).toBeNull()
+    expect((await (await post('/v1/messages', p.token, ask('hi'))).text())).toContain('message_stop')
+    expect((await post('/v1/messages', p.token, ask('hi'))).status).toBe(403)
+  })
+
+  test('code execution, MCP toolsets and the advisor in tools[] are refused with 403; web search and client tools pass', async () => {
+    const p = await person()
+    const before = seen.length
+    for (const type of ['code_execution_20250825', 'code_execution_20260521', 'mcp_toolset', 'advisor_20260301']) {
+      const r = await post('/v1/messages', p.token, ask('hi', { tools: [{ name: 'Read', input_schema: { type: 'object' } }, { type, name: 'x' }] }))
+      expect(r.status).toBe(403)
+      expect(await r.json()).toEqual({ type: 'error', error: { type: 'permission_error', message: MSG.refusedTool(type) } })
+    }
+    expect(seen.length).toBe(before)
+    const r = await post('/v1/messages', p.token, ask('json', { stream: false, tools: [{ name: 'Read', input_schema: { type: 'object' } }, { type: 'web_search_20250305', name: 'web_search', max_uses: 8 }, { type: 'web_fetch_20260209', name: 'web_fetch' }] }))
+    expect(r.status).toBe(200)
+    expect(JSON.parse(last().raw).tools.map((t: any) => t.type ?? 'none')).toEqual(['none', 'web_search_20250305', 'web_fetch_20260209'])
+  })
+
+  test('Anthropic refusing the company key is noted for the dashboard (trimmed, no key, no body we sent) and cleared by the next success', async () => {
+    const p = await person()
+    const noted: [string, number, string][] = [
+      ['error-401', 401, 'authentication_error'], ['error-credit', 400, 'invalid_request_error'], ['error-403', 403, 'permission_error'],
+      ['error-404', 404, 'not_found_error'], ['error-413', 413, 'request_too_large'], ['error-429', 429, 'rate_limit_error'],
+      ['error-500', 500, 'api_error'], ['error-529', 529, 'overloaded_error'],
+    ]
+    for (const [scenario, status, type] of noted) {
+      const r = await post('/v1/messages', p.token, ask(scenario))
+      expect(r.status).toBe(status)
+      expect(JSON.parse(await r.text())).toMatchObject({ type: 'error', error: { type }, request_id: 'req_err' }) // forwarded unmodified
+      const h = relayHealth(db)
+      expect(h.lastError).toMatchObject({ status, type })
+      expect(upstreamProblem(h)).not.toBeNull()
+      expect(JSON.stringify(h)).not.toContain(COMPANY_KEY)
+      expect(JSON.stringify(h)).not.toContain(scenario) // our request body is never stored
+      // the next good answer clears it, even within the same minute
+      await (await post('/v1/messages', p.token, ask('json', { stream: false }))).text()
+      expect(upstreamProblem(relayHealth(db))).toBeNull()
+    }
+    // other statuses pass through without a note
+    await (await post('/v1/messages', p.token, ask('error-418'))).text()
+    expect(upstreamProblem(relayHealth(db))).toBeNull()
+  })
+
+  test('credit exhausted and refused keys are logged as warnings without Anthropic\'s text; a mid-stream error is noted too', async () => {
+    const p = await person()
+    await (await post('/v1/messages', p.token, ask('error-credit'))).text()
+    expect(relayHealth(db).lastError?.message).toContain('credit balance is too low')
+    expect(logs.some((l) => l.level === 'warn' && l.msg.includes('out of credit'))).toBe(true)
+    await (await post('/v1/messages', p.token, ask('error-403'))).text()
+    expect(logs.some((l) => l.level === 'warn' && l.msg.includes('403'))).toBe(true)
+    expect(JSON.stringify(logs)).not.toContain('credit balance is too low')
+    expect(JSON.stringify(logs)).not.toContain('does not have permission')
+    await (await post('/v1/messages', p.token, ask('json', { stream: false }))).text()
+    const r = await post('/v1/messages', p.token, ask('stream-error'))
+    expect(await r.text()).toContain('overloaded_error')
+    expect(relayHealth(db).lastError).toMatchObject({ status: 529, type: 'overloaded_error', message: 'Overloaded' })
+    expect(upstreamProblem(relayHealth(db))).not.toBeNull()
+  })
+
+  test('models: a refused key on /v1/models is noted as well', async () => {
+    const p = await person()
+    hub.ctx.secrets.setApiKey('sk-ant-wrong')
+    const r = await fetch(hub.url + '/v1/models', { headers: { authorization: 'Bearer ' + p.token } })
+    expect(r.status).toBe(200) // the built-in list
+    expect(relayHealth(db).lastError).toMatchObject({ status: 401, type: 'authentication_error' })
+    hub.ctx.secrets.setApiKey(COMPANY_KEY)
+    await (await fetch(hub.url + '/v1/models', { headers: { authorization: 'Bearer ' + p.token } })).text()
+    expect(upstreamProblem(relayHealth(db))).toBeNull()
   })
 })

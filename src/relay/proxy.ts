@@ -5,9 +5,11 @@ import type { Ctx } from '../context'
 import type { C } from '../http/app'
 import type { TokenAuth } from '../auth/tokens'
 import { apiError } from '../http/errors'
-import { budgetBlock } from '../usage/budgets'
+import { budgetGate, type Budget } from '../usage/budgets'
 import { MessageTap, tapMessage } from './sse'
 import { UsageRecorder, type Requester } from './record'
+import { inflightFor, inflightLimits, type Inflight } from './inflight'
+import { noteUpstream } from './upstream'
 
 export type MessagesPath = '/v1/messages' | '/v1/messages/count_tokens'
 
@@ -17,6 +19,10 @@ export const MSG = {
   badBody: 'Trina AX: 요청 본문이 JSON 객체가 아니에요.',
   badModel: 'Trina AX: Claude 모델 이름이 아니에요.',
   refused: (key: string) => `Trina AX: 회사 허브에서는 ${key} 기능을 쓸 수 없어요.`,
+  refusedTool: (type: string) => `Trina AX: 회사 허브에서는 ${type} 도구를 쓸 수 없어요. Anthropic 서버에서 코드를 실행하거나 허브가 비용을 셀 수 없는 도구예요.`,
+  busyUser: (n: number) => `Trina AX: 한 사람이 동시에 보낼 수 있는 요청(${n}개)이 다 찼어요. 잠시 뒤 자동으로 다시 보내요.`,
+  busyTotal: (n: number) => `Trina AX: 지금 회사 전체에서 동시에 처리 중인 요청(${n}개)이 다 찼어요. 잠시 뒤 자동으로 다시 보내요.`,
+  budgetWait: 'Trina AX: 진행 중인 요청이 남은 AI 한도를 다 쓸 수도 있어서 잠시 기다려요. 그 요청이 끝나면 자동으로 다시 보내요.',
   unreachable: 'Trina AX: 허브가 Anthropic 서버에 연결하지 못했어요. 잠시 뒤 다시 해 주세요.',
   redirect: 'Trina AX: Anthropic 서버가 다른 주소로 넘기려고 해서 막았어요. 관리자에게 알려 주세요.',
   notFound: 'Trina AX: 허브에서는 이 API를 쓸 수 없어요.',
@@ -24,10 +30,30 @@ export const MSG = {
 
 /** Claude Code would retry these; they will not get better by retrying. */
 export const NO_RETRY = { 'x-should-retry': 'false' }
+/** busy: Claude Code retries a 429 by itself, after this many seconds */
+export const RETRY_SOON = { 'retry-after': '2', 'x-should-retry': 'true' }
 
 const MODEL_RE = /^claude-[a-z0-9][a-z0-9.-]{0,79}$/
 /** body keys that would make Anthropic reach out on the company's account (MCP connector, code execution) */
 const REFUSED_KEYS = ['mcp_servers', 'container']
+/**
+ * Server tools refused in `tools[]`: they run code in a container on Anthropic's side (code execution, billed per
+ * container hour; the *_code_execution names are its sub-tools), connect to MCP servers from Anthropic (the MCP
+ * connector's toolset), or call a second model whose tokens the relay cannot price (advisor). Everything else
+ * passes: Claude Code's own tools have no `type` (or "custom"); web search is priced (src/relay/pricing.ts), web
+ * fetch and tool search cost only tokens; bash, text editor, computer, browser and memory tools run on the PC.
+ */
+const REFUSED_TOOL = /^(?:code_execution|bash_code_execution|text_editor_code_execution|mcp_toolset|advisor)(?:_|$)/i
+
+/** The first refused server tool type in a request's tools, or null. */
+export function refusedTool(tools: unknown): string | null {
+  if (!Array.isArray(tools)) return null
+  for (const t of tools) {
+    const type = t && typeof t === 'object' ? (t as Record<string, unknown>).type : undefined
+    if (typeof type === 'string' && REFUSED_TOOL.test(type)) return type.replace(/[^\w.-]/g, '').slice(0, 60)
+  }
+  return null
+}
 /** the only request headers that reach Anthropic; the device token, cookies and everything else stay here */
 export const FORWARD_HEADERS = ['anthropic-version', 'anthropic-beta', 'accept', 'user-agent', 'x-app'] as const
 const DEFAULT_VERSION = '2023-06-01'
@@ -49,6 +75,8 @@ export function checkBody(raw: string): BodyCheck {
   const body = parsed as Record<string, unknown>
   const refused = REFUSED_KEYS.find((k) => Object.hasOwn(body, k))
   if (refused) return { refuse: apiError(403, 'permission_error', MSG.refused(refused)) }
+  const tool = refusedTool(body.tools)
+  if (tool) return { refuse: apiError(403, 'permission_error', MSG.refusedTool(tool)) }
   if (typeof body.model !== 'string' || !MODEL_RE.test(body.model)) return { refuse: apiError(400, 'invalid_request_error', MSG.badModel) }
   return { body, model: body.model }
 }
@@ -99,17 +127,36 @@ export async function relayMessages(ctx: Ctx, c: C, path: MessagesPath): Promise
   if (!apiKey) return apiError(503, 'api_error', MSG.noKey, NO_RETRY)
   const checked = checkBody(await c.req.text())
   if ('refuse' in checked) return checked.refuse
-  // counting tokens costs nothing, so only real model calls are held to the budget.
-  // 403, not 429: Claude Code retries a 429 by itself.
-  if (path === '/v1/messages') {
-    const block = budgetBlock(ctx.db, auth.user.id)
-    if (block) return apiError(403, 'permission_error', block.message)
-  }
   const req = c.req.raw
-  const recorder = path === '/v1/messages' ? new UsageRecorder(ctx, requester(auth, req.headers), checked.model) : null
+  let recorder: UsageRecorder | null = null
+  // counting tokens costs nothing, so only real model calls are held to the budget and the in-flight caps
+  if (path === '/v1/messages') {
+    const inflight = inflightFor(ctx.db)
+    const gate = budgetGate(ctx.db, auth.user.id, { running: (b) => runningFor(ctx, inflight, b) })
+    // 403, not 429, for a used-up budget: Claude Code retries a 429 by itself
+    if (gate?.kind === 'block') return apiError(403, 'permission_error', gate.message)
+    if (gate?.kind === 'wait') return apiError(429, 'rate_limit_error', MSG.budgetWait, RETRY_SOON)
+    const limits = inflightLimits(ctx.db)
+    const slot = inflight.acquire(auth.user.id, limits)
+    if ('full' in slot) return apiError(429, 'rate_limit_error', slot.full === 'user' ? MSG.busyUser(limits.perUser) : MSG.busyTotal(limits.total), RETRY_SOON)
+    recorder = new UsageRecorder(ctx, requester(auth, req.headers), checked.model, slot.release)
+  }
   const url = upstreamUrl(ctx.config.upstreamBaseUrl, path, new URL(req.url).searchParams, MESSAGES_QUERY)
-  // re-serialized: what goes out is exactly what was checked (a raw body could hide a duplicate key)
-  return forward(ctx, { req, url, path, body: JSON.stringify(checked.body), apiKey, recorder })
+  try {
+    // re-serialized: what goes out is exactly what was checked (a raw body could hide a duplicate key)
+    return await forward(ctx, { req, url, path, body: JSON.stringify(checked.body), apiKey, recorder })
+  } catch (e) {
+    recorder?.finish() // frees the in-flight slot
+    throw e
+  }
+}
+
+/** Requests running now that count against a budget. */
+function runningFor(ctx: Ctx, inflight: Inflight, b: Budget): number {
+  if (b.subjectType === 'team') return inflight.count()
+  if (b.subjectType === 'user') return inflight.count(b.subjectId ?? '')
+  const members = ctx.db.query('SELECT user_id FROM group_members WHERE group_id = ?').all(b.subjectId) as { user_id: string }[]
+  return members.reduce((n, m) => n + inflight.count(m.user_id), 0)
 }
 
 interface Forward { req: Request; url: string; path: string; body: string; apiKey: string; recorder: UsageRecorder | null }
@@ -145,10 +192,10 @@ async function forward(ctx: Ctx, o: Forward): Promise<Response> {
     ctx.log.warn('relay: Anthropic answered with a redirect; not followed', { path: o.path, status: up.status })
     return apiError(502, 'api_error', MSG.redirect, NO_RETRY)
   }
-  logUpstreamError(ctx, o.path, up)
 
   const headers = responseHeaders(up.headers)
   if (up.ok && up.body && isEventStream(up.headers)) {
+    noteUpstream(ctx, o.path, up.status, up.headers, null)
     return new Response(passThrough(up.body, recorder, upstream), { status: up.status, headers })
   }
   let bytes: ArrayBuffer
@@ -157,19 +204,13 @@ async function forward(ctx: Ctx, o: Forward): Promise<Response> {
     if (!upstream.signal.aborted) ctx.log.warn('relay: Anthropic answer broke off', { path: o.path, err: errText(e) })
     return apiError(502, 'api_error', MSG.unreachable)
   }
+  noteUpstream(ctx, o.path, up.status, up.headers, up.ok ? null : bytes)
   if (recorder) {
     if (up.ok) try { tapMessage(recorder, JSON.parse(new TextDecoder().decode(bytes))) } catch { /* not JSON: nothing to count */ }
     recorder.finish()
   }
+  // error bodies go back exactly as Anthropic wrote them
   return new Response(bytes, { status: up.status, headers })
-}
-
-/** Status only (and Anthropic's request id): error bodies are not logged. */
-function logUpstreamError(ctx: Ctx, path: string, up: Response) {
-  const f = { path, status: up.status, requestId: up.headers.get('request-id') ?? undefined }
-  if (up.status === 401) ctx.log.warn('relay: Anthropic refused the company API key (401); check the key on the settings page', f)
-  else if (up.status === 403) ctx.log.warn('relay: Anthropic refused the request for this API key (403)', f)
-  else if (up.status >= 500) ctx.log.warn('relay: Anthropic error', f)
 }
 
 /** The answer as it arrives (pull-based, no read-ahead), with the tap reading usage and skills on the way. */
