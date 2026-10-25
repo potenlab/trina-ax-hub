@@ -75,4 +75,37 @@ export async function login(hub: TestHub, username: string, password: string, he
 }
 
 /** The one-time secret shown on a page (temp password or enroll code). */
-export const secretOn = (page: string) => /<span class="secret">([^<]+)<\/span>/.exec(page)?.[1] ?? null
+export const secretOn = (page: string) => /<span class="secret"[^>]*>([^<]+)<\/span>/.exec(page)?.[1] ?? null
+
+/** The /join/<token> link shown on a page (a just-made invite or reset link): its path and the token. */
+export function inviteOn(page: string): { path: string; token: string } | null {
+  const m = /\/join\/([A-Za-z0-9_-]{43})/.exec(page)
+  return m ? { path: `/join/${m[1]}`, token: m[1]! } : null
+}
+
+/** Visible text of a page: tags, scripts and styles removed, entities decoded, spaces squeezed (for plain "contains" checks). */
+export const pageText = (html: string) => html.replace(/<(script|style)[\s\S]*?<\/\1>/g, ' ').replace(/<\/?(b|i|em|strong|code|span|a|small|u)\b[^>]*>/g, '').replace(/<[^>]+>/g, ' ')
+  .replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ')
+
+export const UA = {
+  mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  android: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36',
+  linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+}
+
+/** A live Claude app connection for a person, as the OAuth flow leaves it (client + refresh row). */
+export function connectApp(hub: TestHub, userId: string, app = 'Claude'): string {
+  const id = 'tac_' + Math.random().toString(36).slice(2, 12)
+  const now = new Date().toISOString()
+  hub.ctx.db.query('INSERT INTO oauth_clients (client_id, name, redirect_uris, created_at) VALUES (?,?,?,?)').run(id, app, '["https://claude.ai/api/mcp/auth_callback"]', now)
+  hub.ctx.db.query('INSERT INTO oauth_refresh (token_hash, client_id, user_id, access_token_id, resource, scope, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)')
+    .run('h_' + id, id, userId, null, null, 'mcp', now, new Date(Date.now() + 60 * 86_400_000).toISOString())
+  return id
+}
+
+/** One MCP tool call on record for a person (what a Claude app user leaves on the hub). */
+export function toolCall(hub: TestHub, userId: string, at = new Date().toISOString()) {
+  hub.ctx.db.query("INSERT INTO tool_events (user_id, token_id, tool, summary, ok, at) VALUES (?, NULL, 'list_files', '/', 1, ?)").run(userId, at)
+}

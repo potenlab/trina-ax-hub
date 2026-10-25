@@ -16,6 +16,9 @@ import { HttpError } from '../http/errors'
 import { cookieName, isHttps } from '../http/cookies'
 import { Denied } from '../policy/errors'
 import { effectiveUrls, installCommands, urlWarnings } from './settings'
+import type { BulkRow } from './invite-types'
+import { mailerFor, type InviteMailer } from './invite-mail'
+import { hubChatReady } from '../hub/service'
 
 // per-hub state ------------------------------------------------------------------------------------------------------
 
@@ -24,6 +27,9 @@ export type Flash =
   | { kind: 'ok' | 'warn' | 'bad'; text: string }
   | { kind: 'enroll'; code: string; expiresAt: string; userId: string; who: string }
   | { kind: 'password'; password: string; userId: string; username: string; who: string }
+  /** a just-made invite or reset link (the token is shown once, never stored in plain text) */
+  | { kind: 'invite'; token: string; expiresAt: string; userId: string; who: string; reset: boolean; mailed: boolean }
+  | { kind: 'bulk'; rows: BulkRow[]; group: string | null }
 
 const FLASH_TTL_MS = 10 * 60_000
 
@@ -55,6 +61,8 @@ export interface Web {
   login: { pair: FailureLimiter; ip: FailureLimiter }
   /** true while /setup is creating the owner (two posts at once must not make two owners) */
   settingUp: boolean
+  /** sends invite links by email; sends nothing until a mail module registers one (see invite-mail.ts) */
+  readonly mailer: InviteMailer
 }
 
 /** wrong passwords for one username from one address */
@@ -65,7 +73,7 @@ export const LOGIN_WINDOW_MS = 15 * 60_000
 
 export function makeWeb(ctx: Ctx): Web {
   return {
-    ctx, flash: new FlashStore(), settingUp: false,
+    ctx, flash: new FlashStore(), settingUp: false, get mailer() { return mailerFor(ctx) },
     login: { pair: new FailureLimiter(LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS), ip: new FailureLimiter(LOGIN_IP_MAX_FAILURES, LOGIN_WINDOW_MS) },
   }
 }
@@ -167,6 +175,8 @@ const isAdminRole = (r: string) => r === 'owner' || r === 'admin'
 export const pageGuard = (web: Web, o: { admin?: boolean } = {}): MiddlewareHandler<AppEnv> => async (c, next) => {
   const s = c.get('session')
   if (!s) {
+    // a script polling a .json address gets a plain 401, not the login page
+    if (c.req.path.endsWith('.json')) return c.json({ error: 'unauthorized' }, 401, { 'cache-control': 'no-store' })
     if (c.req.method === 'GET' || c.req.method === 'HEAD') return c.redirect('/login?next=' + encodeURIComponent(c.req.path + (new URL(c.req.url).search)))
     return c.redirect('/login', 303)
   }
@@ -212,9 +222,15 @@ const ADMIN_NAV: NavItem[] = [
 ]
 const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '채팅' }]
 
-export function navFor(role: string | undefined): NavItem[] {
+/** Whether hub chat works, for the pages of the request being answered (set once per request by the web module). */
+const CHAT_READY = new WeakMap<Request, boolean>()
+export const noteChatReady = (c: C, ctx: Ctx) => { CHAT_READY.set(c.req.raw, hubChatReady(ctx)) }
+
+export function navFor(role: string | undefined, o: { chat?: boolean } = {}): NavItem[] {
   if (!role) return []
-  return isAdminRole(role) ? [...ADMIN_NAV, ...PERSONAL_NAV] : PERSONAL_NAV
+  // "채팅" only where hub chat can run (company API key + Claude Code on the hub); otherwise it leads to a dead composer
+  const personal = o.chat === false ? PERSONAL_NAV.filter((n) => n.href !== '/app') : PERSONAL_NAV
+  return isAdminRole(role) ? [...ADMIN_NAV, ...personal] : personal
 }
 
 /** Extra styles for these pages (on top of the shared CSS); same tokens, same look. */
@@ -276,7 +292,7 @@ export const WebHead = () => (<><style>{raw(WEB_CSS)}</style><script>{raw(CONFIR
 export function Shell(p: { c: C; title: string; active: string; narrow?: boolean; flashes?: Flash[]; children: Child }) {
   const s = p.c.get('session')
   return (
-    <Page title={p.title} user={s?.user ?? null} nav={navFor(s?.user.role)} active={p.active} narrow={p.narrow} head={<WebHead />} csrf={s?.csrf}>
+    <Page title={p.title} user={s?.user ?? null} nav={navFor(s?.user.role, { chat: CHAT_READY.get(p.c.req.raw) })} active={p.active} narrow={p.narrow} head={<WebHead />} csrf={s?.csrf}>
       {(p.flashes ?? []).filter((f): f is Extract<Flash, { text: string }> => 'text' in f).map((f) => (
         <div class={'notice' + (f.kind === 'ok' ? '' : ' ' + f.kind)} role="status">{f.text}</div>
       ))}

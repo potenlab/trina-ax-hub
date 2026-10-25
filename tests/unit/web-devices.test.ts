@@ -116,10 +116,11 @@ describe('web: PCs on an old hub address', async () => {
     expect(me).toContain('https://acme.example.com/app')
     expect(me).not.toContain('사무실 와이파이에서만')
 
-    // making a code shows the install command with the new address
-    const e = unescape((await follow(hub, await post(hub, '/me/enroll', sess), sess)).text)
+    // making a code shows the install command with the new address (an unknown computer gets both commands)
+    await post(hub, '/me/enroll', sess)
+    const e = unescape(await (await get(hub, '/me', sess)).text())
     expect(e).toContain('curl -fsSL https://acme.example.com/install.sh | bash -s -- ')
-    expect(e).toContain('위에 나온 명령을 그 PC에서 실행해 주세요.')
+    expect(e).toContain('href="#pc-connect"')
     expect(listTokens(db, kim.id).find((t) => t.id === lanPc.id)?.revoked_at).toBeNull()
   })
 })
@@ -136,12 +137,12 @@ describe('web: dashboard health', async () => {
   test('no problems yet: phone chat off without Claude Code, people not set up, public address first', async () => {
     const body = await (await get(hub, '/admin', owner)).text()
     expect(body).not.toContain('class="card alert')
-    expect(body).toContain('직원 PC를 연결하기 전에 공개 주소부터 넣어 주세요')
+    expect(body).toContain('직원이 연결하기 전에 공개 주소부터 넣어 주세요')
     expect(body).toContain('아직 아무도 쓰지 않았어요')
     expect(body).toContain('꺼져 있어요')
-    expect(body).toContain('PC를 연결하지 않았어요 (2명)') // owner and kim
+    expect(body).toContain('아직 연결하지 않았어요 (2명)') // owner and kim
     expect(body).toContain(`href="/admin/users/${kim.id}"`)
-    expect(body).toContain('PC는 있지만 이번 달에 안 썼어요 (1명)') // lee
+    expect(body).toContain('연결은 했지만 이번 달에 안 썼어요 (1명)') // lee
   })
 
   test('last use and a refusal from Anthropic', async () => {
@@ -156,7 +157,7 @@ describe('web: dashboard health', async () => {
     expect(body).toContain('Anthropic 콘솔(console.anthropic.com)에서 결제·키를 확인해 주세요.')
     expect(body).toContain('Your credit balance is too low')
     expect(body).toContain('400 · invalid_request_error')
-    expect(body).not.toContain('PC는 있지만 이번 달에 안 썼어요') // lee used it now
+    expect(body).not.toContain('연결은 했지만 이번 달에 안 썼어요') // lee used it now
     // a later success clears it
     noteUpstreamOk(db, Date.now() + 120_000)
     expect(await (await get(hub, '/admin', owner)).text()).not.toContain('class="card alert')

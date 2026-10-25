@@ -7,14 +7,15 @@ import { redeemEnrollCode } from '../../src/auth/enroll'
 import { createBudget, listBudgets } from '../../src/usage/budgets'
 import { listRules } from '../../src/policy/rules-admin'
 import { audit, listAudit } from '../../src/audit'
-import { get, post, follow, login, secretOn, type Sess } from './web-lib'
+import { get, post, follow, login, secretOn, inviteOn, preSession, pageText, hubCookie, type Sess } from './web-lib'
+import { PRODUCT } from '../../src/product'
 
 let hub: TestHub
 afterAll(async () => { await hub?.stop() })
 
 const PAGES: [string, string[]][] = [
   ['/admin', ['대시보드', '시작하기', '이번 달 쓴 사람']],
-  ['/admin/users', ['사람 추가', '소유자']],
+  ['/admin/users', ['사람 추가', '소유자', '여러 명 한꺼번에 초대하기', '상태']],
   ['/admin/groups', ['그룹 만들기']],
   ['/admin/folders', ['규칙 추가', '팀 폴더', 'shared', '권한 확인']],
   ['/admin/budgets', ['예산 추가', '아직 예산이 없어요']],
@@ -39,7 +40,8 @@ describe('web: admin pages by role', async () => {
         expect(`${path} ${r.status}`).toBe(`${path} 200`)
         const body = await r.text()
         for (const t of texts) expect(`${path}: ${body.includes(t) ? t : 'missing ' + t}`).toBe(`${path}: ${t}`)
-        for (const n of ['대시보드', '폴더 권한', '되살리기', '예산', '기록', '내 PC', '채팅']) expect(body).toContain(`>${n}</a>`)
+        for (const n of ['대시보드', '폴더 권한', '되살리기', '예산', '기록', '내 PC']) expect(body).toContain(`>${n}</a>`)
+        expect(body).not.toContain('>채팅</a>') // this hub cannot run chats (no Claude Code on it)
         expect(body).not.toMatch(/\$argon2/)
       }
     }
@@ -65,7 +67,10 @@ describe('web: admin pages by role', async () => {
     const t = issueToken(db, member.id, 'device', 'm-pc')
     const b = createBudget(db, { subjectType: 'team', subjectId: null, period: 'month', limitUsd: 5, limitTokens: null, action: 'block' })
     const routes: [string, Record<string, string>][] = [
-      ['/admin/users', { name: '새사람', username: 'newbie', role: 'member' }],
+      ['/admin/users', { name: '새사람', email: 'newbie@example.com', role: 'member' }],
+      ['/admin/users/bulk/preview', { text: '새사람, newbie@example.com' }],
+      ['/admin/users/bulk', { text: '새사람, newbie@example.com' }],
+      [`/admin/users/${member.id}/invite`, {}],
       [`/admin/users/${member.id}`, { name: '바뀐이름', role: 'admin', status: 'active' }],
       [`/admin/users/${member.id}/password`, {}],
       [`/admin/users/${member.id}/enroll`, {}],
@@ -109,35 +114,68 @@ describe('web: people', async () => {
   const sales = hub.group('상담실')
   const owner = hub.session(hub.owner.id)
 
-  test('add a person: temp password shown once, must change it, can log in', async () => {
-    const r = await post(hub, '/admin/users', owner, { name: '박상담', username: 'park', role: 'member', groups: [sales.id] })
+  test('add a person by name and email: an invite link shown once, they choose a password and are in', async () => {
+    const r = await post(hub, '/admin/users', owner, { name: '박상담', email: 'Park.Sangdam@Example.com', role: 'member', groups: [sales.id] })
     expect(r.status).toBe(303)
-    const park = getUserByUsername(db(), 'park')!
+    const park = getUserByUsername(db(), 'park.sangdam')! // the hidden username comes from the email
     expect(r.headers.get('location')).toBe(`/admin/users/${park.id}`)
+    expect(park.email).toBe('park.sangdam@example.com')
     expect(park.mustChangePassword).toBe(true)
     expect(park.groups.map((x) => x.id)).toEqual([sales.id])
     const page = await follow(hub, r, owner)
+    const inv = inviteOn(page.text)!
+    expect(inv).toBeTruthy()
+    const text = pageText(page.text)
+    expect(text).toContain('박상담님 초대 링크')
+    expect(text).toContain('Claude 앱을 먼저 설치해 두세요')
+    expect(text).toContain(`${hub.url}/join/${inv.token}`)
+    expect(inviteOn(await (await get(hub, `/admin/users/${park.id}`, owner)).text())).toBeNull() // shown once
+    expect(JSON.stringify(db().query('SELECT * FROM invites').all())).not.toContain(inv.token) // only its hash is kept
+    expect(JSON.stringify(listAudit(db()))).not.toContain(inv.token)
+
+    const pre = await preSession(hub, inv.path)
+    const joined = await post(hub, inv.path, pre, { password: 'park-own-pass', password2: 'park-own-pass' })
+    expect(joined.status).toBe(303)
+    expect(joined.headers.get('location')).toBe('/me')
+    const cookie = hubCookie(joined, PRODUCT.sessionCookie)!
+    expect((await get(hub, '/me', { cookie, csrf: '' })).status).toBe(200)
+    expect(getUser(db(), park.id)!.mustChangePassword).toBe(false)
+    expect((await login(hub, 'park.sangdam', 'park-own-pass')).sess).not.toBeNull()
+  })
+
+  test('a temporary password is still there, behind the advanced option: shown once, must change it, can log in', async () => {
+    const r = await post(hub, '/admin/users', owner, { name: '임시직', username: 'temp1', role: 'member', temp: '1' })
+    expect(r.status).toBe(303)
+    const t = getUserByUsername(db(), 'temp1')!
+    expect(t.mustChangePassword).toBe(true)
+    expect(t.email).toBeNull()
+    const page = await follow(hub, r, owner)
     expect(page.text).toContain('임시 비밀번호')
+    expect(inviteOn(page.text)).toBeNull()
     const temp = secretOn(page.text)!
     expect(temp).toMatch(/^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/)
-    expect(page.text).toContain('/login')
-    expect(secretOn(await (await get(hub, `/admin/users/${park.id}`, owner)).text())).toBeNull()
+    expect(secretOn(await (await get(hub, `/admin/users/${t.id}`, owner)).text())).toBeNull()
     expect(JSON.stringify(listAudit(db()))).not.toContain(temp)
-
-    const { r: lr, sess } = await login(hub, 'park', temp)
+    const { r: lr, sess } = await login(hub, 'temp1', temp)
     expect(lr.headers.get('location')).toBe('/me/password')
-    expect((await post(hub, '/me/password', sess, { password: 'park-own-pass', password2: 'park-own-pass' })).status).toBe(303)
+    expect((await post(hub, '/me/password', sess, { password: 'temp1-own-pass', password2: 'temp1-own-pass' })).status).toBe(303)
     expect((await get(hub, '/me', sess)).status).toBe(200)
   })
 
-  test('add refuses a duplicate username with a message', async () => {
-    const r = await post(hub, '/admin/users', owner, { name: '또박', username: 'park', role: 'member' })
-    expect(r.status).toBe(303)
+  test('add needs an email (unless it is a temporary password) and refuses duplicates with a message', async () => {
+    let r = await post(hub, '/admin/users', owner, { name: '이메일없음', role: 'member' })
+    expect((await follow(hub, r, owner)).text).toContain('이메일을 적어 주세요')
+    r = await post(hub, '/admin/users', owner, { name: '이상한', email: 'not-an-email', role: 'member' })
+    expect((await follow(hub, r, owner)).text).toContain('이메일 주소 모양이 이상해요')
+    r = await post(hub, '/admin/users', owner, { name: '또박', email: 'PARK.sangdam@example.com', role: 'member' })
+    expect((await follow(hub, r, owner)).text).toContain('이미 같은 이메일을 쓰는 사람이 있어요')
+    r = await post(hub, '/admin/users', owner, { name: '또박', email: 'other@example.com', username: 'park.sangdam', role: 'member' })
     expect((await follow(hub, r, owner)).text).toContain('이미 있는 아이디예요')
+    expect(getUserByUsername(db(), 'also')).toBeNull()
   })
 
   test('edit name, role, status and groups; disabling cuts sessions and PCs', async () => {
-    const park = getUserByUsername(db(), 'park')!
+    const park = getUserByUsername(db(), 'park.sangdam')!
     const parkSess = hub.session(park.id)
     const tok = issueToken(db(), park.id, 'device', 'park-pc')
     let r = await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', email: 'park@example.com', role: 'admin', status: 'active' })
@@ -145,15 +183,23 @@ describe('web: people', async () => {
     let u = getUser(db(), park.id)!
     expect([u.name, u.role, u.email, u.groups.length]).toEqual(['박실장', 'admin', 'park@example.com', 0])
     expect(listAudit(db()).find((a) => a.action === 'user.update' && a.target === park.id)?.detail).toContain('admin')
+    // the address is the login: it must be an address and belong to nobody else
+    r = await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', email: 'temp-owner', role: 'admin', status: 'active' })
+    expect((await follow(hub, r, owner)).text).toContain('이메일 주소 모양이 이상해요')
+    const other = await hub.user('other-person')
+    db().query('UPDATE users SET email = ? WHERE id = ?').run('taken@example.com', other.id)
+    r = await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', email: 'Taken@Example.com', role: 'admin', status: 'active' })
+    expect((await follow(hub, r, owner)).text).toContain('이미 같은 이메일을 쓰는 사람이 있어요')
+    expect(getUser(db(), park.id)!.email).toBe('park@example.com')
 
-    r = await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', role: 'member', status: 'disabled', groups: [sales.id] })
+    r = await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', email: 'park@example.com', role: 'member', status: 'disabled', groups: [sales.id] })
     expect((await follow(hub, r, owner)).text).toContain('껐어요')
     u = getUser(db(), park.id)!
     expect([u.role, u.status, u.groups.map((x) => x.id)]).toEqual(['member', 'disabled', [sales.id]])
     expect(verifyToken(db(), tok.token)).toBeNull()
     expect((await get(hub, '/me', parkSess)).status).toBe(302)
     // back on
-    await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', role: 'member', status: 'active', groups: [sales.id] })
+    await post(hub, `/admin/users/${park.id}`, owner, { name: '박실장', email: 'park@example.com', role: 'member', status: 'active', groups: [sales.id] })
     expect(getUser(db(), park.id)!.status).toBe('active')
   })
 
@@ -162,7 +208,7 @@ describe('web: people', async () => {
     const adm = hub.session(adminU.id)
     await post(hub, `/admin/users/${adminU.id}`, adm, { name: 'admin2', role: 'member', status: 'disabled' })
     expect(getUser(hub.ctx.db, adminU.id)).toMatchObject({ role: 'admin', status: 'active' })
-    for (const path of [`/admin/users/${hub.owner.id}`, `/admin/users/${hub.owner.id}/password`, `/admin/users/${hub.owner.id}/enroll`]) {
+    for (const path of [`/admin/users/${hub.owner.id}`, `/admin/users/${hub.owner.id}/password`, `/admin/users/${hub.owner.id}/invite`, `/admin/users/${hub.owner.id}/enroll`]) {
       const r = await post(hub, path, adm, { name: '해킹', role: 'member', status: 'disabled' })
       expect(`${path} ${r.status}`).toBe(`${path} 403`)
     }
@@ -175,24 +221,34 @@ describe('web: people', async () => {
     expect(getUser(hub.ctx.db, hub.owner.id)!.role).toBe('owner')
   })
 
-  test('reset password: new temp password shown once, old one stops working, sessions end', async () => {
-    const park = getUserByUsername(hub.ctx.db, 'park')!
+  test('reset password: a link instead of a temporary password; the old password and sessions stop at once', async () => {
+    const park = getUserByUsername(hub.ctx.db, 'park.sangdam')!
     const parkSess = hub.session(park.id)
     const r = await post(hub, `/admin/users/${park.id}/password`, owner)
     const page = await follow(hub, r, owner)
-    const temp = secretOn(page.text)!
-    expect(temp).toBeTruthy()
+    const inv = inviteOn(page.text)!
+    expect(inv).toBeTruthy()
+    expect(secretOn(page.text)).toBeNull()
+    expect(pageText(page.text)).toContain('비밀번호 초기화 링크')
     expect((await get(hub, '/me', parkSess)).status).toBe(302)
-    expect((await login(hub, 'park', 'park-own-pass')).sess).toBeNull()
-    expect((await login(hub, 'park', temp)).r.headers.get('location')).toBe('/me/password')
+    expect((await login(hub, 'park.sangdam', 'park-own-pass')).sess).toBeNull()
+    const pre = await preSession(hub, inv.path)
+    const joined = await post(hub, inv.path, pre, { password: 'park-new-pass', password2: 'park-new-pass' })
+    expect(joined.headers.get('location')).toBe('/me')
+    expect((await login(hub, 'park.sangdam', 'park-new-pass')).sess).not.toBeNull()
     expect(listAudit(hub.ctx.db).some((a) => a.action === 'user.password_reset' && a.target === park.id)).toBe(true)
+    // the temporary-password way, when an admin asks for it
+    const t = await post(hub, `/admin/users/${park.id}/password`, owner, { temp: '1' })
+    const temp = secretOn((await follow(hub, t, owner)).text)!
+    expect((await login(hub, 'park.sangdam', 'park-new-pass')).sess).toBeNull()
+    expect((await login(hub, 'park.sangdam', temp)).r.headers.get('location')).toBe('/me/password')
     // not for yourself
     const self = await post(hub, `/admin/users/${hub.owner.id}/password`, owner)
     expect((await follow(hub, self, owner)).text).toContain('비밀번호 바꾸기')
   })
 
   test('make an enroll code for someone, it redeems, then revoke their PC', async () => {
-    const park = getUserByUsername(hub.ctx.db, 'park')!
+    const park = getUserByUsername(hub.ctx.db, 'park.sangdam')!
     const r = await post(hub, `/admin/users/${park.id}/enroll`, owner)
     const page = await follow(hub, r, owner)
     const code = secretOn(page.text)!

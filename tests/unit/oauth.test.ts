@@ -3,6 +3,10 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import crypto from 'node:crypto'
 import { testHub } from '../lib/hub'
 import { pkceChallenge, redirectAllowed, redirectMatches, canonicalResource, listConnectors, revokeConnectors } from '../../src/oauth/routes'
+import { createUser } from '../../src/auth/users'
+import { createInvite, createInvitedUser } from '../../src/auth/invites'
+import { PRODUCT } from '../../src/product'
+import { get as webGet, post as webPost, preSession, hubCookie } from './web-lib'
 
 const hub = await testHub({ access: 'subscription' })
 afterAll(async () => { await hub.stop() })
@@ -154,5 +158,135 @@ describe('authorize → token → MCP', async () => {
     hub.ctx.db.query("UPDATE users SET status = 'disabled' WHERE id = ?").run(kim.id)
     const code = new URL(location).searchParams.get('code')!
     expect((await token({ grant_type: 'authorization_code', code, redirect_uri: CALLBACK, client_id: cl.client_id, code_verifier: verifier })).status).toBe(400)
+  })
+})
+
+// A person who clicks Connect in Claude before they have an account (or while they must still choose a password) must
+// end up on the consent screen after joining / logging in, not on their own page with the Connect lost.
+describe('Connect in Claude, then join or log in first', async () => {
+  const db = hub.ctx.db
+
+  async function startConnect(clientId: string) {
+    const verifier = crypto.randomBytes(40).toString('base64url')
+    const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: pkceChallenge(verifier), code_challenge_method: 'S256', state: 'st-flow', scope: 'mcp offline_access', resource: `${ORIGIN}/mcp` })
+    const a = await fetch(hub.url + '/oauth/authorize?' + q, { headers: PUBLIC, redirect: 'manual' })
+    const cont = a.headers.get('location')!
+    expect(cont).toStartWith('/oauth/continue/')
+    return { verifier, cont }
+  }
+
+  /** The consent screen is what the person lands on; press 허용 and trade the code, as Claude does. Returns the MCP caller id. */
+  async function finish(clientId: string, cont: string, sess: { cookie: string; csrf: string }, verifier: string) {
+    const page = await webGet(hub, cont, sess, PUBLIC)
+    expect(page.status).toBe(200)
+    const html = await page.text()
+    expect(html).toContain('허용')
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(html)![1]!
+    const p = await webPost(hub, cont, { cookie: sess.cookie, csrf }, { decision: 'allow' }, { headers: PUBLIC })
+    expect(p.status).toBe(303)
+    const back = new URL(p.headers.get('location')!)
+    expect(back.origin + back.pathname).toBe(CALLBACK)
+    expect(back.searchParams.get('state')).toBe('st-flow')
+    const t = await token({ grant_type: 'authorization_code', code: back.searchParams.get('code')!, redirect_uri: CALLBACK, client_id: clientId, code_verifier: verifier, resource: `${ORIGIN}/mcp` })
+    expect(t.status).toBe(200)
+    const tok = await t.json() as any
+    const init = await mcp(tok.access_token, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })
+    expect(init.status).toBe(200)
+    return tok
+  }
+
+  test('new person with an invite link: login page → invite link in the same browser → consent → connected', async () => {
+    const u = createInvitedUser(db, { username: 'newbie', name: '신입', email: 'newbie@acme.com', role: 'member' })
+    const inv = createInvite(db, u.id, 'invite', hub.owner.id)
+    const { body: cl } = await register()
+    const { verifier, cont } = await startConnect(cl.client_id)
+
+    // not logged in: sent to the login page with where they were going
+    const r1 = await webGet(hub, cont, null, PUBLIC)
+    expect(r1.headers.get('location')).toBe('/login?next=' + encodeURIComponent(cont))
+    const loginPage = await webGet(hub, r1.headers.get('location')!, null, PUBLIC)
+    const pre = hubCookie(loginPage, 'tax_pre')!
+    const rememberedNext = hubCookie(loginPage, 'tax_next')!
+    expect(rememberedNext).toBeTruthy()
+    expect(await loginPage.text()).toContain('받은 초대 링크를 먼저 열어')
+
+    // they open the invite link in that same browser; the page carries `next`, joining lands on the consent screen
+    const browser = `${pre}; ${rememberedNext}`
+    const joinHtml = await (await webGet(hub, `/join/${inv.token}`, { cookie: browser, csrf: '' }, PUBLIC)).text()
+    expect(joinHtml).toContain(`name="next" value="${cont}"`)
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(joinHtml)![1]!
+    const j = await webPost(hub, `/join/${inv.token}`, { cookie: browser, csrf }, { password: 'newbie-pass-1', password2: 'newbie-pass-1', next: cont }, { headers: PUBLIC })
+    expect(j.status).toBe(303)
+    expect(j.headers.get('location')).toBe(cont)
+    const cookie = hubCookie(j, PRODUCT.sessionCookie)!
+    expect(cookie).toStartWith('__Host-') // on https
+    await finish(cl.client_id, cont, { cookie, csrf: '' }, verifier)
+    expect(listConnectors(hub.ctx, u.id).length).toBe(1)
+  })
+
+  test('the same, when only the cookie the login page left remembers where they were going', async () => {
+    const u = createInvitedUser(db, { username: 'cookieguy', name: '쿠키', email: 'cookie@acme.com', role: 'member' })
+    const inv = createInvite(db, u.id, 'invite', hub.owner.id)
+    const { body: cl } = await register()
+    const { verifier, cont } = await startConnect(cl.client_id)
+    const loginPage = await webGet(hub, '/login?next=' + encodeURIComponent(cont), null, PUBLIC)
+    const browser = `${hubCookie(loginPage, 'tax_pre')!}; ${hubCookie(loginPage, 'tax_next')!}`
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(await (await webGet(hub, `/join/${inv.token}`, { cookie: browser, csrf: '' }, PUBLIC)).text())![1]!
+    const j = await webPost(hub, `/join/${inv.token}`, { cookie: browser, csrf }, { password: 'cookie-pass-1', password2: 'cookie-pass-1' }, { headers: PUBLIC }) // no next field
+    expect(j.headers.get('location')).toBe(cont)
+    await finish(cl.client_id, cont, { cookie: hubCookie(j, PRODUCT.sessionCookie)!, csrf: '' }, verifier)
+  })
+
+  test('a link opened with ?next= works too, and an outside address is ignored', async () => {
+    const u = createInvitedUser(db, { username: 'qguy', name: '쿼리', email: 'q@acme.com', role: 'member' })
+    const inv = createInvite(db, u.id, 'invite', hub.owner.id)
+    const { body: cl } = await register()
+    const { verifier, cont } = await startConnect(cl.client_id)
+    const pre = await preSession(hub, `/join/${inv.token}?next=${encodeURIComponent(cont)}`, PUBLIC)
+    const j = await webPost(hub, `/join/${inv.token}`, pre, { password: 'query-pass-1', password2: 'query-pass-1', next: cont }, { headers: PUBLIC })
+    expect(j.headers.get('location')).toBe(cont)
+    await finish(cl.client_id, cont, { cookie: hubCookie(j, PRODUCT.sessionCookie)!, csrf: '' }, verifier)
+    const v = createInvitedUser(db, { username: 'qguy2', name: '쿼리2', email: 'q2@acme.com', role: 'member' })
+    const inv2 = createInvite(db, v.id, 'invite', hub.owner.id)
+    const pre2 = await preSession(hub, `/join/${inv2.token}`, PUBLIC)
+    const bad = await webPost(hub, `/join/${inv2.token}`, pre2, { password: 'query-pass-2', password2: 'query-pass-2', next: 'https://evil.example/cb' }, { headers: PUBLIC })
+    expect(bad.headers.get('location')).toBe('/me')
+  })
+
+  test('a temporary password: login → forced new password (next kept) → consent → connected', async () => {
+    const u = await createUser(db, { username: 'tempy', name: '임시', role: 'member', password: 'temp-pass-1', mustChangePassword: true })
+    const { body: cl } = await register()
+    const { verifier, cont } = await startConnect(cl.client_id)
+    const pre = await preSession(hub, '/login?next=' + encodeURIComponent(cont), PUBLIC)
+    const l = await webPost(hub, '/login', pre, { username: 'tempy', password: 'temp-pass-1', next: cont }, { headers: PUBLIC })
+    expect(l.status).toBe(303)
+    expect(l.headers.get('location')).toBe('/me/password?next=' + encodeURIComponent(cont))
+    const cookie = hubCookie(l, PRODUCT.sessionCookie)!
+    // the consent page itself also sends a must-change session to the password screen and back
+    const direct = await webGet(hub, cont, { cookie, csrf: '' }, PUBLIC)
+    expect(direct.headers.get('location')).toBe('/me/password?next=' + encodeURIComponent(cont))
+    const pw = await (await webGet(hub, l.headers.get('location')!, { cookie, csrf: '' }, PUBLIC)).text()
+    expect(pw).toContain(`name="next" value="${cont}"`)
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(pw)![1]!
+    // a wrong try keeps `next`
+    const bad = await webPost(hub, '/me/password', { cookie, csrf }, { password: 'abc', password2: 'abc', next: cont }, { headers: PUBLIC })
+    expect(bad.status).toBe(400)
+    expect(await bad.text()).toContain(`name="next" value="${cont}"`)
+    const done = await webPost(hub, '/me/password', { cookie, csrf }, { password: 'tempy-own-pass', password2: 'tempy-own-pass', next: cont }, { headers: PUBLIC })
+    expect(done.status).toBe(303)
+    expect(done.headers.get('location')).toBe(cont)
+    await finish(cl.client_id, cont, { cookie, csrf: '' }, verifier)
+    expect(listConnectors(hub.ctx, u.id).length).toBe(1)
+  })
+
+  test('without `next` the forced password change still goes home, and an outside `next` is dropped', async () => {
+    await createUser(db, { username: 'plain', name: '평범', role: 'member', password: 'temp-pass-1', mustChangePassword: true })
+    const pre = await preSession(hub, '/login', PUBLIC)
+    const l = await webPost(hub, '/login', pre, { username: 'plain', password: 'temp-pass-1', next: 'https://evil.example/' }, { headers: PUBLIC })
+    expect(l.headers.get('location')).toBe('/me/password')
+    const cookie = hubCookie(l, PRODUCT.sessionCookie)!
+    const csrf = /name="_csrf" value="([^"]+)"/.exec(await (await webGet(hub, '/me/password', { cookie, csrf: '' }, PUBLIC)).text())![1]!
+    const done = await webPost(hub, '/me/password', { cookie, csrf }, { password: 'plain-own-pass', password2: 'plain-own-pass', next: '//evil.example' }, { headers: PUBLIC })
+    expect(done.headers.get('location')).toBe('/me')
   })
 })

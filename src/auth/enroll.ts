@@ -23,6 +23,14 @@ export function makeEnrollCode(db: Database, userId: string, createdBy: string |
 
 const normalize = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '')
 
+/** Where a code stands: waiting for a PC, already used, past its time, or not one of ours. */
+export function enrollCodeState(db: Database, code: string): 'waiting' | 'used' | 'expired' | 'unknown' {
+  const row = db.query('SELECT expires_at, used_at FROM enroll_codes WHERE code_hash = ?').get(sha256(normalize(code))) as { expires_at: string; used_at: string | null } | null
+  if (!row) return 'unknown'
+  if (row.used_at) return 'used'
+  return row.expires_at < nowIso() ? 'expired' : 'waiting'
+}
+
 /** Trade a code for a device token. Null when the code is unknown, used, expired or the account is off. */
 export function redeemEnrollCode(db: Database, code: string, deviceName: string, hubUrl?: string | null): { userId: string; tokenId: string; token: string; approved: boolean } | null {
   const h = sha256(normalize(code))

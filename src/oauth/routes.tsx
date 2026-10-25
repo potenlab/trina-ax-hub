@@ -16,6 +16,7 @@ import crypto from 'node:crypto'
 import type { Context } from 'hono'
 import type { AppEnv, C, Register } from '../http/app'
 import { sessionMiddleware } from '../http/app'
+import type { Database } from 'bun:sqlite'
 import type { Ctx } from '../context'
 import { nowIso } from '../db'
 import { secret, sha256, safeEqual } from '../ids'
@@ -31,7 +32,17 @@ export const ACCESS_TTL_S = 3600
 const REFRESH_TTL_MS = 60 * 86_400_000
 const CODE_TTL_MS = 10 * 60_000
 const PENDING_TTL_MS = 15 * 60_000
-const MAX_CLIENTS = 1000
+/** Stored registered apps, all together. Registration is open (Claude registers itself), so the table is bounded. */
+export const MAX_CLIENTS = 2000
+/** A registered app nobody has used for this long is forgotten (its connections would need no refresh either). */
+export const CLIENT_IDLE_MS = 30 * 86_400_000
+/**
+ * Registrations per client address per hour. Behind the Cloudflare tunnel the address is Anthropic's shared egress
+ * (160.79.104.0/21), so every employee of a company registering from Claude's cloud counts against one address;
+ * 20 an hour was too few for a rollout day.
+ */
+export const REGISTER_PER_IP_PER_HOUR = 300
+const PRUNE_EVERY_MS = 10 * 60_000
 const SCOPES = ['mcp', 'offline_access']
 const REFRESH_PREFIX = 'taxr_'
 
@@ -137,7 +148,8 @@ const html = (c: Context<AppEnv>, node: unknown, status = 200) => c.html('<!doct
 export const register: Register = (app, ctx) => {
   const db = ctx.db
   const pending = new Map<string, Pending>()
-  const registerLimit = new RateLimiter(20, 3600_000)
+  const registerLimit = new RateLimiter(REGISTER_PER_IP_PER_HOUR, 3600_000)
+  let lastPrune = 0
   const tokenLimit = new RateLimiter(120, 60_000)
   const sweep = () => { const t = Date.now(); for (const [k, v] of pending) if (t - v.createdAt > PENDING_TTL_MS) pending.delete(k) }
   const extraRedirects = () => {
@@ -175,8 +187,18 @@ export const register: Register = (app, ctx) => {
     if (bad) return oauthError(400, 'invalid_redirect_uri', 'only Claude callbacks (claude.ai, or a loopback /callback) are allowed')
     const method = b?.token_endpoint_auth_method ?? 'none'
     if (method !== 'none') return oauthError(400, 'invalid_client_metadata', 'only public clients (token_endpoint_auth_method none) are supported')
-    if ((db.query('SELECT COUNT(*) AS n FROM oauth_clients').get() as { n: number }).n >= MAX_CLIENTS) {
-      db.query('DELETE FROM oauth_clients WHERE client_id IN (SELECT client_id FROM oauth_clients ORDER BY COALESCE(last_used_at, created_at) LIMIT 100)').run()
+    // keep the table bounded: forget apps idle for 30 days (at most every 10 minutes, and at once when the table is full)
+    const count = () => (db.query('SELECT COUNT(*) AS n FROM oauth_clients').get() as { n: number }).n
+    const tick = Date.now()
+    if (tick - lastPrune > PRUNE_EVERY_MS || count() >= MAX_CLIENTS) {
+      lastPrune = tick
+      const gone = pruneClients(db, tick)
+      if (gone) ctx.log.info('registered apps forgotten', { count: gone })
+    }
+    if (count() >= MAX_CLIENTS) {
+      // still full: make room from the oldest apps that never finished connecting, never from ones in use
+      db.query('DELETE FROM oauth_clients WHERE client_id IN (SELECT client_id FROM oauth_clients WHERE last_used_at IS NULL ORDER BY created_at LIMIT 100)').run()
+      if (count() >= MAX_CLIENTS) return oauthError(429, 'slow_down', 'too many registered apps')
     }
     const name = (typeof b?.client_name === 'string' ? b.client_name : 'Claude').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60) || 'Claude'
     const clientId = 'tac_' + secret(18)
@@ -228,7 +250,8 @@ export const register: Register = (app, ctx) => {
     if (!p) return html(c, <ErrorPage title="연결 시간이 지났어요" text="Claude 앱에서 연결을 처음부터 다시 해 주세요." />, 400)
     const s = c.get('session')
     if (!s) return c.redirect('/login?next=' + encodeURIComponent(`/oauth/continue/${id}`))
-    if (getUser(db, s.user.id)?.mustChangePassword) return c.redirect('/me/password')
+    // after choosing the new password the person comes straight back here to finish connecting
+    if (getUser(db, s.user.id)?.mustChangePassword) return c.redirect('/me/password?next=' + encodeURIComponent(`/oauth/continue/${id}`))
     return html(c, <ConsentPage company={companyName(ctx)} app={p.clientName} person={s.user.name} csrf={s.csrf} id={id} origin={p.origin} />)
   })
 
@@ -323,6 +346,19 @@ export const register: Register = (app, ctx) => {
     }
     return c.body(null, 200)
   })
+}
+
+/**
+ * Forget registered apps that nobody used for 30 days (last token issue, else the day they registered) and that hold no
+ * live refresh token. Their codes and refresh rows go with them. Returns how many were removed.
+ */
+export function pruneClients(db: Database, now = Date.now()): number {
+  const total = () => (db.query('SELECT COUNT(*) AS n FROM oauth_clients').get() as { n: number }).n
+  const before = total() // (the delete's own change count also counts the codes and refresh rows that go with a client)
+  db.query(`DELETE FROM oauth_clients WHERE COALESCE(last_used_at, created_at) < ?
+    AND NOT EXISTS (SELECT 1 FROM oauth_refresh r WHERE r.client_id = oauth_clients.client_id AND r.revoked_at IS NULL AND r.expires_at > ?)`)
+    .run(new Date(now - CLIENT_IDLE_MS).toISOString(), new Date(now).toISOString())
+  return before - total()
 }
 
 /** End a person's Claude app connections (their page, or an admin). Returns how many were cut. */

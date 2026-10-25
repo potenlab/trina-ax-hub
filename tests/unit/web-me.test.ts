@@ -9,7 +9,7 @@ import { setSetting } from '../../src/db'
 import { hubUrl } from '../../src/config'
 import { listAudit } from '../../src/audit'
 import { effectiveUrls, installCommands, saveSetting, hubConcurrency, companyName } from '../../src/web/settings'
-import { get, post, follow, secretOn } from './web-lib'
+import { get, post, follow, secretOn, pageText, UA } from './web-lib'
 
 const unescape = (s: string) => s.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
 
@@ -17,56 +17,98 @@ let hub: TestHub
 afterAll(async () => { await hub?.stop() })
 
 describe('web: personal page', async () => {
-  hub = await testHub()
+  hub = await testHub() // company-key mode by default, no public address, no Claude Code on the hub
   const db = hub.ctx.db
   const kim = await hub.user('kim')
   const lee = await hub.user('lee')
   const sess = hub.session(kim.id)
+  const mac = { 'user-agent': UA.mac }
 
-  test('renders for a member with helpful empty states', async () => {
-    const r = await get(hub, '/me', sess)
+  test('a new person sees the one next step and nothing that is empty', async () => {
+    const r = await get(hub, '/me', sess, mac)
     expect(r.status).toBe(200)
-    const body = await r.text()
-    for (const t of ['PC 연결하기', '아직 연결된 PC가 없어요', '이번 달 내 사용량', '내 스킬', '휴대폰']) expect(body).toContain(t)
-    expect(body).toContain('href="/app"')
-    expect(body).not.toContain('href="/admin/users"') // members get the short navigation
+    const html = await r.text()
+    const body = pageText(html)
+    for (const t of ['다음에 할 일', '내 PC에 회사 AI 연결하기', '연결 명령 만들기']) expect(body).toContain(t)
+    // no zeros, no empty lists, no dead ends
+    for (const t of ['이번 달 내 사용량', '환산 비용', '내 스킬', '아직 연결된 PC가 없어요', '휴대폰에서도 써요', 'Claude Code도 쓰나요']) expect(body).not.toContain(t)
+    // members get the short navigation, and no 채팅 while the hub cannot run chats
+    expect(html).not.toContain('href="/admin/users"')
+    expect(html).not.toContain('href="/app"')
+    expect(html).toContain('>내 PC</a>')
   })
 
-  test('PC 연결하기: code shown once with both install commands; it redeems', async () => {
+  test('one press makes the code; the page shows this computer\'s command and shows it again after a reload', async () => {
     expect((await post(hub, '/me/enroll', sess, {}, { csrf: false })).status).toBe(403)
-    const r = await post(hub, '/me/enroll', sess)
+    const r = await post(hub, '/me/enroll', sess, { os: 'mac' }, { headers: mac })
     expect(r.status).toBe(303)
-    const page = await follow(hub, r, sess)
-    expect(page.status).toBe(200)
-    const code = secretOn(page.text)!
+    expect(r.headers.get('location')).toBe('/me#pc-connect')
+    const page = unescape(await (await get(hub, '/me', sess, mac)).text())
+    const code = secretOn(page)!
     expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/)
-    const text = unescape(page.text)
-    expect(text).toContain(`curl -fsSL ${hub.url}/install.sh | bash -s -- ${code}`)
-    expect(text).toContain(`& ([scriptblock]::Create((irm ${hub.url}/install.ps1))) ${code}`)
-    expect(text).toContain('공개 주소(https)가 아직 없어서')
-    expect(text).toContain('터미널')
-    // shown once
-    expect(secretOn(await (await get(hub, '/me', sess)).text())).toBeNull()
+    expect(page).toContain(`curl -fsSL ${hub.url}/install.sh | bash -s -- ${code}`)
+    expect(page).not.toContain('install.ps1') // only the command for this computer
+    expect(page).toContain('터미널')
+    expect(page).toContain('공개 주소(https)가 아직 없어서')
+    // not a one-time flash: the same command is there after a reload
+    expect(secretOn(await (await get(hub, '/me', sess, mac)).text())).toBe(code)
     expect(listAudit(db).some((a) => a.action === 'enroll.create' && a.target === kim.id && !String(a.detail).includes(code))).toBe(true)
 
     const red = redeemEnrollCode(db, code, 'kim-macbook')!
     expect(red.userId).toBe(kim.id)
     expect(verifyToken(db, red.token)?.user.id).toBe(kim.id)
-    const after = await (await get(hub, '/me', sess)).text()
+    const after = pageText(await (await get(hub, '/me', sess, mac)).text())
     expect(after).toContain('kim-macbook')
-    expect(after).not.toContain('아직 연결된 PC가 없어요')
+    expect(after).toContain('PC가 연결돼 있어요')
+    expect(after).toContain('방금 만든 코드로 PC를 연결했어요') // it says plainly that the code was used
     expect(after).not.toContain(red.token)
+    expect(secretOn(after)).toBeNull()
+  })
+
+  test('the command is for the visitor\'s computer: Windows, Linux (both), phone (none)', async () => {
+    await post(hub, '/me/enroll', sess)
+    const win = unescape(await (await get(hub, '/me', sess, { 'user-agent': UA.windows })).text())
+    const code = secretOn(win)!
+    expect(win).toContain(`& ([scriptblock]::Create((irm ${hub.url}/install.ps1))) ${code}`)
+    expect(win).not.toContain('install.sh')
+    expect(win).toContain('PowerShell')
+    const linux = unescape(await (await get(hub, '/me', sess, { 'user-agent': UA.linux })).text())
+    expect(linux).toContain(`install.sh | bash -s -- ${code}`)
+    expect(linux).toContain(`install.ps1))) ${code}`)
+    // asking for the other one on purpose
+    const asked = unescape(await (await get(hub, '/me?os=windows', sess, mac)).text())
+    expect(asked).toContain('install.ps1')
+    expect(asked).not.toContain('install.sh')
+    for (const ua of [UA.iphone, UA.android]) {
+      const phone = await (await get(hub, '/me', sess, { 'user-agent': ua })).text()
+      expect(pageText(phone)).toContain('PC에서 이 페이지를 열어 주세요')
+      expect(phone).not.toContain('install.sh')
+      expect(phone).not.toContain('action="/me/enroll"')
+      expect(secretOn(phone)).toBeNull()
+    }
+  })
+
+  test('with scripts the button answers with the command box (no page change)', async () => {
+    const r = await post(hub, '/me/enroll', sess, { os: 'windows' }, { headers: { accept: 'application/json', 'user-agent': UA.windows } })
+    expect(r.status).toBe(200)
+    expect(r.headers.get('cache-control')).toContain('no-store')
+    const j = await r.json() as { html: string; expiresAt: string }
+    const html = unescape(j.html)
+    const code = secretOn(html)!
+    expect(html).toContain(`irm ${hub.url}/install.ps1`)
+    expect(html).toContain(code)
+    // and a reload of the page shows that very code
+    expect(secretOn(await (await get(hub, '/me', sess, { 'user-agent': UA.windows })).text())).toBe(code)
   })
 
   test('the install command uses the public address once it is set', async () => {
     saveSetting(hub.ctx, 'publicUrl', 'https://acme.example.com')
     try {
-      const page = await follow(hub, await post(hub, '/me/enroll', sess), sess)
-      const code = secretOn(page.text)!
-      const text = unescape(page.text)
-      expect(text).toContain(`curl -fsSL https://acme.example.com/install.sh | bash -s -- ${code}`)
-      expect(text).toContain(`& ([scriptblock]::Create((irm https://acme.example.com/install.ps1))) ${code}`)
-      expect(text).not.toContain('공개 주소(https)가 아직 없어서')
+      await post(hub, '/me/enroll', sess)
+      const page = unescape(await (await get(hub, '/me', sess, mac)).text())
+      const code = secretOn(page)!
+      expect(page).toContain(`curl -fsSL https://acme.example.com/install.sh | bash -s -- ${code}`)
+      expect(page).not.toContain('공개 주소(https)가 아직 없어서')
     } finally { saveSetting(hub.ctx, 'publicUrl', null) }
   })
 
@@ -83,14 +125,16 @@ describe('web: personal page', async () => {
     expect(listAudit(db).some((a) => a.action === 'device.revoke' && a.target === kim.id)).toBe(true)
   })
 
-  test('my usage this month, budgets that apply to me, my skills', async () => {
+  test('my usage this month, budgets that apply to me, my skills: shown once there is something to show', async () => {
+    expect(pageText(await (await get(hub, '/me', sess, mac)).text())).not.toContain('이번 달 내 사용량')
     const now = new Date().toISOString()
     db.query("INSERT INTO usage (id, user_id, source, model, input_tokens, output_tokens, cost_usd, status, started_at) VALUES ('m1', ?, 'pc', 'claude-sonnet-5-5', 1000, 500, 1.25, 200, ?)").run(kim.id, now)
     db.query("INSERT INTO usage (id, user_id, source, model, input_tokens, output_tokens, cost_usd, status, started_at) VALUES ('m2', ?, 'pc', 'claude-sonnet-5-5', 1000, 500, 0.25, 200, ?)").run(kim.id, now)
     db.query("INSERT INTO usage (id, user_id, source, model, input_tokens, output_tokens, cost_usd, status, started_at) VALUES ('m3', ?, 'pc', 'claude-sonnet-5-5', 1, 1, 99, 200, ?)").run(lee.id, now)
     createBudget(db, { subjectType: 'user', subjectId: kim.id, period: 'month', limitUsd: 10, limitTokens: null, action: 'block' })
     hub.write('skills/company/quote/SKILL.md', '---\nname: quote\ndescription: 견적서 초안을 만들어요\n---\n# 견적')
-    const body = await (await get(hub, '/me', sess)).text()
+    const body = await (await get(hub, '/me', sess, mac)).text()
+    expect(body).toContain('이번 달 내 사용량')
     expect(body).toContain('$1.50') // only my own rows
     expect(body).not.toContain('$99')
     expect(body).toContain('내게 적용되는 예산')

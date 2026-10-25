@@ -27,7 +27,7 @@ import type { Ctx } from '../context'
 import { csrfOk, type SessionAuth } from '../auth/sessions'
 import { getUser } from '../auth/users'
 import { renderMarkdown } from './markdown'
-import { hubFor } from './service'
+import { hubFor, hubChatReady } from './service'
 import type { JobEvent, JobRow } from './runner'
 import {
   activeChatJob, activeJobCount, addMessage, chatMessages, createChat, deleteChat, getChat, listChats, messageText,
@@ -72,7 +72,7 @@ const isAdmin = (s: SessionAuth) => s.user.role === 'owner' || s.user.role === '
 export const register: Register = (app, ctx) => {
   const hub = () => hubFor(ctx)
   // hub sessions run on this machine and spend the company key (never anyone's subscription)
-  const claudeReady = () => !!ctx.config.claudeBin && !!ctx.secrets.getApiKey()
+  const claudeReady = () => hubChatReady(ctx)
 
   // session auth for every /app page; people who must change their password go there first (web module)
   const gate = [sessionMiddleware(ctx), requireSession, async (c: C, next: () => Promise<void>) => {
