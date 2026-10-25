@@ -24,6 +24,7 @@ import { tempPassword } from './web/admin/users'
 import { secret } from './ids'
 import { PRODUCT } from './product'
 import { DEFAULT_PRICES, priceTable, type PriceEntry } from './relay/pricing'
+import { listVersions, restoreVersion } from './files/versions'
 
 // ------------------------------------------------------------------------------------------------------------------
 // plumbing
@@ -649,8 +650,50 @@ COMMANDS.pricing = {
   },
 }
 
-// ---- RESTORE (lead): `restore` for single team files goes here, built on src/files/versions.ts.
-//      Register it as COMMANDS.restore = { usage, summary, help, spec, run } like the others; `help` picks it up.
+// ---- single team files: kept versions and the trash (src/files/versions.ts) ------------------------------------
+
+const ownerId = (ctx: Ctx): string => {
+  const r = ctx.db.query("SELECT id FROM users WHERE role = 'owner'").get() as { id: string } | null
+  return r?.id ?? die('소유자가 아직 없어요. 먼저 /setup 이나 trina-ax init 으로 소유자를 만들어 주세요.')
+}
+
+const REASON: Record<string, string> = { overwrite: '덮어쓰기 전', trash: '삭제', move: '옮기기 전' }
+
+COMMANDS.versions = {
+  usage: 'versions [경로] [-n 개수]',
+  summary: '지워지거나 덮어쓴 파일의 보관본 보기',
+  help: '팀 폴더에서 지운 파일(휴지통)과 덮어쓰기 전 파일을 최근 것부터 보여 줘요. 90일이 지나면 정리돼요.\n  경로    이 경로로 시작하는 것만 (예: shared/견적)\n  -n 50   보여 줄 개수\n되살리기: trina-ax restore <번호>',
+  spec: { values: ['-n'] },
+  run(a) {
+    const ctx = hub()
+    const rows = listVersions(ctx, { path: a.pos[0], limit: Number(a.opts.get('-n') ?? 50) || 50 })
+    if (!rows.length) { console.log('보관본이 없어요.'); return }
+    for (const r of rows) {
+      const when = new Date(r.createdAt).toLocaleString('ko-KR')
+      console.log(`${r.id}  ${when}  ${REASON[r.reason] ?? r.reason}  ${r.path}  (${r.size.toLocaleString()} B${r.userName ? ', ' + r.userName : ''})${r.stored ? '' : '  ! 보관본이 없어졌어요'}`)
+    }
+    console.log('\n되살리기: trina-ax restore <번호> [--to 다른/경로]')
+  },
+}
+
+COMMANDS.restore = {
+  usage: 'restore <번호> [--to 경로]',
+  summary: '보관본 하나 되살리기',
+  help: '`trina-ax versions` 의 번호로 파일을 원래 자리에 되살려요. 지금 그 자리에 파일이 있으면 그 파일도 보관본으로 남긴 뒤 바꿔요.\n  --to 경로   다른 자리에 되살리기 (팀 폴더 안 경로)\n관리자 화면의 되살리기 페이지와 같아요.',
+  spec: { values: ['--to'] },
+  run(a) {
+    const ctx = hub()
+    const id = a.pos[0] ?? die('사용법: trina-ax restore <번호> [--to 경로]  (번호는 trina-ax versions 로 찾아요)')
+    const to = a.opts.get('--to')
+    try {
+      const r = restoreVersion(ctx, id, ownerId(ctx), typeof to === 'string' ? { to } : {})
+      audit(ctx.db, { actor: null, action: 'file.restore', target: r.path, detail: { version: id, via: 'cli' } })
+      console.log(`되살렸어요: ${r.path}`)
+    } catch (e) {
+      die((e as Error).message)
+    }
+  },
+}
 
 COMMANDS.logs = {
   usage: 'logs [-f] [-n 줄수] [--tunnel]',

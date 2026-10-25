@@ -46,6 +46,8 @@ export const ACTION_LABEL: Record<string, string> = {
   'file.restore': '파일 되살림',
   'file.version.restore': '파일 되살림',
   'file.trash.restore': '휴지통에서 되살림',
+  'backup': '백업',
+  'settings.pricing': '모델 가격표 변경',
 }
 
 const KEY_LABEL: Record<string, string> = {

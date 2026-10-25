@@ -241,3 +241,23 @@ Server-rendered with Hono JSX, one small CSS file inline, a little vanilla JS. K
 - Every POST checks `_csrf`. Only owner may change the API key and owner-level settings; admins manage the rest.
 - Tests: page renders (200 + key text) for each role, CSRF refusal, setup flow, login rate limit, enroll-code flow
   from `/me`, usage CSV.
+
+## Added after review (2026-10-25)
+
+- **Usage rollup**: `usage_daily` (local day × person × source × model) is updated in the same transaction as each
+  `usage` row; budgets, reports and `activeDays` read it (`src/usage/rollup.ts`, `ensureUsageRollup` at startup).
+  Budget checks stay under 1 ms at 800k usage rows. Token limits count input + output + cache writes, not cache reads.
+- **Relay caps**: at most 6 model requests in flight per person and 40 per company (429 + `retry-after`, settings
+  `relayMaxInflightPerUser` / `relayMaxInflight`); output on an early hang-up is estimated from streamed characters;
+  server tools that run code (`code_execution*`, `mcp_toolset`, …) are refused; Anthropic's refusals of the company key
+  show on the dashboard (`src/relay/health.ts`).
+- **Devices**: `tokens.created_by`, `approved_at`, `hub_url`. A PC someone else enrolled (an admin) works for the model
+  and team folders but cannot open the person's own `users/<id>/` until they approve it on `/me`. Archive links in the
+  marketplace use the https origin the PC actually used, so a hub address change does not break updates.
+- **Files**: spreadsheets and HWP/HWPX are parsed in an isolated worker process with time, size and cell caps; folder
+  rules compare names NFC- and (on case-insensitive disks) case-folded; `move_file` cannot turn text into a binary
+  kind; deleted/overwritten files are kept 90 days and restored from `/admin/versions` or `trina-ax versions|restore`.
+- **Setup lock**: `/setup` opens only on the hub machine itself or with the one-time token from the server log /
+  `trina-ax status`. One owner is enforced by a unique index.
+- **Operations**: `deploy/macos/install-hub.sh` installs LaunchDaemons (always on after a power cut), sleep/restart
+  settings and log rotation; `trina-ax doctor|backup|users|versions|restore`; operator guide in `docs/OPERATOR.md`.
