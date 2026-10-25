@@ -46,12 +46,14 @@ describe('dashboard to-do list', async () => {
     const hub = await newHub({ access: 'subscription' })
     const html = await (await get(hub, '/admin', hub.session(hub.owner.id))).text()
     expect(pageText(html)).toContain('Claude 조직 설정')
-    expect(html).toContain('href="/admin/claude"')
+    // the to-do button (the nav also links to /admin/claude, so look for the button itself)
+    const todo = 'class="btn small" href="/admin/claude"'
+    expect(html).toContain(todo)
     setSetting(hub.ctx.db, 'claude_org', { plan: 'team', connectorName: '회사 AI', managedSettingsAt: null })
-    expect(await (await get(hub, '/admin', hub.session(hub.owner.id))).text()).toContain('href="/admin/claude"')
+    expect(await (await get(hub, '/admin', hub.session(hub.owner.id))).text()).toContain(todo)
     setSetting(hub.ctx.db, 'claude_org', { plan: 'team', connectorName: '회사 AI', managedSettingsAt: '2026-10-25T01:00:00Z' })
     const done = await (await get(hub, '/admin', hub.session(hub.owner.id))).text()
-    expect(done).not.toContain('href="/admin/claude"')
+    expect(done).not.toContain(todo)
     expect(pageText(done)).toContain('Claude 조직 설정') // listed as done
     expect(done).toMatch(/Claude 조직 설정/)
   })
