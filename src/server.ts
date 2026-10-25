@@ -7,12 +7,13 @@ import { register as skills } from './skills/routes'
 import { register as install } from './install/routes'
 import { register as hub, start as startHub } from './hub/routes'
 import { register as web } from './web/routes'
+import { register as telemetry } from './telemetry/routes'
 import { sweepSessions } from './auth/sessions'
 import { sweepTokens } from './auth/tokens'
 import { sweepEnrollCodes } from './auth/enroll'
 import { pruneVersions } from './files/versions'
 
-export const MODULES: Register[] = [relay, mcp, skills, install, hub, web]
+export const MODULES: Register[] = [relay, mcp, skills, install, telemetry, hub, web]
 
 export interface Running { url: string; port: number; stop(): Promise<void> }
 
