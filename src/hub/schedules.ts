@@ -65,19 +65,39 @@ export function describeCron(expr: string): string {
   return PRESETS.find((p) => p.cron === expr)?.label ?? expr
 }
 
+/** What people see and type for their personal folder users/<id>/ on the phone pages. */
+export const MY_FOLDER = '내 폴더'
+
+/** "내 폴더/보고" (what people type) → users/<id>/보고; any other path unchanged (trimmed, NFC). A top-level team
+ *  folder literally named "내 폴더" cannot be picked as an output folder by that name. */
+export function fromMyFolder(userId: string, input: string): string {
+  const t = input.normalize('NFC').trim().replace(/^\/+|\/+$/g, '')
+  if (t === MY_FOLDER) return `users/${userId}`
+  if (t.startsWith(MY_FOLDER + '/')) return `users/${userId}/${t.slice(MY_FOLDER.length + 1)}`
+  return t
+}
+
+/** users/<id>/보고 → "내 폴더/보고" for that person's own pages; other paths unchanged. */
+export function toMyFolder(userId: string, p: string): string {
+  const base = `users/${userId}`
+  if (p === base) return MY_FOLDER
+  return p.startsWith(base + '/') ? MY_FOLDER + p.slice(base.length) : p
+}
+
 /** Normalize a team-folder path for the output folder and check the person may write there. */
 export function validateOutputDir(ctx: Ctx, user: Principal, input: unknown): string {
-  const raw = typeof input === 'string' ? input.trim().replace(/^\/+|\/+$/g, '') : ''
-  if (!raw) throw v('결과를 저장할 폴더를 적어 주세요.', 'outputDir')
+  const typed = typeof input === 'string' ? input.trim().replace(/^\/+|\/+$/g, '') : ''
+  if (!typed) throw v('결과를 저장할 폴더를 적어 주세요.', 'outputDir')
+  const raw = fromMyFolder(user.id, typed)
   let dir
   try {
     dir = authorize(ctx.fx, ctx.rules(), user, raw, 'write', { createDirs: true })
   } catch (e) {
-    if (e instanceof Denied || e instanceof ToolError) throw v(`'${raw}' 폴더에는 쓸 권한이 없어요. 쓸 수 있는 폴더를 골라 주세요. (내 폴더: users/${user.id})`, 'outputDir')
+    if (e instanceof Denied || e instanceof ToolError) throw v(`'${typed}' 폴더에는 쓸 권한이 없어요. 쓸 수 있는 폴더를 골라 주세요. (예: ${MY_FOLDER}/예약 작업)`, 'outputDir')
     throw e
   }
   if (!dir.segs.length) throw v('팀 폴더 맨 위에는 저장할 수 없어요. 그 아래 폴더를 골라 주세요.', 'outputDir')
-  if (dir.exists && !dir.st?.isDirectory()) throw v(`'${raw}'는 폴더가 아니에요.`, 'outputDir')
+  if (dir.exists && !dir.st?.isDirectory()) throw v(`'${typed}'는 폴더가 아니에요.`, 'outputDir')
   return dir.rel
 }
 
@@ -156,15 +176,16 @@ export class SaveRefused extends Error {}
 export function saveResult(ctx: Ctx, user: Principal, outputDir: string, name: string, text: string, at: Date): string {
   const rules = ctx.rules()
   const root = ctx.fx.root
+  const shown = toMyFolder(user.id, outputDir)
   let dir
   try {
     dir = authorize(ctx.fx, rules, user, outputDir, 'write', { createDirs: true })
   } catch (e) {
-    if (e instanceof Denied || e instanceof ToolError) throw new SaveRefused(`'${outputDir}' 폴더에 쓸 권한이 없어서 결과를 저장하지 못했어요.`)
+    if (e instanceof Denied || e instanceof ToolError) throw new SaveRefused(`'${shown}' 폴더에 쓸 권한이 없어서 결과를 저장하지 못했어요.`)
     throw e
   }
   if (!dir.segs.length) throw new SaveRefused('팀 폴더 맨 위에는 결과를 저장할 수 없어요.')
-  if (dir.exists && !dir.st?.isDirectory()) throw new SaveRefused(`'${outputDir}'가 폴더가 아니라서 결과를 저장하지 못했어요.`)
+  if (dir.exists && !dir.st?.isDirectory()) throw new SaveRefused(`'${shown}'가 폴더가 아니라서 결과를 저장하지 못했어요.`)
   // create the missing folders one level at a time, re-checking the chain before each step
   for (let k = dir.existing; k < dir.segs.length; k++) {
     verifyChain(root, dir.segs.slice(0, k))
@@ -228,6 +249,20 @@ export function scheduleHooks(ctx: Ctx): KindHooks {
   }
 }
 
+// housekeeping -------------------------------------------------------------------------------------------------------
+
+/** finished hub jobs (prompts and answers) are kept this long */
+export const JOB_KEEP_DAYS = 90
+
+/** Delete finished jobs older than JOB_KEEP_DAYS, except each schedule's latest run (its "last result"). Chat
+ *  messages live in hub_messages and stay. Returns how many were removed. */
+export function sweepOldJobs(ctx: Ctx, now = Date.now()): number {
+  const cutoff = new Date(now - JOB_KEEP_DAYS * 86_400_000).toISOString()
+  return ctx.db.query(`DELETE FROM hub_jobs WHERE status IN ('done','failed','cancelled') AND COALESCE(finished_at, created_at) < ?
+    AND id NOT IN (SELECT keep FROM (SELECT (SELECT j.id FROM hub_jobs j WHERE j.schedule_id = s.id AND j.status IN ('done','failed','cancelled')
+      ORDER BY j.created_at DESC, j.rowid DESC LIMIT 1) AS keep FROM schedules s) WHERE keep IS NOT NULL)`).run(cutoff).changes
+}
+
 // the scheduler -----------------------------------------------------------------------------------------------------
 
 export type Enqueue = (o: { kind: 'schedule'; userId: string; scheduleId: string; prompt: string }) => string
@@ -242,11 +277,25 @@ export function runSchedule(ctx: Ctx, enqueue: Enqueue, s: Schedule, now = new D
 /** Checks the schedules table at the start of every minute (croner) and starts what is due. */
 export class Scheduler {
   private cron: Cron | null = null
+  private lastSweep = 0
   constructor(private ctx: Ctx, private enqueue: Enqueue) {}
 
   start() {
     this.skipMissed()
-    this.cron = new Cron('* * * * *', { protect: true, catch: (e) => this.ctx.log.error('hub scheduler failed', { err: String(e).slice(0, 300) }) }, () => { this.tick() })
+    this.sweep()
+    this.cron = new Cron('* * * * *', { protect: true, catch: (e) => this.ctx.log.error('hub scheduler failed', { err: String(e).slice(0, 300) }) }, () => { this.tick(); this.sweep() })
+  }
+
+  /** Old finished jobs go, at most once an hour (runs on the scheduler's minute tick). */
+  sweep(now = Date.now()) {
+    if (now - this.lastSweep < 3600_000) return
+    this.lastSweep = now
+    try {
+      const n = sweepOldJobs(this.ctx, now)
+      if (n) this.ctx.log.info('old hub jobs removed', { count: n, olderThanDays: JOB_KEEP_DAYS })
+    } catch (e) {
+      this.ctx.log.warn('hub job sweep failed', { err: String((e as Error)?.message ?? e).slice(0, 300) })
+    }
   }
 
   stop() { this.cron?.stop(); this.cron = null }

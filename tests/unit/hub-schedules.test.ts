@@ -6,7 +6,7 @@ import { setRule } from '../../src/policy/rules-admin'
 import { updateUser } from '../../src/auth/users'
 import { loadPrincipal } from '../../src/policy/access'
 import { PRODUCT } from '../../src/product'
-import { fileSafeName, fileStamp, nextRunAt, saveResult, SaveRefused, validateCron, CATCH_UP_MS } from '../../src/hub/schedules'
+import { fileSafeName, fileStamp, fromMyFolder, nextRunAt, saveResult, SaveRefused, sweepOldJobs, toMyFolder, validateCron, CATCH_UP_MS, JOB_KEEP_DAYS } from '../../src/hub/schedules'
 import { fakeHub, get, jobRow, post, type FakeHub } from './hub-fixtures'
 
 const hubs: FakeHub[] = []
@@ -62,7 +62,23 @@ describe('schedule pages', async () => {
     expect(r.status).toBe(200)
     const html = await r.text()
     for (const label of ['매일 오전 9시', '평일 오전 9시', '매주 월요일 오전 9시', '직접 입력']) expect(html).toContain(label)
-    expect(html).toContain(`value="users/${u.id}/예약 작업"`)
+    expect(html).toContain(`value="내 폴더/예약 작업"`)
+    expect(html).not.toContain(`users/${u.id}`) // people see "내 폴더", never their id
+  })
+
+  test('"내 폴더/…" is the person\'s own users/<id>/ folder', async () => {
+    const r = await post(h, s.cookie, '/app/schedules', { ...base, name: '내 폴더 보고', outputDir: '내 폴더/메모', _csrf: s.csrf })
+    expect(r.status).toBe(303)
+    const row = db.query("SELECT * FROM schedules WHERE name = '내 폴더 보고'").get() as any
+    expect(row.output_dir).toBe(`users/${u.id}/메모`)
+    const html = await (await get(h, s.cookie, '/app/schedules')).text()
+    expect(html).toContain('저장 폴더: 내 폴더/메모')
+    // another person's "내 폴더" is their own, never this one
+    expect(fromMyFolder(other.id, '내 폴더')).toBe(`users/${other.id}`)
+    expect(fromMyFolder(u.id, 'shared/내 폴더')).toBe('shared/내 폴더')
+    expect(toMyFolder(u.id, `users/${u.id}`)).toBe('내 폴더')
+    expect(toMyFolder(u.id, `users/${other.id}/x`)).toBe(`users/${other.id}/x`)
+    db.query('DELETE FROM schedules WHERE id = ?').run(row.id)
   })
 
   test('create needs CSRF and valid input', async () => {
@@ -127,8 +143,19 @@ describe('schedule pages', async () => {
     expect(row.last_run_at).not.toBeNull()
     const html = await (await get(h, s.cookie, '/app/schedules')).text()
     expect(html).toContain('성공')
-    expect(html).toContain(`title="${done.output_path}"`)
-    expect(html).toContain(`>${stamp} 주간 보고.md</span>`)
+    expect(html).toContain(`href="/app/files?path=${encodeURIComponent(done.output_path).replace(/&/g, '&amp;')}"`)
+    expect(html).toContain(`>${stamp} 주간 보고.md</a>`)
+    // the link downloads the saved file (same permission check as the file tools)
+    const dl = await get(h, s.cookie, `/app/files?path=${encodeURIComponent(done.output_path)}`)
+    expect(dl.status).toBe(200)
+    expect(dl.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(dl.headers.get('content-disposition')).toStartWith('attachment;')
+    expect(dl.headers.get('content-disposition')).toContain(`filename*=UTF-8''${encodeURIComponent(`${stamp} 주간 보고.md`)}`)
+    expect(await dl.text()).toBe(file)
+    // someone else gets the same 404 as for a file that is not there
+    const nope = await get(h, o.cookie, `/app/files?path=${encodeURIComponent(done.output_path)}`)
+    expect(nope.status).toBe(404)
+    expect((await get(h, s.cookie, `/app/files?path=${encodeURIComponent(`users/${u.id}/없는 파일.md`)}`)).status).toBe(404)
     expect(html).toContain('마지막 결과 보기')
     expect(html).toContain('<li>첫째 항목</li>')
     // a second run in the same minute gets its own file
@@ -221,5 +248,50 @@ describe('schedule pages', async () => {
     expect(r.headers.get('location')).toBe('/app/schedules?n=removed')
     expect(db.query('SELECT 1 FROM schedules WHERE id = ?').get(id)).toBeNull()
     expect((await post(h, s.cookie, `/app/schedules/${id}/run`, { _csrf: s.csrf })).status).toBe(404)
+  })
+})
+
+describe('housekeeping and downloads', async () => {
+  const h = await make({ start: false })
+  const u = await h.t.user('keeper')
+  const other = await h.t.user('peeker')
+  const s = h.t.session(u.id)
+  const db = h.t.ctx.db
+
+  test(`finished jobs older than ${JOB_KEEP_DAYS} days go, except each schedule's last run and anything still active`, () => {
+    const day = 86_400_000
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * day).toISOString()
+    db.query("INSERT INTO schedules (id, user_id, name, cron, prompt, output_dir, enabled, created_at) VALUES ('sch1', ?, 's', '0 9 * * *', 'p', NULL, 1, ?)").run(u.id, at(200))
+    const job = (id: string, status: string, daysAgo: number, schedule: string | null = null) =>
+      db.query("INSERT INTO hub_jobs (id, kind, user_id, schedule_id, prompt, status, created_at, finished_at) VALUES (?,?,?,?,'p',?,?,?)")
+        .run(id, schedule ? 'schedule' : 'chat', u.id, schedule, status, at(daysAgo), status === 'queued' ? null : at(daysAgo))
+    job('oldchat', 'done', 120)
+    job('oldfail', 'failed', 91)
+    job('recent', 'done', 30)
+    job('oldqueued', 'queued', 120)
+    job('schedold', 'done', 150, 'sch1')
+    job('schedlast', 'done', 100, 'sch1')
+    expect(sweepOldJobs(h.t.ctx)).toBe(3)
+    const left = (db.query('SELECT id FROM hub_jobs ORDER BY id').all() as { id: string }[]).map((r) => r.id)
+    expect(left).toEqual(['oldqueued', 'recent', 'schedlast'])
+  })
+
+  test('downloads: only files the person may read, never a folder, hidden names or paths outside', async () => {
+    h.t.write(`users/${u.id}/보고서.md`, '# 보고\n')
+    h.t.write(`users/${other.id}/비밀.md`, 'x')
+    h.t.write('shared/표.csv', 'a,b\n')
+    h.t.write('shared/사진.bin', 'raw')
+    const ok = await get(h, s.cookie, `/app/files?path=${encodeURIComponent('shared/표.csv')}`)
+    expect(ok.status).toBe(200)
+    expect(ok.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(ok.headers.get('cache-control')).toContain('no-store')
+    const bin = await get(h, s.cookie, `/app/files?path=${encodeURIComponent('shared/사진.bin')}`)
+    expect(bin.headers.get('content-type')).toBe('application/octet-stream')
+    expect(bin.headers.get('content-disposition')).toBe(`attachment; filename="__.bin"; filename*=UTF-8''${encodeURIComponent('사진.bin')}`)
+    for (const p of [`users/${other.id}/비밀.md`, 'shared', '../etc/passwd', '/etc/passwd', '.trina/x', '']) {
+      expect(`${p} ${(await get(h, s.cookie, `/app/files?path=${encodeURIComponent(p)}`)).status}`).toBe(`${p} 404`)
+    }
+    // logged out → login
+    expect((await fetch(`${h.t.url}/app/files?path=shared%2F%ED%91%9C.csv`, { redirect: 'manual' })).status).toBe(302)
   })
 })

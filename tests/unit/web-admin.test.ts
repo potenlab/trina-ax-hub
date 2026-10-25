@@ -39,7 +39,7 @@ describe('web: admin pages by role', async () => {
         expect(`${path} ${r.status}`).toBe(`${path} 200`)
         const body = await r.text()
         for (const t of texts) expect(`${path}: ${body.includes(t) ? t : 'missing ' + t}`).toBe(`${path}: ${t}`)
-        for (const n of ['대시보드', '폴더 권한', '예산', '기록', '내 PC', '휴대폰']) expect(body).toContain(`>${n}</a>`)
+        for (const n of ['대시보드', '폴더 권한', '되살리기', '예산', '기록', '내 PC', '채팅']) expect(body).toContain(`>${n}</a>`)
         expect(body).not.toMatch(/\$argon2/)
       }
     }

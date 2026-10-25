@@ -29,7 +29,7 @@ function BudgetsPage(p: { web: Web; c: C; flashes: Flash[] }) {
   return (
     <Shell c={p.c} title="예산" active="/admin/budgets" flashes={p.flashes}>
       <h1>예산</h1>
-      <p class="lead">AI 사용 한도를 정해요. 한도를 넘으면 그 사람의 Claude를 멈추거나(막기) 알리기만 해요. 하루 한도는 매일 0시, 한 달 한도는 매달 1일에 다시 시작해요.</p>
+      <p class="lead">AI 사용 한도를 정해요. 넘으면 멈추거나(막기), 막지 않고 표시만 해요(표시만). 하루 한도는 매일 0시, 한 달 한도는 매달 1일에 다시 시작해요.</p>
 
       {budgets.length ? (
         <div class="tablewrap"><table>
@@ -39,7 +39,7 @@ function BudgetsPage(p: { web: Web; c: C; flashes: Flash[] }) {
               <td><b>{b.subjectName}</b>{b.subjectType === 'team' ? null : <div class="muted small">{SUBJECT_KIND[b.subjectType]}</div>}</td>
               <td>{PERIOD_LABEL[b.period]}</td>
               <td><BudgetMeter b={b} />{budgetRatio(b) >= 1 ? <span class="badge bad">넘음</span> : budgetRatio(b) >= 0.8 ? <span class="badge warn">80% 넘음</span> : null}</td>
-              <td class="hide-sm">{b.action === 'block' ? <span class="badge bad">막기</span> : <span class="badge warn">알림만</span>}</td>
+              <td class="hide-sm">{b.action === 'block' ? <span class="badge bad">막기</span> : <span class="badge warn">표시만</span>}</td>
               <td class="right"><ButtonForm action={`/admin/budgets/${b.id}/delete`} csrf={s.csrf} label="지우기" danger
                 confirm={`${b.subjectName}의 ${PERIOD_LABEL[b.period]} 예산을 지울까요?`} /></td>
             </tr>
@@ -60,13 +60,14 @@ function BudgetsPage(p: { web: Web; c: C; flashes: Flash[] }) {
           <div class="field" style="max-width:140px"><label for="period">기간</label>
             <select id="period" name="period"><option value="month">한 달</option><option value="day">하루</option></select></div>
           <div class="field" style="max-width:190px"><label for="action">넘으면</label>
-            <select id="action" name="action"><option value="block">막기</option><option value="warn">알림만</option></select></div>
+            <select id="action" name="action"><option value="block">막기 (Claude를 멈춰요)</option><option value="warn">표시만 (막지 않아요)</option></select></div>
         </div>
         <div class="row">
           <div class="field"><label for="usd">달러 한도 (USD)</label><input id="usd" name="usd" inputmode="decimal" placeholder="예: 50" /></div>
           <div class="field"><label for="tokens">토큰 한도 (선택)</label><input id="tokens" name="tokens" inputmode="numeric" placeholder="예: 5000000" /></div>
         </div>
         <p class="muted small">둘 중 하나는 적어 주세요. 둘 다 적으면 먼저 닿는 쪽이 한도예요. 그룹 예산은 그룹 사람들이 쓴 합계로 계산해요.</p>
+        <p class="muted small">토큰은 입력 + 출력 + 캐시 저장 토큰을 더해 세요. 캐시에서 다시 읽은 토큰은 세지 않아요(값이 아주 싸서요). 보통은 달러 한도만 정하면 충분해요.</p>
         <button class="btn primary" type="submit">추가하기</button>
       </form>
     </Shell>

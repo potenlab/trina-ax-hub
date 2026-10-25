@@ -40,13 +40,15 @@ const forwarded = (h: Headers) => h.has('cf-connecting-ip') || h.has('x-forwarde
 export type App = Hono<AppEnv>
 export type C = Context<AppEnv>
 
+const DISCONNECTED = "Trina AX: 이 PC의 회사 연결이 끊겼어요. 회사 AI 페이지의 'PC 연결하기'로 다시 연결하거나 관리자에게 물어봐 주세요."
+
 /** Token-authenticated area (relay, MCP, marketplace). Answers 401 in the given shape. */
 export const requireToken = (ctx: Ctx, shape: 'json' | 'anthropic' = 'json'): MiddlewareHandler<AppEnv> => async (c, next) => {
   const auth = verifyToken(ctx.db, tokenFromHeaders(c.req.raw.headers))
   if (!auth) {
     return shape === 'anthropic'
-      ? c.json({ type: 'error', error: { type: 'authentication_error', message: 'Trina AX: 기기 토큰이 없거나 만료됐어요. PC 설치를 다시 해 주세요.' } }, 401)
-      : jsonError(401, 'unauthorized', '기기 토큰이 없거나 만료됐어요.')
+      ? c.json({ type: 'error', error: { type: 'authentication_error', message: DISCONNECTED } }, 401)
+      : jsonError(401, 'unauthorized', DISCONNECTED)
   }
   c.set('tokenAuth', auth)
   await next()

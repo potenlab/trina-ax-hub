@@ -27,7 +27,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}tr:last-child t
 .tablewrap{overflow-x:auto;margin:0 0 16px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;text-decoration:none}
 .btn:hover{border-color:var(--muted)}.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}.btn.danger{color:var(--bad)}
-.btn.small{padding:4px 10px;font-size:13px}
+.btn.small{padding:4px 10px;font-size:13px}.btn:disabled,.btn[disabled]{opacity:.5;cursor:not-allowed}.btn:disabled:hover{border-color:var(--line)}
 form.inline{display:inline}.field{display:flex;flex-direction:column;gap:4px;margin:0 0 12px}.field label{font-size:13px;color:var(--muted);font-weight:600}
 input,select,textarea{font:inherit;font-size:15px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);width:100%}
 textarea{min-height:90px;resize:vertical}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.row>.field{flex:1;min-width:140px}
@@ -35,12 +35,33 @@ textarea{min-height:90px;resize:vertical}.row{display:flex;gap:10px;flex-wrap:wr
 .badge.good{background:var(--good-soft);color:var(--good);border-color:transparent}.badge.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}.badge.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .notice{padding:12px 14px;border-radius:var(--radius);margin:0 0 16px;background:var(--accent-soft)}.notice.warn{background:var(--warn-soft);color:var(--warn)}.notice.bad{background:var(--bad-soft);color:var(--bad)}
 pre,code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px}pre.cmd{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
-.copy{position:relative}.copy button{position:absolute;top:6px;right:6px}
+.copy{position:relative}.copy button{position:absolute;top:6px;right:6px}.copyhelp{font-size:13px;color:var(--warn);margin:2px 0 8px}
 .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}.bar.over i{background:var(--bad)}
-@media (max-width:640px){main{padding:16px 14px 48px}header.top{padding:10px 14px}th,td{padding:8px}}
+header.top .who span{max-width:10em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:640px){main{padding:16px 14px 48px}header.top{padding:10px 14px;gap:8px 12px}th,td{padding:8px}
+  header.top nav{order:3;flex:1 0 100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -14px;padding:0 28px 0 10px;
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+  header.top nav::-webkit-scrollbar{display:none}header.top nav a{white-space:nowrap;flex:0 0 auto}header.top .who{margin-left:auto}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid>:last-child:nth-child(odd){grid-column:1/-1}.stat b{font-size:19px}}
 `
 
-const COPY_JS = `document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(!b)return;const t=document.getElementById(b.dataset.copy);if(!t)return;navigator.clipboard.writeText(t.innerText.trim()).then(()=>{const o=b.textContent;b.textContent='복사됨';setTimeout(()=>b.textContent=o,1500)})})`
+// Copy buttons. navigator.clipboard exists only on https or localhost; a hub opened at http://192.168.x.y (office
+// network) has none, so fall back to selecting the text and execCommand('copy'), and when even that fails leave the
+// text selected and tell people to long-press it.
+const COPY_JS = `(()=>{
+const flash=(b,t)=>{b.dataset.label=b.dataset.label||b.textContent;b.textContent=t;clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent=b.dataset.label},2000)}
+const pick=el=>{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r)}
+const legacy=(b,el)=>{pick(el);let ok=false;try{ok=document.execCommand('copy')}catch(_){}
+if(ok){getSelection().removeAllRanges();flash(b,'복사됨');return}
+flash(b,'선택됨');let h=b.parentNode.nextElementSibling;if(!h||!h.classList.contains('copyhelp')){h=document.createElement('p');h.className='copyhelp';h.setAttribute('role','status');b.parentNode.after(h)}
+h.textContent='길게 눌러 복사해 주세요. (PC에서는 Ctrl+C, 맥에서는 ⌘+C)'}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(!b)return;const el=document.getElementById(b.dataset.copy);if(!el)return
+if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(el.innerText.trim()).then(()=>flash(b,'복사됨'),()=>legacy(b,el));else legacy(b,el)})
+})()`
+
+// On a phone the navigation is one scrolling row: bring the current page's item into view.
+const NAV_JS = `(()=>{const n=document.querySelector('header.top nav'),a=n&&n.querySelector('a.on');if(!a||n.scrollWidth<=n.clientWidth)return
+n.scrollLeft+=a.getBoundingClientRect().left-n.getBoundingClientRect().left-(n.clientWidth-a.offsetWidth)/2})()`
 
 export interface NavItem { href: string; label: string }
 
@@ -66,7 +87,7 @@ export function Page(p: { title: string; user?: Principal | null; nav?: NavItem[
           ) : null}
         </header>
         <main class={p.narrow ? 'narrow' : ''}>{p.children}</main>
-        <script>{raw(COPY_JS)}</script>
+        <script>{raw(NAV_JS + ';' + COPY_JS)}</script>
       </body>
     </html>
   )
