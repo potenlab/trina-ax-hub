@@ -230,7 +230,7 @@ describe('write_file', () => {
     expect(r.changed).toBe(true)
     const v = versions('shared/ver.md')
     expect(v.length).toBe(1)
-    expect(v[0]).toMatchObject({ reason: 'overwrite', size: 2, sha256: sha256('v1'), user_id: W.choi.id, stored_as: `${PRODUCT.systemDir}/versions/${v[0].id}` })
+    expect(v[0]).toMatchObject({ reason: 'overwrite', size: 2, sha256: sha256('v1'), user_id: W.choi.id, stored_as: `${PRODUCT.systemDir}/versions/${v[0].id}-ver.md` })
     expect(fs.readFileSync(W.abs(v[0].stored_as), 'utf8')).toBe('v1')
     expect(W.read('shared/ver.md')).toBe('v2')
     expect(s.write('shared/ver.md', 'v2', { overwrite: true }).changed).toBe(false)
@@ -371,7 +371,7 @@ describe('delete_file', () => {
     expect(fs.readFileSync(W.abs(r.storedAs!), 'utf8')).toBe('bye')
     const v = versions('shared/trash-me.md')
     expect(v.length).toBe(1)
-    expect(v[0]).toMatchObject({ reason: 'trash', size: 3, sha256: sha256('bye'), stored_as: r.storedAs, user_id: W.choi.id })
+    expect(v[0]).toMatchObject({ reason: 'trash', size: 3, sha256: '', stored_as: r.storedAs, user_id: W.choi.id }) // a rename: not read, not hashed
     expect(names(W.svc(W.owner).list())).not.toContain(`${PRODUCT.systemDir}/`)
   })
   test('folders only when empty; protected and rule folders stay', async () => {

@@ -3,13 +3,15 @@
 // `--glob '!<path>'`, so folders the person cannot see are never opened. Every result path is checked again
 // (visiblePath: access, name rules, regular file, a single link) before it is shown.
 // Office documents (docx, pdf, hwp, ...) are searched through their extracted text, cached server-side under
-// <dataDir>/textcache/<path>.txt and kept fresh by mtime.
+// <dataDir>/textcache/<path>.txt and kept fresh by mtime. Extraction runs in isolated converter processes
+// (extract.ts: pandoc, pdftotext, the office worker), never on the hub's thread, and a search waits for it only up
+// to a time limit; what is left is indexed in the background.
 import fs from 'node:fs'
 import path from 'node:path'
 import { atLeast, type Principal, type RuleSet } from '../policy/access'
 import { visiblePath, type FsCtx } from '../policy/authorize'
 import { ToolError } from '../policy/errors'
-import { walk } from '../policy/resolve'
+import { matchingPaths, walk } from '../policy/resolve'
 import { badSegment, hiddenEntry } from '../policy/names'
 import { PRODUCT } from '../product'
 import { extractText, isOffice, OFFICE_EXT, type Converters } from './extract'
@@ -27,10 +29,18 @@ const strip = (p: string) => p.replace(/^\.\//, '')
 /** Allowed search roots under `base` for this person, plus the folders inside them that must be skipped. */
 export function allowedRoots(fx: FsCtx, rules: RuleSet, user: Principal, base: string[]): { roots: string[]; excludes: string[] } {
   const acc = (s: string[]) => atLeast(rules.access(user, s), 'read')
-  // access can only change at a rule folder, at users/<x>, or at the system folder: collect those under base
+  // access can only change at a rule folder, at users/<x>, or at the system folder: collect those under base.
+  // Rules match names on a canonical key (NFC, case on a case-insensitive disk), so a rule folder is found on disk
+  // in whatever spelling it has there (ripgrep needs the actual names).
   const pts = new Map<string, string[]>()
   const add = (s: string[]) => { if (under(base, s)) pts.set(s.join('/'), s) }
-  for (const f of rules.ruleFolders()) if (f !== '') add(f.split('/'))
+  const baseKey = rules.key(base)
+  for (const f of rules.ruleFolders()) {
+    if (f === '') continue
+    const segs = f.split('/')
+    if (segs.length <= base.length || (baseKey !== '' && !rules.key(segs).startsWith(baseKey + '/'))) continue
+    for (const actual of matchingPaths(fx.root, segs, fx.caseInsensitive)) add(actual)
+  }
   add(['users', user.id])
   add([PRODUCT.systemDir])
   try { for (const n of fs.readdirSync(path.join(fx.root, 'users'))) add(['users', n]) } catch {}
@@ -104,8 +114,11 @@ export class OfficeCache {
     this.inflight.set(rel, job)
     return job
   }
-  /** Extract stale office files under the roots: at most `budget` now, the rest in the background. */
-  async refresh(rg: string, roots: string[], excludes: string[], filter: (rel: string) => fs.Stats | null, budget = 40): Promise<{ pending: number }> {
+  /**
+   * Extract stale office files under the roots: up to `budget` of them now (4 at a time, waiting at most `waitMs`),
+   * the rest in the background. `pending` = stale files not indexed yet when it returns.
+   */
+  async refresh(rg: string, roots: string[], excludes: string[], filter: (rel: string) => fs.Stats | null, budget = 40, waitMs = 15_000): Promise<{ pending: number }> {
     if (!roots.length) return { pending: 0 }
     const stale: string[] = []
     await runRg(rg, ['--files', '--null', ...RG_BASE, '--glob-case-insensitive', '--glob', OFFICE_GLOB, ...excludeArgs(excludes), '--', ...roots], this.fx.root, '\0', (r) => {
@@ -114,10 +127,21 @@ export class OfficeCache {
       const st = filter(rel)
       if (st && !this.fresh(rel, st)) stale.push(rel)
     }, 60_000)
-    const now = stale.slice(0, budget), later = stale.slice(budget)
-    for (let i = 0; i < now.length; i += 4) await Promise.all(now.slice(i, i + 4).map((r) => this.update(r).catch(() => {})))
+    const deadline = Date.now() + waitMs
+    let done = 0
+    let next = 0
+    const limit = Math.min(budget, stale.length)
+    while (next < limit && Date.now() < deadline) {
+      const end = Math.min(next + 4, limit)
+      const batch = stale.slice(next, end).map((r) => this.update(r).catch(() => {}).then(() => { done++ }))
+      next = end
+      let timer: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([Promise.all(batch), new Promise<void>((res) => { timer = setTimeout(res, Math.max(0, deadline - Date.now())) })])
+      clearTimeout(timer)
+    }
+    const later = stale.slice(next)
     if (later.length) void (async () => { for (const r of later) await this.update(r).catch(() => {}) })()
-    return { pending: later.length }
+    return { pending: stale.length - done }
   }
 }
 
@@ -177,7 +201,9 @@ export async function searchContent(d: SearchDeps, baseSegs: string[], baseIsFil
   }
   const run = async (literal: boolean) => {
     const common = [...RG_BASE, '--json', '-i', ...(literal ? ['-F'] : [])]
-    const nameGlob = o.glob && !o.glob.includes('/') ? ['--glob', o.glob] : []
+    // ripgrep matches globs on the bytes of the name: a Korean glob typed composed would miss names macOS wrote
+    // decomposed (and the reverse), so a non-ASCII glob is left to the normalizing matcher in ok()
+    const nameGlob = o.glob && !o.glob.includes('/') && /^[\x20-\x7e]*$/.test(o.glob) ? ['--glob', o.glob] : []
     // later globs win in ripgrep: the user glob first, then the exclusions
     const args = [...common, '--glob-case-insensitive', ...nameGlob, '--glob', '!' + OFFICE_GLOB, ...excludeArgs(excludes), '-e', o.query, '--', ...roots.filter((r) => !isOffice(r))]
     return runRg(d.rg, args, d.fx.root, '\n', onRecord((p) => strip(p)), d.timeoutMs)

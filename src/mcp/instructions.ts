@@ -39,7 +39,8 @@ export function buildInstructions(ctx: Ctx, user: Principal): string {
       + '(list_files, read_file, search_files, write_file, edit_file, make_folder, move_file, delete_file, read_skill), with paths '
       + 'relative to the team folder such as "shared/report.md" (never local paths, "/" or "~"). '
       + `Every call runs with ${name}'s folder permissions: a folder they may not see looks exactly like one that does not exist, `
-      + 'and read-only places refuse changes. Overwritten and deleted files are kept on the hub, and an admin can restore them.',
+      + 'and read-only places refuse changes. Overwritten and deleted files are kept on the hub, and an admin can restore them '
+      + '(except in personal folders, which stay private).',
     user.noPersonal
       ? `${name}'s personal folder stays closed on this computer until ${name} approves it on their 내 PC page (someone else set it up). `
         + 'Save work in the matching team folder.'

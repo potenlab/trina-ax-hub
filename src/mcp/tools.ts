@@ -172,6 +172,7 @@ export const TOOLS = [
       'Move or rename a file or folder inside the company team folder. "to" is the full new path including the name',
       '(e.g. from "shared/a.md" to "shared/2026/a.md"); missing folders are created. Needs write access at both places.',
       'Fails if "to" already exists, unless overwrite is true and both are files (the replaced file is kept on the hub).',
+      'A file keeps its kind: it cannot be renamed to an Office, PDF, HWP, image or other binary extension it did not have.',
       'Folders that have their own permission rules cannot be moved.',
     ].join(' '),
     input: z.object({
@@ -187,11 +188,12 @@ export const TOOLS = [
   }),
   tool({
     name: 'delete_file',
-    description: 'Delete a file from the company team folder. It goes to the hub\'s trash (an admin can restore it); nothing is erased. A folder can be deleted only when it is empty.',
+    description: 'Delete a file from the company team folder. It goes to the hub\'s trash (an admin can restore it, except from a personal folder); nothing is erased. A folder can be deleted only when it is empty.',
     input: z.object({ path: teamPath('File (or empty folder) to delete') }),
     run(svc, a) {
       const r = svc.remove(a.path)
-      const msg = r.type === 'file' ? `Deleted ${r.path}. It was moved to the hub's trash; an admin can restore it.` : `Deleted the empty folder ${r.path}/.`
+      const personal = r.path.startsWith('users/')
+      const msg = r.type === 'file' ? `Deleted ${r.path}. It was moved to the hub's trash${personal ? '' : '; an admin can restore it'}.` : `Deleted the empty folder ${r.path}/.`
       return { content: text(msg), summary: `${r.path} -> ${r.type === 'file' ? 'trash' : 'folder removed'}` }
     },
   }),

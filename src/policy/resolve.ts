@@ -4,6 +4,7 @@ import path from 'node:path'
 import { PRODUCT } from '../product'
 import { badSegment, hiddenEntry, MAX_DEPTH, MAX_PATH_CHARS } from './names'
 import { Denied } from './errors'
+import { segKey } from './access'
 
 /** Split a tool-supplied path into segments, rejecting anything that is not a plain relative path. */
 export function parseInput(input: unknown): string[] {
@@ -68,6 +69,32 @@ export function walk(root: string, segs: string[], caseInsensitive: boolean): Wa
     if (i < segs.length - 1 && !st.isDirectory()) return { actual, missing: segs.slice(i + 1), st, problem: `not a folder: ${actual.join('/')}` }
   }
   return { actual, missing: [], st }
+}
+
+/**
+ * Every existing folder or file whose path matches `segs` on the rules' canonical key (NFC, plus case when the file
+ * system ignores it), as actual on-disk names. Usually one; on a case-sensitive disk a composed and a decomposed
+ * spelling of the same name can both exist. Links and hidden entries are not followed. At most `limit` paths.
+ */
+export function matchingPaths(root: string, segs: readonly string[], caseInsensitive: boolean, limit = 16): string[][] {
+  const key = (s: string) => segKey(s, caseInsensitive)
+  let level: string[][] = [[]]
+  for (let i = 0; i < segs.length && level.length; i++) {
+    const want = key(segs[i]!)
+    const next: string[][] = []
+    for (const parent of level) {
+      let names: fs.Dirent[]
+      try { names = fs.readdirSync(path.join(root, ...parent), { withFileTypes: true }) } catch { continue }
+      for (const e of names) {
+        if (key(e.name) !== want || hiddenEntry(e.name, i) || badSegment(e.name) !== null || e.isSymbolicLink()) continue
+        if (i < segs.length - 1 && !e.isDirectory()) continue
+        next.push([...parent, e.name])
+        if (next.length >= limit) break
+      }
+    }
+    level = next
+  }
+  return level
 }
 
 /** realpath of the existing prefix must be exactly root + actual names (catches anything lstat missed). */

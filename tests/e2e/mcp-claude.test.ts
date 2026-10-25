@@ -13,6 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { testHub, type TestHub } from '../lib/hub'
 import { updateUser } from '../../src/auth/users'
+import { issueToken } from '../../src/auth/tokens'
 
 const CLAUDE = path.join(os.homedir(), '.local/bin/claude')
 const HAVE_CLAUDE = fs.existsSync(CLAUDE)
@@ -104,7 +105,8 @@ describe.skipIf(!HAVE_CLAUDE)('real Claude Code over MCP', () => {
   async function runClaude(file: string) {
     target = file
     seen = []
-    const token = hub.token(hub.owner.id)
+    // a device the owner enrolled themselves (one someone else enrolled keeps users/<id>/ closed until approved)
+    const token = issueToken(hub.ctx.db, hub.owner.id, 'device', 'e2e', { createdBy: hub.owner.id }).token
     const run = fs.mkdtempSync(path.join(work, 'run-'))
     const home = path.join(run, 'home'), config = path.join(run, 'config'), cwd = path.join(run, 'cwd')
     for (const d of [home, config, cwd]) fs.mkdirSync(d, { recursive: true })
