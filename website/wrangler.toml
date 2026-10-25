@@ -3,6 +3,8 @@
 #   bunx wrangler deploy     # from this folder (the lead deploys; nothing here deploys by itself)
 name = "trina-ax-site"
 compatibility_date = "2026-10-01"
+# ax.trina.app is a Workers custom domain (Cloudflare creates the DNS record and certificate).
+routes = [{ pattern = "ax.trina.app", custom_domain = true }]
 
 [assets]
 directory = "./dist"
