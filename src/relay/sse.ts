@@ -8,6 +8,12 @@ export interface MessageSink {
   model: string
   usage: ApiUsage
   skill(name: string): void
+  /** characters of model output streamed so far: text, thinking and tool-input JSON deltas */
+  outputChars?: number
+  /** message_delta (the final usage numbers) was seen */
+  finalUsage?: boolean
+  /** an `error` event inside a stream that had started well (e.g. overloaded) */
+  streamError?(type: string, message: string): void
 }
 
 /** a single SSE line longer than this is skipped (no real event is close; keeps memory bounded) */
@@ -80,11 +86,17 @@ export function mergeUsage(into: ApiUsage, from: unknown) {
   }
 }
 
-/** Events whose data we never need to parse (unless a Skill block is open, for deltas). */
-const SKIP = new Set(['ping', 'content_block_delta'])
+/** The characters of model output a content_block_delta carries (signatures and citations are not output text). */
+export function deltaChars(delta: unknown): number {
+  const d = delta as Record<string, unknown> | null
+  if (!d || typeof d !== 'object') return 0
+  const v = d.type === 'text_delta' ? d.text : d.type === 'thinking_delta' ? d.thinking : d.type === 'input_json_delta' ? d.partial_json : null
+  return typeof v === 'string' ? v.length : 0
+}
 
 /** Watches a Messages API event stream: model and input/cache numbers from message_start, output (running total)
- * from message_delta, Skill tool_use blocks from content_block_start/delta/stop. Never throws. */
+ * from message_delta, the characters of output streamed (for an estimate when the stream ends before
+ * message_delta), Skill tool_use blocks from content_block_start/delta/stop, and error events. Never throws. */
 export class MessageTap {
   private readonly skills = new SkillCollector()
   private readonly reader = new SseReader((event, data) => this.onEvent(event, data))
@@ -95,7 +107,7 @@ export class MessageTap {
   end() { try { this.reader.end() } catch {} }
 
   private onEvent(event: string, data: string) {
-    if (SKIP.has(event) && !(event === 'content_block_delta' && this.skills.collecting)) return
+    if (event === 'ping') return
     let ev: Record<string, any>
     try { ev = JSON.parse(data) } catch { return }
     if (!ev || typeof ev !== 'object') return
@@ -106,12 +118,17 @@ export class MessageTap {
         break
       case 'message_delta':
         mergeUsage(this.sink.usage, ev.usage)
+        if (ev.usage && typeof ev.usage === 'object') this.sink.finalUsage = true
         break
       case 'content_block_start':
         this.skills.start(ev.index, ev.content_block)
         break
       case 'content_block_delta':
-        this.skills.delta(ev.index, ev.delta)
+        this.sink.outputChars = (this.sink.outputChars ?? 0) + deltaChars(ev.delta)
+        if (this.skills.collecting) this.skills.delta(ev.index, ev.delta)
+        break
+      case 'error':
+        this.sink.streamError?.(String(ev.error?.type ?? 'error'), String(ev.error?.message ?? ''))
         break
       case 'content_block_stop': {
         const name = this.skills.stop(ev.index)
@@ -128,5 +145,6 @@ export function tapMessage(sink: MessageSink, body: unknown) {
   const m = body as Record<string, unknown>
   if (typeof m.model === 'string' && m.model) sink.model = m.model
   mergeUsage(sink.usage, m.usage)
+  sink.finalUsage = true
   for (const s of skillsInContent(m.content)) sink.skill(s)
 }
