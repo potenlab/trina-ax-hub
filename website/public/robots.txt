@@ -1,0 +1,20 @@
+# ax.trina.app: everything public is open to search engines and to AI search and assistants.
+User-agent: *
+Allow: /
+
+# AI search and assistants: welcome. (A named group replaces the * group for that bot, so the rules are repeated.)
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://ax.trina.app/sitemap.xml

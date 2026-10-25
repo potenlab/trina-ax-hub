@@ -1,0 +1,73 @@
+---
+// Hero (A2) and the product stage (A4): three made-up panels on one glass plate. HTML/CSS only, no screenshots.
+// The inner UI is decorative (role="img" with a label that says what it shows); the caption says it is made up.
+import type { Copy } from '../content/en'
+import { LINKS, bookCall } from '../site'
+import { softPath } from '../util'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const h = t.hero
+const s = t.stage
+---
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="container hero-copy">
+    <a class="pill" href="#open-source"><span class="pill-dot" aria-hidden="true"></span>{h.pill}</a>
+    <h1 id="hero-title">{h.title} <span class="accent-text">{h.accent}</span></h1>
+    <p class="hero-sub">{h.sub}</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary btn-lg" href={bookCall(t.lang)}>{h.primary}<Icon name="arrow" /></a>
+      <a class="btn btn-secondary btn-lg" href={LINKS.github} rel="noopener"><Icon name="github" />{h.secondary}</a>
+    </div>
+    <p class="hero-note">{h.note}</p>
+  </div>
+
+  <figure class="stage">
+    <div class="stage-glow" aria-hidden="true"></div>
+    <div class="stage-grid" role="img" aria-label={s.label}>
+      <div class="win sp sp-folders">
+        <div class="win-bar"><span class="win-dots"><span></span><span></span><span></span></span><span class="win-title">{s.folders.title}</span></div>
+        <div class="fa">
+          <div class="fa-head"><span>{s.folders.col}</span><span>{s.folders.who}</span></div>
+          {s.folders.rows.map((r, i) => (
+            <div class="fa-row" data-selected={String(i === 2)}>
+              <span class="fa-name"><Icon name="folder" /><span>{r.name}</span></span>
+              <span class="fa-who">{i > 0 && <Icon name="lock" />}{r.who}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="win sp sp-chats">
+        <div class="win-bar"><span class="win-dots"><span></span><span></span><span></span></span><span class="win-title">{s.chats.title}</span></div>
+        <div class="cx-cols">
+          {s.chats.items.map((c) => (
+            <div class="cx" data-empty={String(c.file === '')}>
+              <p class="cx-who"><span class="cx-avatar">{c.who.slice(0, 1)}</span>{c.who}<small>{c.team}</small></p>
+              <p class="cx-q">{c.q}</p>
+              <div class="cx-a">
+                <span class="cx-mark"><Icon name="spark" /></span>
+                <p>{softPath(c.a)}</p>
+                {c.file !== '' && <span class="cx-file"><Icon name="file" />{c.file}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="win sp sp-usage">
+        <div class="win-bar"><span class="win-dots"><span></span><span></span><span></span></span><span class="win-title">{s.usage.title}</span></div>
+        <div class="ut">
+          <div class="ut-row ut-head"><span>{s.usage.cols.person}</span><span>{s.usage.cols.team}</span><span class="ut-num">{s.usage.cols.requests}</span><span>{s.usage.cols.skill}</span></div>
+          {s.usage.rows.map((r) => (
+            <div class="ut-row">
+              <span class="ut-person">{r.person}</span><span class="ut-team">{r.team}</span><span class="ut-num">{r.requests}</span><span class="ut-skill">{r.skill}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+    <figcaption class="stage-caption">{s.caption}</figcaption>
+  </figure>
+</section>

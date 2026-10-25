@@ -1,0 +1,48 @@
+---
+// The home page, one component for both languages (/ and /ko/). Sections in the order of the copy deck:
+// nav, hero + product stage, works with, problem, features, how it works, paying for Claude, security (dark),
+// open source, pricing, examples by role, service, FAQ, final call to action, footer.
+import type { Copy } from '../content/en'
+import Base from '../layouts/Base.astro'
+import { homeJsonLd } from '../seo'
+import Nav from './Nav.astro'
+import Hero from './Hero.astro'
+import WorksWith from './WorksWith.astro'
+import Problem from './Problem.astro'
+import Features from './Features.astro'
+import Steps from './Steps.astro'
+import Paying from './Paying.astro'
+import SecuritySection from './SecuritySection.astro'
+import OpenSource from './OpenSource.astro'
+import Pricing from './Pricing.astro'
+import Examples from './Examples.astro'
+import Service from './Service.astro'
+import Faq from './Faq.astro'
+import FinalCta from './FinalCta.astro'
+import Footer from './Footer.astro'
+
+interface Props { t: Copy }
+const { t } = Astro.props
+---
+<Base t={t} route="home" jsonLd={homeJsonLd(t)}>
+  <Nav t={t} route="home" />
+  <main id="main">
+    <Hero t={t} />
+    <WorksWith t={t} />
+    <Problem t={t} />
+    <Features t={t} />
+    <Steps t={t} />
+    <Paying t={t} />
+    <SecuritySection t={t} />
+    <OpenSource t={t} />
+    <Pricing t={t} />
+    <Examples t={t} />
+    <Service t={t} />
+    <Faq t={t} />
+    <FinalCta t={t} />
+  </main>
+  <Footer t={t} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

@@ -1,0 +1,33 @@
+---
+// Open source (A10): the licence, the repository, and the commands to copy. No star counter.
+import type { Copy } from '../content/en'
+import { LINKS } from '../site'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const o = t.openSource
+---
+<section class="section" id="open-source" aria-labelledby="os-title">
+  <div class="container os">
+    <div>
+      <div class="section-head">
+        <h2 id="os-title"><Lines text={o.title} /></h2>
+        <p>{o.body}</p>
+      </div>
+      <div class="os-ctas">
+        <a class="btn btn-secondary btn-lg" href={LINKS.github} rel="noopener"><Icon name="github" />{o.cta}</a>
+      </div>
+    </div>
+    <div class="os-repo">
+      <div class="os-repo-head">
+        <span class="os-repo-name"><Icon name="github" />{o.repo}</span>
+        <span class="os-tag">{o.license}</span>
+      </div>
+      <div class="os-term">
+        <pre class="os-code">{o.cmds.map((c) => <span><span class="tl-prompt" aria-hidden="true">$ </span>{c}</span>)}</pre>
+        <button class="copy-btn" type="button" data-copy={o.cmds.join('\n')} data-copied={o.copied} aria-label={o.copyLabel}>{o.copy}</button>
+      </div>
+    </div>
+  </div>
+</section>

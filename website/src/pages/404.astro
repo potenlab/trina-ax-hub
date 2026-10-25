@@ -1,0 +1,23 @@
+---
+// 404 (Workers Assets serves this one file for every unknown address, in any language), so it speaks both.
+import Base from '../layouts/Base.astro'
+import Footer from '../components/Footer.astro'
+import Nav from '../components/Nav.astro'
+import en from '../content/en'
+import ko from '../content/ko'
+---
+<Base t={en} title={`${en.notFound.title} — Trina AX`} description={en.notFound.body}>
+  <Nav t={en} route="home" />
+  <main id="main" class="container legal">
+    <h1>{en.notFound.title}</h1>
+    <p class="notice">{en.notFound.body}</p>
+    <a class="back" href="/">← {en.notFound.back}</a>
+    <h2 lang="ko" class="legal-ko">{ko.notFound.title}</h2>
+    <p class="notice" lang="ko">{ko.notFound.body}</p>
+    <a class="back" lang="ko" href="/ko/">← {ko.notFound.back}</a>
+  </main>
+  <Footer t={en} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

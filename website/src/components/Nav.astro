@@ -1,0 +1,48 @@
+---
+// Top navigation: logo, section links, language switch, theme toggle, "Book a call". The same markup serves the home page
+// (in-page anchors) and /security (anchors back to the home page of the same language).
+import type { Copy } from '../content/en'
+import { LINKS, ROUTES, bookCall, type RouteId } from '../site'
+import Icon from './Icon.astro'
+import Logo from './Logo.astro'
+
+interface Props { t: Copy; route: RouteId }
+const { t, route } = Astro.props
+const n = t.nav
+const lang = t.lang
+const home = ROUTES.home[lang]
+const a = (id: string) => `${home}#${id}`
+const switchHref = ROUTES[route][n.switchToLang as 'en' | 'ko']
+const book = bookCall(lang)
+const links = [
+  { href: a('features'), label: n.features, external: false },
+  { href: a('how'), label: n.how, external: false },
+  { href: ROUTES.security[lang], label: n.security, external: false },
+  { href: a('open-source'), label: n.openSource, external: false },
+  { href: a('pricing'), label: n.pricing, external: false },
+  { href: a('faq'), label: n.faq, external: false },
+  { href: LINKS.github, label: n.github, external: true },
+]
+---
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="logo" href={home} aria-label={n.home}><Logo /><span>{t.brand}</span></a>
+    <nav class="nav-links" aria-label={n.label}>
+      {links.map((l) => <a href={l.href} rel={l.external ? 'noopener' : undefined}>{l.label}</a>)}
+    </nav>
+    <div class="nav-right">
+      <a class="lang-link" href={switchHref} hreflang={n.switchToLang} lang={n.switchToLang} aria-label={`${n.switchLabel}: ${n.switchTo}`}><Icon name="globe" />{n.switchTo}</a>
+      <button class="icon-btn" type="button" data-theme-toggle aria-label={n.theme} title={n.theme}>
+        <Icon name="moon" class="theme-icon-light" /><Icon name="sun" class="theme-icon-dark" />
+      </button>
+      <a class="btn btn-primary btn-sm nav-book" href={book}>{n.book}</a>
+      <button class="icon-btn menu-btn" type="button" data-menu-toggle aria-expanded="false" aria-controls="mobile-menu" aria-label={n.menu}>
+        <Icon name="menu" />
+      </button>
+    </div>
+  </div>
+  <div class="mobile-menu" id="mobile-menu" data-open="false">
+    {links.map((l) => <a href={l.href} rel={l.external ? 'noopener' : undefined}>{l.label}</a>)}
+    <a class="btn btn-primary" href={book}>{n.book}</a>
+  </div>
+</header>

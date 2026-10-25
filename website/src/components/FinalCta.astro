@@ -1,0 +1,24 @@
+---
+// Final call to action (A15): dark in both themes.
+import type { Copy } from '../content/en'
+import { LINKS, bookCall } from '../site'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+import Logo from './Logo.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const c = t.cta
+---
+<section class="section section-cta" id="start" aria-labelledby="start-title">
+  <div class="container">
+    <div class="cta-box zone-dark">
+      <span class="cta-logo" aria-hidden="true"><Logo /></span>
+      <h2 id="start-title"><Lines text={c.title} /></h2>
+      <p>{c.sub}</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary btn-lg" href={bookCall(t.lang)}>{c.primary}<Icon name="arrow" /></a>
+        <a class="btn btn-secondary btn-lg" href={LINKS.github} rel="noopener"><Icon name="github" />{c.secondary}</a>
+      </div>
+    </div>
+  </div>
+</section>

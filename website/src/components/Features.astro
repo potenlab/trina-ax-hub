@@ -1,0 +1,96 @@
+---
+// Features bento (A6): six cards, each with a small made-up UI. The UI is decorative (aria-hidden); the card text says
+// the same thing in words.
+import type { Copy } from '../content/en'
+import Lines from './Lines.astro'
+import { softPath } from '../util'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const f = t.features
+// Card layout: wide cards put the text next to the UI on large screens.
+const wide = new Set(['files', 'usage', 'log'])
+// The loosely typed copy items (each card has its own `ui` shape) are read through `any` in this one place.
+const items = f.items as any[]
+const didIcon: Record<string, string> = { read: 'eye', edited: 'edit', deleted: 'trash', 읽음: 'eye', 수정: 'edit', 삭제: 'trash' }
+const didKind: Record<string, string> = { read: 'read', edited: 'edited', deleted: 'deleted', 읽음: 'read', 수정: 'edited', 삭제: 'deleted' }
+---
+<section class="section section-tint" id="features" aria-labelledby="features-title">
+  <div class="container">
+    <div class="section-head">
+      <h2 id="features-title"><Lines text={f.title} /></h2>
+    </div>
+    <ul class="bento">
+      {items.map((it) => (
+        <li class={`bcard bcard-${it.id}${wide.has(it.id) ? ' bcard-wide' : ''}`}>
+          <div class="bcard-text">
+            <h3>{it.title}</h3>
+            <p>{it.body}</p>
+          </div>
+          <div class="bcard-ui">
+            {it.id === 'files' && (
+              <div class="mini" aria-hidden="true">
+                <p class="mini-head">{it.ui.head}</p>
+                <div class="mt">
+                  {it.ui.tree.map((r: any) => (
+                    <div class={`mt-row mt-${r.kind}`}><Icon name={r.kind === 'folder' ? 'folder' : 'file'} /><span>{softPath(r.name)}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {it.id === 'formats' && (
+              <div class="mini" aria-hidden="true">
+                <p class="mini-head">{it.ui.head}</p>
+                <ul class="ft">
+                  {it.ui.types.map((x: string) => <li data-kr={String(x.startsWith('HWP'))}>{x}</li>)}
+                </ul>
+              </div>
+            )}
+            {it.id === 'skills' && (
+              <div class="mini" aria-hidden="true">
+                <p class="mini-head">{it.ui.head}</p>
+                <div class="sk">
+                  {it.ui.rows.map((r: any) => (
+                    <div class="sk-row"><span class="sk-name"><Icon name="spark" /><span>{r.name}</span></span><span class="pill-s" data-fresh={String(r.fresh)}>{r.state}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {it.id === 'usage' && (
+              <div class="mini" aria-hidden="true">
+                <div class="mu-top"><p class="mini-head">{it.ui.head}</p><span class="mu-export"><Icon name="download" />{it.ui.export}</span></div>
+                <div class="mu-rows">
+                  {it.ui.rows.map((r: any, i: number) => (
+                    <div class="mu-row" data-top={String(i === 0)}><span class="mu-name">{r.name}</span><span class="mu-track"><span class={`mu-bar w-${r.w}`}></span></span></div>
+                  ))}
+                </div>
+                <p class="mu-limit">{it.ui.limit}</p>
+              </div>
+            )}
+            {it.id === 'log' && (
+              <div class="mini" aria-hidden="true">
+                <p class="mini-head">{it.ui.head}</p>
+                <div class="lg">
+                  {it.ui.rows.map((r: any) => (
+                    <div class="lg-row" data-did={didKind[r.did] ?? r.did}>
+                      <span class="lg-ico"><Icon name={didIcon[r.did] ?? 'file'} /></span>
+                      <span class="lg-text"><b>{r.who}</b> {r.did} <code>{softPath(r.what)}</code></span>
+                      {r.restore && <span class="lg-restore"><Icon name="restore" />{r.restore}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {it.id === 'phone' && (
+              <div class="phone" aria-hidden="true">
+                <div class="phone-notch"></div>
+                <p class="phone-q">{it.ui.q}</p>
+                <div class="phone-a"><span class="cx-mark"><Icon name="spark" /></span><p>{softPath(it.ui.a)}</p></div>
+              </div>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
