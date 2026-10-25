@@ -37,7 +37,8 @@ Bun 1.3.12 · TypeScript strict · Hono · bun:sqlite. 규칙은 [CLAUDE.md](CLA
 git clone <저장소> ~/src/trina-ax && cd ~/src/trina-ax      # 또는 tarball (OPERATOR.md 2장)
 bash deploy/macos/install-hub.sh                           # 시스템 서비스로 설치. sudo는 필요한 단계에서만, 이유를 보여 주고 물어요
 trina-ax status                                            # '처음 설정' 주소에서 소유자 만들기
-bash deploy/macos/install-hub.sh --tunnel-token-file ~/tunnel-token.txt --public-url https://ax.acme.co.kr
+# 공개 주소·터널 토큰은 운영자 컴퓨터에서: bun deploy/cloudflare/customer-address.ts new acme → acme-tunnel-token.txt 를 이 Mac으로
+bash deploy/macos/install-hub.sh --tunnel-token-file ~/tunnel-token.txt --public-url https://acme.trina.app
 trina-ax doctor --live                                     # 모두 ✓ 이면 직원 연결 시작
 ```
 

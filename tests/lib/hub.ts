@@ -58,7 +58,11 @@ export async function testHub(o: { upstream?: string; apiKey?: string | null; co
     },
     group: (name) => createGroup(db, name),
     token: (userId, kind = 'device') => issueToken(db, userId, kind, 'test', kind === 'hub' ? 3600_000 : undefined).token,
-    session(userId) { const s = createSession(db, userId); return { cookie: `${PRODUCT.sessionCookie}=${s.id}`, csrf: s.csrf } },
+    // both names: the hub reads `__Host-tax_session` on https (x-forwarded-proto) and `tax_session` on plain http
+    session(userId) {
+      const s = createSession(db, userId)
+      return { cookie: `${PRODUCT.sessionCookie}=${s.id}; __Host-${PRODUCT.sessionCookie}=${s.id}`, csrf: s.csrf }
+    },
     write(rel, text) { const p = path.join(ctx.fx.root, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, text) },
     async stop() { await running.stop(); db.close(); fs.rmSync(dir, { recursive: true, force: true }) },
   }

@@ -8,6 +8,7 @@ import { initTeamFolder } from '../policy/rules-admin'
 import { audit } from '../audit'
 import { HttpError } from '../http/errors'
 import { PRODUCT } from '../product'
+import { cookieName } from '../http/cookies'
 import { safeEqual } from '../ids'
 import { Page, Csrf } from '../ui/layout'
 import {
@@ -21,7 +22,7 @@ const API_KEY = /^[\x21-\x7e]{10,400}$/
 
 function startSession(web: Web, c: C, userId: string) {
   const s = createSession(web.ctx.db, userId)
-  setCookie(c, PRODUCT.sessionCookie, s.id, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/', maxAge: Math.floor(SESSION_TTL_MS / 1000) })
+  setCookie(c, cookieName(c, PRODUCT.sessionCookie), s.id, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/', maxAge: Math.floor(SESSION_TTL_MS / 1000) })
 }
 
 const homeFor = (role: string) => (role === 'owner' || role === 'admin' ? '/admin' : '/me')
@@ -236,10 +237,10 @@ export function mountAuth(app: App, web: Web) {
     if (!site && origin) { try { sameOrigin = new URL(origin).host === (c.req.header('host') ?? '') } catch {} }
     if (s) {
       if (!(given !== undefined ? csrfOk(s, given) : sameOrigin)) return csrfRefused(c)
-      destroySession(db, getCookie(c, PRODUCT.sessionCookie))
+      destroySession(db, getCookie(c, cookieName(c, PRODUCT.sessionCookie)))
       audit(db, { actor: s.user.id, action: 'logout', target: s.user.id })
     }
-    deleteCookie(c, PRODUCT.sessionCookie, { path: '/', secure: isHttps(c) })
+    deleteCookie(c, cookieName(c, PRODUCT.sessionCookie), { path: '/', secure: isHttps(c) })
     return c.redirect('/login?bye', 303)
   })
 

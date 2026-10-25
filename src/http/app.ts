@@ -11,6 +11,7 @@ import type { Ctx } from '../context'
 import { verifySession, type SessionAuth } from '../auth/sessions'
 import { verifyToken, tokenFromHeaders, type TokenAuth } from '../auth/tokens'
 import { PRODUCT } from '../product'
+import { cookieName } from './cookies'
 import { HttpError, jsonError } from './errors'
 
 export type AppEnv = {
@@ -56,7 +57,7 @@ export const requireToken = (ctx: Ctx, shape: 'json' | 'anthropic' = 'json'): Mi
 
 /** Reads the session cookie on every request (null when not logged in). */
 export const sessionMiddleware = (ctx: Ctx): MiddlewareHandler<AppEnv> => async (c, next) => {
-  c.set('session', verifySession(ctx.db, getCookie(c, PRODUCT.sessionCookie)))
+  c.set('session', verifySession(ctx.db, getCookie(c, cookieName(c, PRODUCT.sessionCookie))))
   await next()
 }
 

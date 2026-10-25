@@ -72,8 +72,11 @@
 
 | 누가 갖나 | 장점 | 주의 |
 |---|---|---|
-| 고객 계정 + 고객 도메인 (예: `ax.acme.co.kr`) | 계약이 끝나도 고객 것. 권장 | 도메인의 네임서버가 Cloudflare에 있어야 해요 (서브도메인만 쓰려면 그 영역 전체) |
-| TreeSoop 계정 + TreeSoop 도메인 (예: `acme.ax.trina.app`) | 설정이 빠름 | 계약이 끝나면 주소가 사라져요. 13장 순서를 꼭 지키기 |
+| **기본:** TreeSoop 계정 + `<회사>.trina.app` (예: `acme.trina.app`) | 명령 하나로 끝나요 (4장). 고객은 아무것도 준비하지 않아도 돼요 | 계약이 끝나면 주소가 사라져요. 13장 순서를 꼭 지키기 |
+| 고객 계정 + 고객 도메인 (예: `ax.acme.co.kr`) | 계약이 끝나도 고객 것 | 고객이 원할 때만. 도메인의 네임서버가 Cloudflare에 있어야 해요 (서브도메인만 쓰려면 그 영역 전체) |
+
+`<회사>` 는 영문 소문자·숫자·하이픈 2~40자예요 (예: `jdr`, `acme-korea`). `acme.ax.trina.app` 처럼 두 단계로 만들지 않아요.
+Cloudflare 무료 인증서(Universal SSL)가 `*.trina.app` 한 단계만 덮어서, 두 단계 이름은 https가 안 돼요.
 
 ---
 
@@ -122,7 +125,7 @@ curl -fsSL https://claude.ai/install.sh | bash
 
 ```bash
 cd ~/src/trina-ax
-bash deploy/macos/install-hub.sh --tunnel-token-file ~/tunnel-token.txt --public-url https://ax.acme.co.kr
+bash deploy/macos/install-hub.sh --tunnel-token-file ~/tunnel-token.txt --public-url https://acme.trina.app
 ```
 
 | 옵션 | 뜻 | 기본 |
@@ -167,6 +170,41 @@ trina-ax doctor --live      # 모두 ✓ 인지 확인 (✗ 가 있으면 14장)
 
 ## 4. Cloudflare 터널 (공개 주소)
 
+### 기본: `<회사>.trina.app` (명령 하나)
+
+**TreeSoop 운영자 컴퓨터에서** 실행해요 (고객 Mac 아님). Cloudflare 토큰이 고객 Mac에 가지 않게 하려는 거예요.
+토큰은 `~/.config/trina-ax/cloudflare-token` (또는 `CLOUDFLARE_API_TOKEN`, `--cf-token-file`)에서 읽어요.
+권한: trina.app 의 Zone · Zone · Read 와 Zone · DNS · Edit, 계정의 Cloudflare Tunnel · Edit.
+
+```bash
+bun deploy/cloudflare/customer-address.ts new acme          # 터널 trina-ax-acme + DNS acme.trina.app + 토큰 파일
+scp ./acme-tunnel-token.txt <허브 Mac>:~/tunnel-token.txt && rm ./acme-tunnel-token.txt
+```
+
+허브 Mac에서:
+
+```bash
+bash ~/src/trina-ax/deploy/macos/install-hub.sh --tunnel-token-file ~/tunnel-token.txt --public-url https://acme.trina.app
+rm ~/tunnel-token.txt
+```
+
+다시 운영자 컴퓨터에서 `bun deploy/cloudflare/customer-address.ts check acme` → 모두 ✓ 이면 끝이에요.
+
+| 명령 | 하는 일 |
+|---|---|
+| `new <회사> [--port 47900]` | 이름 확인 → 터널 → 터널 경로(`https://<회사>.trina.app` → 허브 `127.0.0.1:<port>`) → DNS → 토큰 파일 (0600, 화면에 안 찍어요). 다시 실행해도 안전해요 |
+| `check <회사>` | DNS · 터널 경로 · 터널 상태 · `https://<회사>.trina.app/healthz` 를 하나씩 확인. 문제가 있으면 1로 끝나요 |
+| `list` | 만든 고객 주소와 터널 상태 (켜짐 · 꺼짐 · 아직 연결 전) |
+| `token <회사>` | 토큰 파일 다시 받기 (허브 Mac을 바꿀 때) |
+| `remove <회사> --yes` | DNS와 터널 지우기 (13장 순서대로, 마지막에) |
+
+이미 쓰는 이름(`www`, `console`, `drive` 등 트리나가 쓰는 이름, 이미 DNS가 있는 이름)은 거절해요.
+허브 포트를 바꿨다면 `--port` 를 같이 줘요 (`trina-ax status` 에 나와요).
+
+### 고객 도메인을 쓸 때 (예: `ax.acme.co.kr`)
+
+고객 Cloudflare 계정에서 대시보드로 만들어요.
+
 1. Cloudflare 대시보드 → **Zero Trust** → **Networks** → **Tunnels** → **Create a tunnel** → **Cloudflared**.
 2. 이름: `trina-ax-<고객사>`. 다음 화면의 설치 명령 `cloudflared service install eyJ…` 에서 **`eyJ…` 부분(토큰)만** 복사해요.
    (그 명령을 그대로 실행하지 마세요. 허브 설치 스크립트가 터널 서비스를 직접 만들어요.)
@@ -196,7 +234,7 @@ trina-ax doctor --live      # 모두 ✓ 인지 확인 (✗ 가 있으면 14장)
 
 PC는 **연결할 때의 허브 주소**를 Claude 설정에 저장해요. 나중에 주소를 바꾸면 모든 PC에서 설치 명령을 다시 실행해야 해요.
 
-1. 공개 주소(https)를 먼저 정하고 (`trina-ax set-url --public https://ax.acme.co.kr` 또는 설정 화면 > 주소)
+1. 공개 주소(https)를 먼저 정하고 (`trina-ax set-url --public https://acme.trina.app` 또는 설정 화면 > 주소)
 2. `trina-ax restart`
 3. `trina-ax doctor`에서 공개 주소 ✓ 를 본 다음에 직원을 연결해요.
 
@@ -253,7 +291,7 @@ while IFS=, read -r id name; do trina-ax user-add "$id" "$name"; done < people.c
 
 | 순서 | Mac | Windows |
 |---|---|---|
-| 1 | 브라우저로 `https://ax.acme.co.kr/login` → 임시 비밀번호로 로그인 → 새 비밀번호 | 같음 |
+| 1 | 브라우저로 `https://acme.trina.app/login` → 임시 비밀번호로 로그인 → 새 비밀번호 | 같음 |
 | 2 | **내 PC** > **PC 연결하기** → Mac 명령 복사 | **PC 연결하기** → Windows 명령 복사 |
 | 3 | 터미널 앱에 붙여 넣기 (`curl -fsSL …/install.sh \| bash -s -- <코드>`) | PowerShell(관리자 아님)에 붙여 넣기 (`& ([scriptblock]::Create((irm …/install.ps1))) <코드>`) |
 | 4 | Claude Code가 없으면 스크립트가 공식 설치기로 깔아요 | 같음. Claude Code가 Windows에서 **Git for Windows**를 요구하면 먼저 설치해야 해요 → **시범 PC 한 대에서 먼저 확인** |
@@ -400,13 +438,13 @@ trina-ax restart && trina-ax doctor      # claude ✓ 와 버전 확인, 휴대�
 **순서가 중요해요.** 허브를 먼저 지우면 직원 PC의 Claude가 없어진 허브를 계속 찾아서 아무것도 안 돼요.
 
 1. 고객에게 날짜를 알리고, **모든 PC에서 연결 해제**:
-   - Mac: `curl -fsSL https://ax.acme.co.kr/install.sh | bash -s -- --uninstall`
-   - Windows: `& ([scriptblock]::Create((irm https://ax.acme.co.kr/install.ps1))) -Uninstall`
+   - Mac: `curl -fsSL https://acme.trina.app/install.sh | bash -s -- --uninstall`
+   - Windows: `& ([scriptblock]::Create((irm https://acme.trina.app/install.ps1))) -Uninstall`
    - 관리 > 사람에서 연결된 PC 수가 0이 될 때까지 확인 (못 하는 PC는 그 PC의 `~/.claude/settings.json`에서 `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` 지우기)
 2. 데이터 넘기기: `trina-ax backup /Volumes/<고객 디스크> --with-team` (회사 파일은 `team/`에 그대로 있어요)
 3. 허브 제거: `bash ~/TrinaAX/app/deploy/macos/install-hub.sh --uninstall`
    (서비스·plist·로그 순환 설정·`app/`·명령을 지우고, `data/`와 `team/`은 남겨요)
-4. Cloudflare: 터널과 공개 호스트 이름(DNS 레코드) 지우기
+4. Cloudflare: 운영자 컴퓨터에서 `bun deploy/cloudflare/customer-address.ts remove acme --yes` (고객 도메인이면 고객 대시보드에서 터널과 DNS 레코드 지우기)
 5. Anthropic: 고객이 콘솔에서 허브 API 키를 폐기 (Settings > API keys)
 6. 고객이 원하면 남은 데이터 지우기: `rm -rf ~/TrinaAX` (되돌릴 수 없어요. 2번 백업을 넘긴 뒤에)
 
@@ -462,6 +500,7 @@ trina-ax restart && trina-ax doctor      # claude ✓ 와 버전 확인, 휴대�
 | `trina-ax pricing [show\|check\|set\|reset]` | 모델 가격표 |
 | `trina-ax ping [--wait 30]` | 이 Mac에서 허브 응답 확인 |
 | `bash deploy/macos/install-hub.sh [--uninstall]` | 설치·업데이트·제거 |
+| `bun deploy/cloudflare/customer-address.ts new\|check\|list\|token\|remove <회사>` | (운영자 컴퓨터) 고객 주소 `<회사>.trina.app` 만들기·확인·지우기 (4장) |
 
 ## 부록: Claude 사용 방식 두 가지와 Claude 앱 커넥터
 

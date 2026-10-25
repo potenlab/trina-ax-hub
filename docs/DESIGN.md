@@ -35,6 +35,7 @@ customer owns (`<dataDir>/secrets/anthropic-api-key`).
 | `src/skills/marketplace.ts`, `src/skills/zip.ts`, `src/skills/routes.ts`, `src/install/`, `installer/` | marketplace, PC installer, enrollment | install |
 | `src/hub/` | hub sessions: runner, chat, schedules, phone pages | hub |
 | `src/web/` | setup, login, personal and admin pages | web |
+| `deploy/` | hub install (macOS LaunchDaemon, Linux unit) and `deploy/cloudflare/customer-address.ts` (operator-side: customer addresses) | lead |
 | `tests/unit/<area>*.test.ts`, `tests/e2e/<area>*.test.ts` | each area its own files | that area |
 
 Do not edit files you do not own. If you need a change in a foundation file, write down exactly what and why in
@@ -291,3 +292,23 @@ without it the phone path is the Claude app connector.
 
 Verified with real Claude Code 2.1.309 over a Cloudflare quick tunnel: `tests/e2e/full-flow-subscription.test.ts`
 (no relay, MCP + skills, telemetry usage, connector discovery) and `tests/e2e/full-flow.test.ts` (company key).
+
+## Customer addresses: `<company>.trina.app` (2026-10-25)
+
+Every customer hub gets `https://<company>.trina.app` by default (a customer-owned domain stays possible, by hand).
+`deploy/cloudflare/customer-address.ts` runs on a TreeSoop operator's computer, never on the customer's Mac, so the
+Cloudflare API token never leaves us. `new <company>` checks the name (lowercase letters, digits, hyphens, 2–40;
+reserved names such as `www`, `console`, `drive` and any name that already has DNS are refused), then creates the
+remotely managed tunnel `trina-ax-<company>`, its one route `https://<company>.trina.app → http://127.0.0.1:<port>`
+(then `http_status:404`), a proxied CNAME to `<tunnel>.cfargotunnel.com`, and writes the tunnel token to a 0600 file
+that is carried to the hub (`install-hub.sh --tunnel-token-file`). It never prints a secret and is safe to re-run:
+it finishes a half-made address, keeps an existing route's port, and refuses to repoint a tunnel or DNS record that
+serves another address. `check`, `list`, `token` and `remove --yes` cover the rest of the life cycle.
+One level only: Universal SSL covers `*.trina.app` but not `*.ax.trina.app`.
+
+Shared parent domain → **`__Host-` cookies on https** (`src/http/cookies.ts`). All customer hubs are siblings under
+trina.app, so without the prefix one hub could set `tax_session=…; Domain=trina.app` (or a known `tax_pre` form
+token) and another hub would read it. On https the hub only sets and reads `__Host-tax_session` / `__Host-tax_pre`
+(Secure, Path=/, no Domain), which a browser accepts only from that exact host. Plain http on the office LAN keeps
+the bare names (the prefix needs Secure); that is a different host anyway. trina.app's own site and console set no
+cookie Domain in their code (checked 2026-10-25), so their sessions stay host-only and are not sent to customer hubs.

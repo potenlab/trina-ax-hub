@@ -103,9 +103,51 @@ describe('web: login', async () => {
     expect((await get(hub, '/')).headers.get('location')).toBe('/login')
   })
 
-  test('cookie is Secure behind https (x-forwarded-proto)', async () => {
-    const { r } = await login(hub, 'owner', 'password123', { 'x-forwarded-proto': 'https' })
-    expect(setCookies(r).find((x) => x.startsWith(PRODUCT.sessionCookie + '='))).toContain('Secure')
+  // Customer hubs share a parent domain (<company>.trina.app), so on https the cookies are `__Host-` ones: the browser
+  // won't take that name from a sibling host or with a Domain, and the hub doesn't read the bare name there.
+  const https = { 'x-forwarded-proto': 'https' }
+
+  test('behind https (x-forwarded-proto) the cookies are __Host- ones: Secure, Path=/, no Domain', async () => {
+    const pre = await get(hub, '/login', null, https)
+    const preCookie = setCookies(pre).find((x) => x.startsWith('__Host-tax_pre='))!
+    expect(preCookie).toContain('Secure')
+    expect(preCookie).toContain('Path=/')
+    expect(preCookie).not.toMatch(/Domain=/i)
+
+    const { r, sess } = await login(hub, 'owner', 'password123', https)
+    expect(r.status).toBe(303)
+    const c = setCookies(r).find((x) => x.startsWith(`__Host-${PRODUCT.sessionCookie}=`))!
+    expect(c).toContain('Secure')
+    expect(c).toContain('HttpOnly')
+    expect(c).toContain('Path=/')
+    expect(c).not.toMatch(/Domain=/i)
+    expect(setCookies(r).some((x) => x.startsWith(`${PRODUCT.sessionCookie}=`))).toBe(false)
+    expect((await get(hub, '/', sess, https)).headers.get('location')).toBe('/admin')
+  })
+
+  test('on https a bare session cookie (what a sibling host could plant) is not a login', async () => {
+    const { sess } = await login(hub, 'owner', 'password123', https)
+    const id = sess!.cookie.split('=')[1]!
+    const planted = { cookie: `${PRODUCT.sessionCookie}=${id}`, csrf: sess!.csrf }
+    expect((await get(hub, '/', planted, https)).headers.get('location')).toBe('/login')
+    // the same id under the __Host- name works, and over plain http (the office LAN address) the bare name is the one
+    expect((await get(hub, '/', { cookie: `__Host-${PRODUCT.sessionCookie}=${id}`, csrf: '' }, https)).headers.get('location')).toBe('/admin')
+    expect((await get(hub, '/', planted)).headers.get('location')).toBe('/admin')
+  })
+
+  test('on https a planted bare form-token cookie does not pass the login form check', async () => {
+    const known = 'k'.repeat(24)
+    const r = await post(hub, '/login', { cookie: `tax_pre=${known}`, csrf: known }, { username: 'owner', password: 'password123' }, { headers: https })
+    expect(r.status).toBe(403)
+    expect(setCookies(r).some((x) => x.includes(`${PRODUCT.sessionCookie}=`) && !x.includes('Max-Age=0'))).toBe(false)
+  })
+
+  test('logout over https clears the __Host- session cookie', async () => {
+    const { sess } = await login(hub, 'owner', 'password123', https)
+    const r = await post(hub, '/logout', sess, {}, { headers: https })
+    expect(r.status).toBe(303)
+    expect(setCookies(r).find((x) => x.startsWith(`__Host-${PRODUCT.sessionCookie}=`))).toMatch(/Max-Age=0/)
+    expect((await get(hub, '/', sess, https)).headers.get('location')).toBe('/login')
   })
 
   test('next= goes back to a local page only', async () => {

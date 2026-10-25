@@ -13,6 +13,7 @@ import { Page, Csrf, CopyBlock, type NavItem } from '../ui/layout'
 import { fmtDateTime } from '../ui/format'
 import { secret, safeEqual } from '../ids'
 import { HttpError } from '../http/errors'
+import { cookieName, isHttps } from '../http/cookies'
 import { Denied } from '../policy/errors'
 import { effectiveUrls, installCommands, urlWarnings } from './settings'
 
@@ -71,8 +72,7 @@ export function makeWeb(ctx: Ctx): Web {
 
 // request helpers ----------------------------------------------------------------------------------------------------
 
-export const isHttps = (c: C) =>
-  new URL(c.req.url).protocol === 'https:' || (c.req.header('x-forwarded-proto') ?? '').split(',')[0]!.trim().toLowerCase() === 'https'
+export { isHttps }
 
 /** The address the browser used (scheme honours x-forwarded-proto behind the tunnel). */
 export const requestOrigin = (c: C) => `${isHttps(c) ? 'https' : 'http'}://${c.req.header('host') ?? new URL(c.req.url).host}`
@@ -118,16 +118,16 @@ export async function sessionForm(c: C): Promise<{ form: Form; session: SessionA
 export const PRE_CSRF_COOKIE = 'tax_pre'
 
 export function preCsrfToken(c: C): string {
-  const have = getCookie(c, PRE_CSRF_COOKIE)
+  const have = getCookie(c, cookieName(c, PRE_CSRF_COOKIE))
   if (have && /^[A-Za-z0-9_-]{20,64}$/.test(have)) return have
   const t = secret(18)
-  setCookie(c, PRE_CSRF_COOKIE, t, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/' })
+  setCookie(c, cookieName(c, PRE_CSRF_COOKIE), t, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/' })
   return t
 }
 
 export async function preForm(c: C): Promise<{ form: Form; ok: boolean }> {
   const form = await readForm(c)
-  const cookie = getCookie(c, PRE_CSRF_COOKIE) ?? ''
+  const cookie = getCookie(c, cookieName(c, PRE_CSRF_COOKIE)) ?? ''
   const given = rawField(form, '_csrf')
   return { form, ok: cookie.length >= 20 && safeEqual(cookie, given) }
 }

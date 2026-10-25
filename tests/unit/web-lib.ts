@@ -43,25 +43,33 @@ export function cookieValue(r: Response, name: string): string | null {
   return null
 }
 
+/** The cookie a response set under `base`, with or without the `__Host-` prefix the hub uses on https. */
+export function hubCookie(r: Response, base: string): string | null {
+  for (const name of [`__Host-${base}`, base]) {
+    const v = cookieValue(r, name)
+    if (v !== null) return `${name}=${v}`
+  }
+  return null
+}
+
 /** Pre-login form token: GET the page, keep its cookie and the `_csrf` in the form. */
-export async function preSession(hub: TestHub, path: string): Promise<Sess> {
-  const r = await get(hub, path)
+export async function preSession(hub: TestHub, path: string, headers: Record<string, string> = {}): Promise<Sess> {
+  const r = await get(hub, path, null, headers)
   const body = await r.text()
   const csrf = /name="_csrf" value="([^"]+)"/.exec(body)?.[1]
-  const pre = cookieValue(r, 'tax_pre')
+  const pre = hubCookie(r, 'tax_pre')
   if (!csrf || !pre) throw new Error(`no pre-login form on ${path} (status ${r.status})`)
-  return { cookie: `tax_pre=${pre}`, csrf }
+  return { cookie: pre, csrf }
 }
 
 /** Log in through the form. Returns the response and, on success, a session usable with get/post. */
 export async function login(hub: TestHub, username: string, password: string, headers: Record<string, string> = {}): Promise<{ r: Response; sess: Sess | null }> {
-  const pre = await preSession(hub, '/login')
+  const pre = await preSession(hub, '/login', headers)
   const r = await post(hub, '/login', pre, { username, password }, { headers })
-  const id = cookieValue(r, PRODUCT.sessionCookie)
-  if (!id) return { r, sess: null }
+  const cookie = hubCookie(r, PRODUCT.sessionCookie)
+  if (!cookie) return { r, sess: null }
   // the page's forms carry the session's csrf
-  const cookie = `${PRODUCT.sessionCookie}=${id}`
-  const page = await get(hub, '/me/password', { cookie, csrf: '' })
+  const page = await get(hub, '/me/password', { cookie, csrf: '' }, headers)
   const csrf = /name="_csrf" value="([^"]+)"/.exec(await page.text())?.[1] ?? ''
   return { r, sess: { cookie, csrf } }
 }
