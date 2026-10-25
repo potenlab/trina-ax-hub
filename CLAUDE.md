@@ -1,6 +1,6 @@
 # Trina AX
 
-Read `docs/DESIGN.md` first: what the hub does, who owns which files, and each module's contract.
+Read `docs/DESIGN.md` first: what the hub does, the conventions, and each module's contract.
 
 - Bun 1.3.12 + TypeScript strict + Hono + bun:sqlite. `bun run typecheck` and `bun test tests/unit` must pass.
 - People-facing text is Korean (해요체), short and plain.

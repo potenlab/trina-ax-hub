@@ -1,5 +1,8 @@
 # Trina AX — design
 
+This document began as the build plan for the hub and now records how it works: the shape of the system, the
+conventions, and each module's contract. Dated sections at the end record later additions.
+
 Trina AX lets a company of 10–60 people use Claude with the company's own files, skills and budget, without a
 shared subscription and without running every session on one small server.
 
@@ -24,23 +27,23 @@ registry from api.anthropic.com; that request carries none of our credentials.
 Never share a Claude subscription login or OAuth token between people. The relay only ever uses an API key the
 customer owns (`<dataDir>/secrets/anthropic-api-key`).
 
-## Repository layout and ownership
+## Repository layout
 
-| Path | What | Owner |
-|---|---|---|
-| `src/config.ts`, `src/db.ts`, `migrations/`, `src/context.ts`, `src/http/`, `src/auth/`, `src/policy/`, `src/secrets.ts`, `src/log.ts`, `src/audit.ts`, `src/ids.ts`, `src/product.ts`, `src/server.ts`, `src/main.ts` | foundation | lead |
-| `src/skills/catalog.ts`, `src/usage/budgets.ts`, `src/usage/report.ts`, `src/ui/` | shared services, page shell (`Page`, `Csrf`, `CopyBlock`, CSS) and formatters | lead |
-| `src/relay/` | model relay, pricing, skill counting | relay |
-| `src/mcp/`, `src/files/` | MCP endpoint, file service, text extraction, search | files |
-| `src/skills/marketplace.ts`, `src/skills/zip.ts`, `src/skills/routes.ts`, `src/install/`, `installer/` | marketplace, PC installer, enrollment | install |
-| `src/hub/` | hub sessions: runner, chat, schedules, phone pages | hub |
-| `src/web/` | setup, login, personal and admin pages | web |
-| `deploy/` | hub install (macOS LaunchDaemon, Linux unit) and `deploy/cloudflare/customer-address.ts` (operator-side: customer addresses) | lead |
-| `tests/unit/<area>*.test.ts`, `tests/e2e/<area>*.test.ts` | each area its own files | that area |
+| Path | What |
+|---|---|
+| `src/config.ts`, `src/db.ts`, `migrations/`, `src/context.ts`, `src/http/`, `src/auth/`, `src/policy/`, `src/secrets.ts`, `src/log.ts`, `src/audit.ts`, `src/ids.ts`, `src/product.ts`, `src/server.ts`, `src/main.ts` | foundation: config, database, HTTP app, sessions and tokens, folder permissions |
+| `src/skills/catalog.ts`, `src/usage/budgets.ts`, `src/usage/report.ts`, `src/ui/` | shared services, page shell (`Page`, `Csrf`, `CopyBlock`, CSS) and formatters |
+| `src/relay/` | model relay, pricing, skill counting |
+| `src/mcp/`, `src/files/` | MCP endpoint, file service, text extraction, search |
+| `src/skills/marketplace.ts`, `src/skills/zip.ts`, `src/skills/routes.ts`, `src/install/`, `installer/` | marketplace, PC installer, enrollment |
+| `src/oauth/`, `src/telemetry/` | authorization server for Claude app connectors; OpenTelemetry ingest for usage |
+| `src/hub/` | hub sessions: runner, chat, schedules, phone pages |
+| `src/web/` | setup, login, invites, personal and admin pages |
+| `deploy/` | hub install (macOS LaunchDaemon, Linux unit) and `deploy/cloudflare/customer-address.ts` (operator side: customer addresses) |
+| `website/` | the product site, ax.trina.app (Astro, static) |
+| `tests/unit/<area>*.test.ts`, `tests/e2e/<area>*.test.ts` | tests per area |
 
-Do not edit files you do not own. If you need a change in a foundation file, write down exactly what and why in
-your final report; the lead applies it. You may add new files inside your own directories freely. The schema in
-`migrations/001_init.sql` already has every table; if you truly need another column, add a new migration file
+The schema in `migrations/001_init.sql` is the base; later changes are numbered migration files per area:
 `migrations/1xx_<area>.sql` (relay 110–119, files 120–129, install 130–139, hub 140–149, web 150–159).
 
 ## Conventions
@@ -56,7 +59,7 @@ your final report; the lead applies it. You may add new files inside your own di
 - Tests: `bun test tests/unit` must pass and `bun run typecheck` must be clean before you report done. Use
   `tests/lib/hub.ts` (`testHub()`) to run a real hub on a random port with a temp folder.
 
-## Foundation API (already written)
+## Foundation API
 
 - `Ctx` (`src/context.ts`): `config`, `db`, `fx` (`{ root, caseInsensitive }`), `rules()`, `rulesChanged()`,
   `secrets.getApiKey()/setApiKey()/apiKeyHint()`, `log`, `events` (EventEmitter: `'job'`, `'skills'`).
@@ -68,7 +71,7 @@ your final report; the lead applies it. You may add new files inside your own di
   `redeemEnrollCode(db, code, deviceName)` → `{ userId, tokenId, token }`.
 - People (`src/auth/users.ts`): `createUser`, `getUser`, `listUsers`, `updateUser`, `setPassword`, `verifyPassword`,
   `listGroups`, `createGroup`, `deleteGroup`, `setUserGroups`. Sessions (`src/auth/sessions.ts`).
-- Permissions (`src/policy/*`, ported from Team AX): `authorize(fx, rules, user, input, 'read'|'write'|'list', opts)`,
+- Permissions (`src/policy/*`, adapted from Team AX, an earlier Trina product): `authorize(fx, rules, user, input, 'read'|'write'|'list', opts)`,
   `visiblePath`, `siblingVisible`, `RuleSet.access/canList`, `loadPrincipal`. Rules admin: `listRules`, `setRule`,
   `initTeamFolder` (`src/policy/rules-admin.ts`). Personal folders: `users/<userId>/` (only that person).
 - Skills (`src/skills/catalog.ts`): `scanSkills(root)`, `skillsFor(root, rules, user)`, `rulesFor(root, rules, user)`,
@@ -93,7 +96,7 @@ Claude Code on a PC runs with `ANTHROPIC_BASE_URL=<hub>` and `ANTHROPIC_AUTH_TOK
 - Forward to `ctx.config.upstreamBaseUrl + path` with `x-api-key: <company key>`, `anthropic-version` and
   `anthropic-beta` **unchanged**, plus `content-type`, `accept`, `user-agent`, `x-app`. Drop every other request header
   (the device token must never reach Anthropic). `redirect: 'manual'`; a redirect is a 502.
-- Request checks (port the idea of Team AX `checkProxyRequest`, lighter): POST only on the two message paths; body a
+- Request checks (the idea of Team AX's `checkProxyRequest`, lighter): POST only on the two message paths; body a
   JSON object; `model` matches `^claude-[a-z0-9][a-z0-9.-]{0,79}$`; refuse `mcp_servers` and `container` keys (403).
   Re-serialize the parsed body before sending. Do not filter content blocks or betas.
 - Stream: pass SSE through **unbuffered** (`highWaterMark: 0` ReadableStream), cancel upstream when the client hangs
@@ -136,10 +139,10 @@ The PC's Claude Code registers the hub as an HTTP MCP server named `trina` (`cla
   - `list_files { path?: string, depth?: 1..3 }` — folders and files the person can see (name, type, size, mtime).
   - `read_file { path: string, offset?: number, limit?: number }` — text with line numbers like Claude's Read
     (cap ~2,000 lines / 256 KB per call; say how to continue). Office/PDF/HWP files: extracted text (`extract.ts`,
-    port from Team AX `server/src/files/extract.ts` + `hwp.ts`: pandoc for docx/pptx/odt, SheetJS for xlsx/xls/ods,
+    adapted from Team AX's extractor and HWP reader: pandoc for docx/pptx/odt, SheetJS for xlsx/xls/ods,
     pdftotext for pdf, the HWP/HWPX readers). Images: return MCP `image` content (base64) up to 5 MB.
   - `search_files { query: string, path?: string, mode?: 'content' | 'name', glob?: string, limit?: number }` —
-    ripgrep on the server over the folders the person can read (port Team AX `search.ts`: allowed roots + excludes,
+    ripgrep on the server over the folders the person can read (as in Team AX's search: allowed roots + excludes,
     `--no-follow`, size caps) plus filename matching; results filtered again with `visiblePath`.
   - `write_file { path: string, content: string, overwrite?: boolean }` — create or replace a text file; the old
     version is kept (`file_versions`, stored under `.trina/versions/`). Refuse to overwrite unless `overwrite: true`.
@@ -296,7 +299,7 @@ Verified with real Claude Code 2.1.309 over a Cloudflare quick tunnel: `tests/e2
 ## Customer addresses: `<company>.trina.app` (2026-10-25)
 
 Every customer hub gets `https://<company>.trina.app` by default (a customer-owned domain stays possible, by hand).
-`deploy/cloudflare/customer-address.ts` runs on a TreeSoop operator's computer, never on the customer's Mac, so the
+`deploy/cloudflare/customer-address.ts` runs on a Trina operator's computer, never on the customer's Mac, so the
 Cloudflare API token never leaves us. `new <company>` checks the name (lowercase letters, digits, hyphens, 2–40;
 reserved names such as `www`, `console`, `drive` and any name that already has DNS are refused), then creates the
 remotely managed tunnel `trina-ax-<company>`, its one route `https://<company>.trina.app → http://127.0.0.1:<port>`

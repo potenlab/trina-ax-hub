@@ -1,6 +1,7 @@
-# Trina AX 운영 가이드 (TreeSoop 엔지니어용)
+# Trina AX 운영 가이드
 
-고객사 사무실의 Mac mini(또는 Linux 서버) 한 대에 허브를 설치하고 운영하는 방법이에요.
+허브를 설치하고 운영하는 사람을 위한 문서예요. 트리나가 고객 허브를 운영할 때 쓰는 순서이고, 직접 설치하는 회사도
+그대로 따라 하면 돼요. 사무실의 Mac mini나 Linux 서버 한 대를 기준으로 썼어요.
 **직원 모두의 Claude가 이 허브를 거쳐요. 허브가 멈추면 회사 전체의 Claude가 멈춰요.** 이 문서의 절반은 그걸 막는 이야기예요.
 
 - 제품 구조와 모듈 계약: [DESIGN.md](DESIGN.md)
@@ -39,7 +40,7 @@
 | FileVault vs 자동 부팅 | 아래 표를 보고 고객과 결정 | **가장 중요한 결정이에요** |
 | 전원 | 정전 후 자동 시동, 잠자기 끔 (설치 스크립트가 해요). UPS가 있으면 더 좋아요 | |
 | 네트워크 | **유선 랜**, 공유기에서 이 Mac에 **고정 IP(DHCP 예약)** | 주소가 바뀌면 사내 PC 연결이 끊겨요. MAC 주소: `networksetup -getmacaddress en0` |
-| Anthropic | **고객 소유** Console 조직 + API 키 (아래) | TreeSoop 키를 쓰면 토큰 재판매가 돼요. 절대 안 돼요 |
+| Anthropic | **고객 소유** Console 조직 + API 키 (아래) | 운영하는 쪽(트리나 등)의 키를 쓰면 토큰 재판매가 돼요. 절대 안 돼요 |
 | Cloudflare | 터널을 만들 계정과 도메인의 주인 (아래) | 계약이 끝나도 남는 쪽이 갖는 게 좋아요 |
 | 직원 목록 | 이름, 아이디(영문), 부서(그룹), 관리자 여부, PC 종류(Mac/Windows) | CSV로 받으면 한 번에 만들 수 있어요 (7장) |
 | 회사 파일 | 지금 어디에 있는지 (NAS, Google Drive, 개인 PC), 크기, 부서별 공개 범위 | 6장 |
@@ -59,7 +60,7 @@
 
 ### Anthropic Console (고객 소유)
 
-1. 고객 담당자가 https://console.anthropic.com 에서 **회사 이름으로** 조직을 만들어요 (TreeSoop 엔지니어는 멤버로 초대받기).
+1. 고객 담당자가 https://console.anthropic.com 에서 **회사 이름으로** 조직을 만들어요 (허브를 운영하는 엔지니어는 멤버로 초대받기).
 2. 결제: 회사 카드로 **선불 크레딧**을 넣고 **자동 충전(auto-reload)** 을 켜요. 잔액이 떨어지면 모든 직원의 Claude가 멈춰요.
 3. Workspaces에서 `Trina AX` 워크스페이스를 만들고, 거기서 API 키를 만들어요 (이름: `trina-ax-hub`). 키는 한 번만 보여요.
 4. Limits에서 등급(Tier)과 분당 한도를 확인해요. 20명이 Claude Code를 같이 쓰면 낮은 등급에서는 한도에 걸려요.
@@ -72,7 +73,7 @@
 
 | 누가 갖나 | 장점 | 주의 |
 |---|---|---|
-| **기본:** TreeSoop 계정 + `<회사>.trina.app` (예: `acme.trina.app`) | 명령 하나로 끝나요 (4장). 고객은 아무것도 준비하지 않아도 돼요 | 계약이 끝나면 주소가 사라져요. 13장 순서를 꼭 지키기 |
+| **트리나가 운영할 때 기본:** 트리나 계정 + `<회사>.trina.app` (예: `acme.trina.app`) | 명령 하나로 끝나요 (4장). 고객은 아무것도 준비하지 않아도 돼요 | 계약이 끝나면 주소가 사라져요. 13장 순서를 꼭 지키기 |
 | 고객 계정 + 고객 도메인 (예: `ax.acme.co.kr`) | 계약이 끝나도 고객 것 | 고객이 원할 때만. 도메인의 네임서버가 Cloudflare에 있어야 해요 (서브도메인만 쓰려면 그 영역 전체) |
 
 `<회사>` 는 영문 소문자·숫자·하이픈 2~40자예요 (예: `acme`, `acme-korea`). `acme.ax.trina.app` 처럼 두 단계로 만들지 않아요.
@@ -84,24 +85,16 @@ Cloudflare 무료 인증서(Universal SSL)가 `*.trina.app` 한 단계만 덮어
 
 허브 Mac에서, 허브 전용 계정으로 로그인해서 해요.
 
-**A. Git (비공개 저장소, 읽기 전용 배포 키)**
+**A. Git**
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/trina_ax_deploy -N '' -C "trina-ax hub <고객사>"
-cat ~/.ssh/trina_ax_deploy.pub     # → GitHub 저장소 Settings > Deploy keys 에 추가 (Allow write access 끄기)
-cat >> ~/.ssh/config <<'EOF'
-Host github-trina-ax
-  HostName github.com
-  IdentityFile ~/.ssh/trina_ax_deploy
-  IdentitiesOnly yes
-EOF
-git clone git@github-trina-ax:<org>/trina-ax.git ~/src/trina-ax
+git clone https://github.com/potenlab/trina-ax ~/src/trina-ax
 ```
 
 **B. tarball (인터넷·GitHub 접근이 어려울 때)**
 
 ```bash
-# TreeSoop 노트북에서
+# 인터넷이 되는 컴퓨터에서 (저장소를 받은 폴더)
 git archive --format=tar.gz -o trina-ax-$(git describe --always).tar.gz HEAD
 # 허브 Mac으로 옮긴 뒤 (USB, AirDrop, scp)
 mkdir -p ~/src/trina-ax && tar xzf trina-ax-*.tar.gz -C ~/src/trina-ax
@@ -172,7 +165,7 @@ trina-ax doctor --live      # 모두 ✓ 인지 확인 (✗ 가 있으면 14장)
 
 ### 기본: `<회사>.trina.app` (명령 하나)
 
-**TreeSoop 운영자 컴퓨터에서** 실행해요 (고객 Mac 아님). Cloudflare 토큰이 고객 Mac에 가지 않게 하려는 거예요.
+**트리나 운영자 컴퓨터에서** 실행해요 (고객 Mac 아님). Cloudflare 토큰이 고객 Mac에 가지 않게 하려는 거예요.
 토큰은 `~/.config/trina-ax/cloudflare-token` (또는 `CLOUDFLARE_API_TOKEN`, `--cf-token-file`)에서 읽어요.
 권한: trina.app 의 Zone · Zone · Read 와 Zone · DNS · Edit, 계정의 Cloudflare Tunnel · Edit.
 
@@ -385,7 +378,7 @@ unset TRINA_AX_HOME TRINA_AX_PORT TRINA_AX_HOST TRINA_AX_CLAUDE_BIN TRINA_AX_UPS
 `team/.trina/versions/<id>` (목록은 DB의 `file_versions`).
 
 - 관리 화면의 **되살리기** 페이지(휴지통·이전 버전)에서 골라서 되살려요.
-- 터미널: `trina-ax restore` (곧 추가돼요, `trina-ax help restore`).
+- 터미널: `trina-ax restore` (`trina-ax help restore`).
 - 마지막 수단: `ls ~/TrinaAX/team/.trina/trash/` 에서 찾아 원하는 위치로 복사.
 
 ---
