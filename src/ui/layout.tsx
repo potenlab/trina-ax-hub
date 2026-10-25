@@ -36,6 +36,7 @@ textarea{min-height:90px;resize:vertical}.row{display:flex;gap:10px;flex-wrap:wr
 .notice{padding:12px 14px;border-radius:var(--radius);margin:0 0 16px;background:var(--accent-soft)}.notice.warn{background:var(--warn-soft);color:var(--warn)}.notice.bad{background:var(--bad-soft);color:var(--bad)}
 pre,code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px}pre.cmd{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
 .copy{position:relative}.copy button{position:absolute;top:6px;right:6px}.copyhelp{font-size:13px;color:var(--warn);margin:2px 0 8px}
+.choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin:0 0 8px;cursor:pointer}.choice input{width:auto;margin-top:5px}
 .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}.bar.over i{background:var(--bad)}
 header.top .who span{max-width:10em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:640px){main{padding:16px 14px 48px}header.top{padding:10px 14px;gap:8px 12px}th,td{padding:8px}

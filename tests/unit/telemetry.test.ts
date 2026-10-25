@@ -64,3 +64,13 @@ describe('telemetry ingest', () => {
     expect((await fetch(hub.url + '/otel/v1/logs', { method: 'POST', body: 'x', headers: { 'content-type': 'application/x-protobuf', authorization: 'Bearer ' + t } })).status).toBe(415)
   })
 })
+
+describe('budgets count only the company key', () => {
+  test('subscription usage is shown but never fills a company budget', async () => {
+    const { createBudget, budgetBlock } = await import('../../src/usage/budgets')
+    const u = await hub.user('t6')
+    createBudget(hub.ctx.db, { subjectType: 'team', subjectId: null, period: 'month', limitUsd: 0.01, limitTokens: null, action: 'block' })
+    ingestLogs(hub.ctx, { userId: u.id, tokenId: 'tk' }, batch([req(100), req(200), req(300)]))
+    expect(budgetBlock(hub.ctx.db, u.id)).toBeNull()
+  })
+})

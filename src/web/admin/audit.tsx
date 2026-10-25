@@ -48,6 +48,10 @@ export const ACTION_LABEL: Record<string, string> = {
   'file.trash.restore': '휴지통에서 되살림',
   'backup': '백업',
   'settings.pricing': '모델 가격표 변경',
+  'settings.access': 'Claude 사용 방식 기본값 변경',
+  'connector.allow': 'Claude 앱 연결 허용',
+  'connector.deny': 'Claude 앱 연결 거부',
+  'connector.revoke': 'Claude 앱 연결 끊음',
 }
 
 const KEY_LABEL: Record<string, string> = {

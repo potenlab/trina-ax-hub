@@ -7,6 +7,7 @@ import { createUser, getUser, listUsers, listGroups, setPassword, setUserGroups,
 import { listTokens, revokeToken } from '../../auth/tokens'
 import { makeEnrollCode } from '../../auth/enroll'
 import { audit } from '../../audit'
+import { defaultModelAccess, userModelAccess, setUserModelAccess, MODEL_ACCESS_LABEL } from '../../auth/access-mode'
 import { usageReport } from '../../usage/report'
 import { fmtKrw, fmtNum, fmtUsd, monthStart } from '../../ui/format'
 import { Csrf } from '../../ui/layout'
@@ -160,6 +161,13 @@ function UserPage(p: { web: Web; c: C; flashes: Flash[]; user: User }) {
             </div>
           </div>
           {self ? <p class="muted small">내 역할과 상태는 여기서 바꿀 수 없어요.</p> : null}
+          <div class="field" style="max-width:360px"><label for="access">Claude 사용 방식</label>
+            <select id="access" name="access">
+              <option value="" selected={userModelAccess(ctx.db, u.id) === null}>회사 기본값 따르기 ({MODEL_ACCESS_LABEL[defaultModelAccess(ctx.db)]})</option>
+              <option value="subscription" selected={userModelAccess(ctx.db, u.id) === 'subscription'}>각자 Claude 구독</option>
+              <option value="company_key" selected={userModelAccess(ctx.db, u.id) === 'company_key'}>회사 API 키</option>
+            </select>
+            <span class="muted small">바꾸면 그 사람 PC는 다시 연결해야 적용돼요.</span></div>
           <GroupChecks groups={groups} checked={new Set(u.groups.map((g) => g.id))} />
           <button class="btn primary" type="submit">저장</button>
         </form>
@@ -226,6 +234,10 @@ export function mountUsers(app: App, web: Web) {
       if (status === 'active' || status === 'disabled') patch.status = status
     }
     const after = updateUser(db, u.id, patch)
+    const access = field(f, 'access')
+    const accessBefore = userModelAccess(db, u.id)
+    const accessAfter = access === 'subscription' || access === 'company_key' ? access : null
+    if (accessAfter !== accessBefore) setUserModelAccess(db, u.id, accessAfter)
     const groups = fields(f, 'groups')
     setUserGroups(db, u.id, groups)
     ctx.rulesChanged()
@@ -235,6 +247,7 @@ export function mountUsers(app: App, web: Web) {
     if ((after.email ?? '') !== (u.email ?? '')) changed.email = after.email ? 'set' : 'removed'
     if (after.role !== u.role) changed.role = after.role
     if (after.status !== u.status) changed.status = after.status
+    if (accessAfter !== accessBefore) changed.access = accessAfter ?? 'default'
     if (groups.length !== before.size || groups.some((g) => !before.has(g))) changed.groups = groupNames(web, groups)
     if (Object.keys(changed).length) audit(db, { actor: s.user.id, action: 'user.update', target: u.id, detail: changed })
     say(web, s, 'ok', after.status === 'disabled' && u.status !== 'disabled' ? `${after.name}님을 껐어요. 로그인과 연결된 PC가 모두 끊겼어요.` : '저장했어요.')

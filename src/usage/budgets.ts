@@ -47,9 +47,11 @@ export function spend(db: Database, t: SubjectType, id: string | null, from: Dat
 }
 
 function spendOf(db: Database, t: SubjectType, id: string | null, from: Date, to: Date): Spend {
-  const who = t === 'user' ? { sql: 'user_id = ?', args: [id ?? ''] }
-    : t === 'group' ? { sql: 'user_id IN (SELECT user_id FROM group_members WHERE group_id = ?)', args: [id ?? ''] }
-    : undefined
+  // budgets limit what the company key spends: usage from people on their own subscription ('sub') never counts
+  const keyOnly = "source != 'sub'"
+  const who = t === 'user' ? { sql: `${keyOnly} AND user_id = ?`, args: [id ?? ''] }
+    : t === 'group' ? { sql: `${keyOnly} AND user_id IN (SELECT user_id FROM group_members WHERE group_id = ?)`, args: [id ?? ''] }
+    : { sql: keyOnly, args: [] as string[] }
   const s = usageSlice(from, to, who)
   const r = db.query(`SELECT COALESCE(SUM(cost_usd), 0) AS usd, COALESCE(SUM(input + output + cache_write), 0) AS tokens, COALESCE(SUM(requests), 0) AS requests FROM (${s.sql})`).get(...s.args) as Spend
   return { usd: Math.max(0, r.usd), tokens: Math.max(0, r.tokens), requests: r.requests }

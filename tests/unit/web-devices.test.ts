@@ -84,7 +84,7 @@ describe('web: devices someone else set up', async () => {
 })
 
 describe('web: PCs on an old hub address', async () => {
-  const hub = await testHub({ config: { lanUrl: 'http://192.168.0.10:47900' } })
+  const hub = await testHub({ config: { lanUrl: 'http://192.168.0.10:47900', claudeBin: '/usr/bin/true' } })
   hubs.push(hub)
   const db = hub.ctx.db
   const kim = await hub.user('kim')

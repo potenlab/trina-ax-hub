@@ -239,7 +239,7 @@ describe('hub chat without claude', async () => {
   const s = h.t.session(u.id)
   test('pages say so and the composer is off', async () => {
     const html = await (await get(h, s.cookie, '/app/chats/new')).text()
-    expect(html).toContain('아직 Claude를 실행할 수 없어요')
+    expect(html).toContain('휴대폰 채팅을 쓸 수 없어요')
     expect(html).toMatch(/<textarea[^>]*disabled/)
   })
 })

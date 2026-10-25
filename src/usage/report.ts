@@ -11,7 +11,7 @@ export interface UsageReport { from: string; to: string; rows: UsageRow[]; total
 const AGG = `COALESCE(SUM(t.requests), 0) AS requests, COALESCE(SUM(t.input), 0) AS inputTokens, COALESCE(SUM(t.output), 0) AS outputTokens,
   COALESCE(SUM(t.cache_read + t.cache_write), 0) AS cacheTokens, COALESCE(SUM(t.cost_usd), 0) AS costUsd`
 
-const SOURCE_LABEL = `CASE t.source WHEN 'pc' THEN 'PC' ELSE '맥미니(휴대폰·예약)' END`
+const SOURCE_LABEL = `CASE t.source WHEN 'pc' THEN 'PC (회사 키)' WHEN 'sub' THEN 'PC (각자 구독)' ELSE '허브(휴대폰·예약)' END`
 
 export function usageReport(db: Database, o: { from: Date; to: Date; groupBy: GroupBy; userId?: string }): UsageReport {
   syncUsageRollup(db)
@@ -83,7 +83,7 @@ export function usageCsv(db: Database, from: Date, to: Date): string {
   }
   const lines = rows.map((r) => [
     localDateTime(new Date(r.started_at)), r.name ?? '(삭제된 사람)', r.username ?? r.user_id, (groups.get(r.user_id) ?? []).join(', '),
-    r.source === 'pc' ? 'PC' : '맥미니(휴대폰·예약)', r.model, r.input_tokens, r.output_tokens, r.cache_read, r.cache_write,
+    r.source === 'pc' ? 'PC (회사 키)' : r.source === 'sub' ? 'PC (각자 구독)' : '허브(휴대폰·예약)', r.model, r.input_tokens, r.output_tokens, r.cache_read, r.cache_write,
     r.cost_usd.toFixed(6), r.status,
   ].map(cell).join(','))
   return '\uFEFF' + [CSV_HEAD.join(','), ...lines].join('\n') + '\n'

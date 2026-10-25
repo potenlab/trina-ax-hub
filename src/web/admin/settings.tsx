@@ -4,7 +4,8 @@
 import type { App, C } from '../../http/app'
 import type { Ctx } from '../../context'
 import { audit } from '../../audit'
-import { Csrf } from '../../ui/layout'
+import { Csrf, CopyBlock } from '../../ui/layout'
+import { defaultModelAccess, setDefaultModelAccess, MODEL_ACCESS_LABEL, type ModelAccess } from '../../auth/access-mode'
 import { type Web, type Flash, Shell, ButtonForm, render, takeFlashes, act, say, fail, field, isOwner } from '../kit'
 import { companyName, configuredDefaults, configuredHubUrl, effectiveUrls, hubConcurrency, krwPerUsd, needsReconnect, saveSetting } from '../settings'
 import { listTokens } from '../../auth/tokens'
@@ -64,6 +65,14 @@ export async function checkApiKey(ctx: Ctx): Promise<{ ok: boolean; status: numb
   return { ok: false, status: r.status, message: `${why} (응답 ${r.status}${type ? ` · ${type}` : ''})` }
 }
 
+/** How many active people use each way (their own choice or the company default). */
+export function accessCounts(ctx: Ctx): Record<ModelAccess, number> {
+  const out: Record<ModelAccess, number> = { subscription: 0, company_key: 0 }
+  const def = defaultModelAccess(ctx.db)
+  for (const r of ctx.db.query("SELECT model_access FROM users WHERE status = 'active'").all() as { model_access: ModelAccess | null }[]) out[r.model_access ?? def]++
+  return out
+}
+
 function SettingsPage(p: { web: Web; c: C; flashes: Flash[] }) {
   const { ctx } = p.web
   const s = p.c.get('session')!
@@ -112,9 +121,37 @@ function SettingsPage(p: { web: Web; c: C; flashes: Flash[] }) {
         {owner ? <button class="btn primary" type="submit">저장</button> : null}
       </form>
 
+      <form method="post" action="/admin/settings/access" class="card" id="access">
+        <h2>Claude 사용 방식</h2>
+        <Csrf token={s.csrf} />
+        <p>회사 기본값이에요. 사람마다 '사람' 페이지에서 따로 정할 수 있어요.</p>
+        <label class="choice"><input type="radio" name="access" value="subscription" checked={defaultModelAccess(ctx.db) === 'subscription'} />
+          <span><b>각자 Claude 구독</b> <span class="muted small">(Team 좌석·Pro·Max)</span><br />
+          <span class="muted small">직원이 본인 구독으로 로그인해요. 허브는 회사 파일·스킬을 주고 사용량만 받아서 보여 줘요. 예산으로 막지는 않아요(각자 구독 한도가 적용돼요).</span></span></label>
+        <label class="choice"><input type="radio" name="access" value="company_key" checked={defaultModelAccess(ctx.db) === 'company_key'} />
+          <span><b>회사 API 키</b><br />
+          <span class="muted small">AI 요청이 허브를 거쳐 아래 회사 키로 청구돼요. 사람별 예산으로 막을 수 있어요.</span></span></label>
+        <p class="small">지금: 각자 구독 {accessCounts(ctx).subscription}명 · 회사 키 {accessCounts(ctx).company_key}명</p>
+        <p class="muted small">방식을 바꾸면 그 사람의 PC는 '내 PC'에서 다시 연결해야 적용돼요.</p>
+        <button class="btn primary" type="submit">저장</button>
+      </form>
+
+      <div class="card" id="connector">
+        <h2>Claude 앱 커넥터 (웹·데스크톱·휴대폰)</h2>
+        {urls.publicUrl ? (<>
+          <p>직원이 본인 Claude 앱에서 회사 파일·스킬을 쓰려면 이 주소를 커스텀 커넥터로 추가해요.</p>
+          <CopyBlock id="connector-url" text={`${urls.publicUrl}/mcp`} />
+          <ul class="small">
+            <li><b>Claude Team</b>: 소유자가 Claude의 조직 설정 › 커넥터 › 추가 › 커스텀에 한 번 넣으면, 직원은 각자 설정 › 커넥터에서 '연결'을 누르고 허브 아이디로 로그인해요.</li>
+            <li><b>Pro·Max</b>: 각자 Claude 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 넣고 허브 아이디로 로그인해요.</li>
+          </ul>
+          <p class="muted small">Claude는 Anthropic 서버에서 이 주소로 접속해요. Cloudflare에서 이 주소의 /mcp, /oauth, /.well-known 앞에 접근 제한(Access, 봇 차단)을 두지 마세요.</p>
+        </>) : <div class="notice warn">공개 주소(https)가 있어야 Claude 앱 커넥터를 쓸 수 있어요. 위의 접속 주소부터 넣어 주세요.</div>}
+      </div>
+
       <div class="card" id="key">
         <h2>Anthropic API 키</h2>
-        <p>직원들의 모든 AI 사용은 이 회사 키로 Anthropic에 청구돼요. 키는 허브 컴퓨터에만 저장되고 화면에는 다시 보이지 않아요.</p>
+        <p>'회사 API 키' 방식인 사람의 AI 사용과 휴대폰 채팅·예약 작업(허브에서 실행)이 이 키로 Anthropic에 청구돼요. 키는 허브 컴퓨터에만 저장되고 화면에는 다시 보이지 않아요.</p>
         <dl class="kv" style="margin-bottom:14px">
           <dt>상태</dt><dd>{hint ? <><span class="badge good">설정됨</span> <code>{hint}</code></> : <span class="badge bad">없음</span>}</dd>
         </dl>
@@ -160,6 +197,14 @@ export function mountSettings(app: App, web: Web) {
     if (rate !== krwPerUsd(ctx)) { saveSetting(ctx, 'krwPerUsd', rate); changed.krwPerUsd = rate }
     if (Object.keys(changed).length) audit(db, { actor: s.user.id, action: 'settings.update', detail: changed })
     say(web, s, 'ok', '저장했어요.')
+  }))
+
+  app.post('/admin/settings/access', (c) => act(web, c, '/admin/settings#access', (f, s) => {
+    const v = field(f, 'access')
+    if (v !== 'subscription' && v !== 'company_key') return say(web, s, 'bad', '방식을 골라 주세요.')
+    setDefaultModelAccess(ctx.db, v)
+    audit(ctx.db, { actor: s.user.id, action: 'settings.access', detail: { defaultModelAccess: v } })
+    say(web, s, 'ok', `회사 기본값을 '${MODEL_ACCESS_LABEL[v]}'(으)로 바꿨어요.`)
   }))
 
   app.post('/admin/settings/urls', (c) => act(web, c, '/admin/settings#urls', (f, s) => {

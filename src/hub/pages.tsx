@@ -108,7 +108,10 @@ const Notice = (p: { code?: string | null; text?: string | null; kind?: 'warn' |
   return n ? <div class={`notice${n.kind ? ' ' + n.kind : ''}`} role="status">{n.text}</div> : null
 }
 
-const NoClaude = () => <div class="notice warn">이 허브에서는 아직 Claude를 실행할 수 없어요 (Claude Code가 설치되어 있지 않아요). 관리자에게 알려 주세요.</div>
+const NoClaude = () => (
+  <div class="notice warn">이 허브에서는 휴대폰 채팅을 쓸 수 없어요 (허브에서 실행하려면 회사 API 키와 Claude Code가 필요해요).
+    휴대폰에서는 본인 Claude 앱에 회사 커넥터를 추가해서 쓰세요. 방법은 <a href="/me#claude-apps">내 PC 페이지</a>에 있어요.</div>
+)
 
 const Dots = () => <span class="dots" aria-hidden="true"><i /><i /><i /></span>
 

@@ -9,8 +9,10 @@ import { audit } from '../audit'
 import { usageReport, type UsageRow } from '../usage/report'
 import { checkBudgets, type Budget } from '../usage/budgets'
 import { skillsFor, type Skill } from '../skills/catalog'
-import { fmtAgo, fmtDate, fmtKrw, fmtNum, fmtTokens, fmtUsd, monthStart } from '../ui/format'
-import { Csrf } from '../ui/layout'
+import { fmtAgo, fmtDate, fmtDateTime, fmtKrw, fmtNum, fmtTokens, fmtUsd, monthStart } from '../ui/format'
+import { Csrf, CopyBlock } from '../ui/layout'
+import { modelAccessFor, MODEL_ACCESS_LABEL } from '../auth/access-mode'
+import { listConnectors, revokeConnectors } from '../oauth/routes'
 import { type Web, type Flash, Shell, Stat, Empty, Bar, ButtonForm, EnrollResult, render, takeFlashes, act, say, requestOrigin, byName, PERIOD_LABEL } from './kit'
 import { configuredHubUrl, effectiveUrls, krwPerUsd, needsReconnect } from './settings'
 
@@ -191,8 +193,39 @@ function ReconnectNotice(p: { devices: TokenRow[]; csrf: string; codeShown: bool
   )
 }
 
-/** Where the phone opens the chat, and whether it works outside the office. */
+/** The person's own Claude apps (web, desktop, phone) with the hub as a custom connector (OAuth, src/oauth). */
+function ClaudeAppsCard(p: { web: Web; csrf: string; apps: { clientId: string; app: string; since: string; lastRefresh: string }[] }) {
+  const urls = effectiveUrls(p.web.ctx)
+  return (
+    <div class="card" style="margin-top:28px" id="claude-apps">
+      <h2>Claude 앱에서 쓰기 (웹·데스크톱·휴대폰)</h2>
+      {urls.publicUrl ? (<>
+        <p>본인 Claude 구독의 Claude 앱에 회사 허브를 커넥터로 추가하면, 휴대폰에서도 회사 파일과 스킬을 써요.</p>
+        <CopyBlock id="me-connector" text={`${urls.publicUrl}/mcp`} />
+        <ol class="small">
+          <li>Claude 앱(또는 claude.ai) › 설정 › 커넥터로 가요. 회사가 Claude Team이면 목록에 회사 커넥터가 있어요. '연결'을 눌러요.</li>
+          <li>목록에 없으면 '커스텀 커넥터 추가'에 위 주소를 넣어요.</li>
+          <li>허브 로그인 화면이 열리면 이 아이디로 로그인하고 '허용'을 눌러요.</li>
+        </ol>
+      </>) : <p class="muted">관리자가 공개 주소(https)를 넣으면 Claude 앱에서도 쓸 수 있어요.</p>}
+      {p.apps.length ? (<>
+        <h3>연결된 Claude 앱</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>앱</th><th>연결한 날</th><th></th></tr></thead>
+          <tbody>{p.apps.map((a) => (
+            <tr><td>{a.app}</td><td>{fmtDateTime(a.since)}</td>
+              <td><form method="post" action={`/me/connectors/${encodeURIComponent(a.clientId)}/revoke`} class="inline"><Csrf token={p.csrf} /><button class="btn small danger" type="submit">연결 끊기</button></form></td></tr>
+          ))}</tbody>
+        </table></div>
+      </>) : null}
+    </div>
+  )
+}
+
+/** Where the phone opens the hub's own chat (runs on the hub with the company key), and whether it works outside. */
 function PhoneCard(p: { c: C; web: Web }) {
+  // hub chat needs the company key and Claude Code on the hub; without them the Claude app card above is the way
+  if (!p.web.ctx.secrets.getApiKey() || !p.web.ctx.config.claudeBin) return null
   const urls = effectiveUrls(p.web.ctx, requestOrigin(p.c))
   let host = ''
   try { host = new URL(urls.hubUrl).hostname } catch {}
@@ -226,10 +259,12 @@ function MePage(p: { web: Web; c: C; flashes: Flash[] }) {
   const toApprove = devices.filter(unapproved)
   const stale = devices.filter((t) => needsReconnect(t.hub_url, view.currentHub))
   const rate = krwPerUsd(ctx)
+  const access = modelAccessFor(ctx.db, me.id)
+  const apps = listConnectors(ctx, me.id)
   return (
     <Shell c={p.c} title="내 PC" active="/me" flashes={p.flashes}>
       <div class="head">
-        <div><h1>{me.name}님의 페이지</h1><p class="lead">내 PC를 회사 AI에 연결하고, 내 사용량과 스킬을 봐요.</p></div>
+        <div><h1>{me.name}님의 페이지</h1><p class="lead">내 PC를 회사 AI에 연결하고, 내 사용량과 스킬을 봐요. <span class="badge">{MODEL_ACCESS_LABEL[access]}</span></p></div>
         <a class="btn small" href="/me/password">비밀번호 바꾸기</a>
       </div>
 
@@ -237,7 +272,9 @@ function MePage(p: { web: Web; c: C; flashes: Flash[] }) {
         {enroll ? <EnrollResult c={p.c} ctx={ctx} code={enroll.code} expiresAt={enroll.expiresAt} /> : (
           <div class={'card' + (devices.length ? '' : ' oneshot')}>
             <h2>PC 연결하기</h2>
-            <p>버튼을 누르면 연결 코드와 명령어 한 줄이 나와요. 그 명령을 내 PC의 터미널에 붙여 넣으면 Claude Code가 회사 파일·스킬·AI 예산과 연결돼요.</p>
+            {access === 'subscription'
+              ? <p>버튼을 누르면 연결 코드와 명령어 한 줄이 나와요. 그 명령을 내 PC의 터미널에 붙여 넣으면 Claude Code가 회사 파일·스킬과 연결돼요. AI는 <b>본인 Claude 구독</b>으로 써요. 연결한 뒤 터미널에서 <code>claude</code>를 실행하고 <code>/login</code>으로 구독에 로그인하세요.</p>
+              : <p>버튼을 누르면 연결 코드와 명령어 한 줄이 나와요. 그 명령을 내 PC의 터미널에 붙여 넣으면 Claude Code가 회사 파일·스킬과 연결되고, AI 사용료는 회사 계정으로 나가요.</p>}
             {urls.publicUrl ? null : <p class="muted small">아직 공개 주소가 없어서 회사 스킬은 설치되지 않아요. 파일과 AI는 바로 쓸 수 있어요.</p>}
             <form method="post" action="/me/enroll"><Csrf token={s.csrf} /><button class="btn primary" type="submit">PC 연결 코드 만들기</button></form>
           </div>
@@ -253,7 +290,8 @@ function MePage(p: { web: Web; c: C; flashes: Flash[] }) {
 
       <div class="sec"><h2>이번 달 내 사용량</h2></div>
       <div class="grid">
-        <Stat label="비용" value={fmtUsd(usage.totals.costUsd)} hint={usage.totals.costUsd > 0 ? fmtKrw(usage.totals.costUsd, rate) : undefined} />
+        <Stat label={access === 'subscription' ? '환산 비용' : '비용'} value={fmtUsd(usage.totals.costUsd)}
+          hint={access === 'subscription' ? '구독 요금과 별개인 API 기준 어림값' : usage.totals.costUsd > 0 ? fmtKrw(usage.totals.costUsd, rate) : undefined} />
         <Stat label="요청" value={fmtNum(usage.totals.requests)} />
         <Stat label="토큰" value={fmtTokens(budgetTokensUsed(ctx.db, me.id, from, to))} hint="입력·출력·캐시 저장" />
       </div>
@@ -274,6 +312,7 @@ function MePage(p: { web: Web; c: C; flashes: Flash[] }) {
       <div class="sec"><h2>내 스킬</h2><span class="muted small">{skills.length ? `${skills.length}개 · ${urls.publicUrl ? "PC의 Claude에 'company' 플러그인으로 설치돼요" : '공개 주소가 생기면 PC에 자동으로 설치돼요.'}` : ''}</span></div>
       {skills.length ? <SkillList skills={skills} /> : <Empty title="아직 쓸 수 있는 스킬이 없어요">관리자가 팀 폴더의 skills/ 에 스킬을 넣으면 여기에 보여요.</Empty>}
 
+      <ClaudeAppsCard web={p.web} csrf={s.csrf} apps={apps} />
       <PhoneCard c={p.c} web={p.web} />
     </Shell>
   )
@@ -296,6 +335,13 @@ export function mountMe(app: App, web: Web) {
     if (!name || !approveToken(ctx.db, id, s.user.id)) return say(web, s, 'bad', '이미 승인했거나 없는 PC예요.')
     audit(ctx.db, { actor: s.user.id, action: 'device.approve', target: id, detail: { device: name } })
     say(web, s, 'ok', `'${name}'을(를) 내 PC로 승인했어요. 이제 이 PC에서 내 폴더도 열 수 있어요.`)
+  }))
+
+  app.post('/me/connectors/:client/revoke', (c) => act(web, c, '/me#claude-apps', (_f, s) => {
+    const n = revokeConnectors(ctx, s.user.id, c.req.param('client'))
+    if (!n) return say(web, s, 'bad', '이미 끊었거나 없는 연결이에요.')
+    audit(ctx.db, { actor: s.user.id, action: 'connector.revoke', target: c.req.param('client') })
+    say(web, s, 'ok', 'Claude 앱 연결을 끊었어요.')
   }))
 
   app.post('/me/devices/:id/revoke', (c) => act(web, c, '/me', (_f, s) => {

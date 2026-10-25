@@ -71,7 +71,8 @@ const isAdmin = (s: SessionAuth) => s.user.role === 'owner' || s.user.role === '
 
 export const register: Register = (app, ctx) => {
   const hub = () => hubFor(ctx)
-  const claudeReady = () => !!ctx.config.claudeBin
+  // hub sessions run on this machine and spend the company key (never anyone's subscription)
+  const claudeReady = () => !!ctx.config.claudeBin && !!ctx.secrets.getApiKey()
 
   // session auth for every /app page; people who must change their password go there first (web module)
   const gate = [sessionMiddleware(ctx), requireSession, async (c: C, next: () => Promise<void>) => {

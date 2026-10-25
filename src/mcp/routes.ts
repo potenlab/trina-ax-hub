@@ -4,7 +4,7 @@
 // account applies from the next call.
 import type { Register } from '../http/app'
 import type { MiddlewareHandler } from 'hono'
-import type { AppEnv } from '../http/app'
+import { DISCONNECTED, type AppEnv } from '../http/app'
 import { verifyToken, tokenFromHeaders } from '../auth/tokens'
 import { originOf } from '../oauth/routes'
 import type { Ctx } from '../context'
@@ -40,7 +40,7 @@ export const register: Register = (app, ctx) => {
   const mcpAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     const auth = verifyToken(ctx.db, tokenFromHeaders(c.req.raw.headers))
     if (!auth) {
-      return new Response(JSON.stringify({ error: { code: 'unauthorized', message: '로그인이 필요해요.' } }), {
+      return new Response(JSON.stringify({ error: { code: 'unauthorized', message: DISCONNECTED } }), {
         status: 401,
         headers: { 'content-type': 'application/json', 'www-authenticate': `Bearer resource_metadata="${originOf(c, ctx)}/.well-known/oauth-protected-resource"` },
       })
