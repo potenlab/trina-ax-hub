@@ -8,11 +8,21 @@
 #   1. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.sh)로 설치해요.
 #   2. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
 #   3. Claude Code 사용자 설정(~/.claude/settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
-#        env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN   모델 요청이 회사 허브를 거쳐요 (회사 API 키로 결제)
+#        env.*                                        허브가 이 사람의 방식에 맞춰 알려 주는 값만 (아래 두 가지 중 하나)
 #        extraKnownMarketplaces["@@MARKETPLACE@@"]               회사 스킬 마켓플레이스 (자동 업데이트)
 #        enabledPlugins["@@PLUGIN@@"]                  회사 스킬 플러그인
 #   4. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
 #   --uninstall 은 이 스크립트가 더한 것만 되돌려요 (바꾸기 전 값이 있었다면 그 값으로).
+#
+# 사람마다 Claude를 쓰는 방식이 둘 중 하나예요. 어느 쪽인지는 허브가 정하고, 이 스크립트는 허브가 준 env 값을
+# 그대로 적을 뿐이에요.
+#   구독 (subscription)   AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요.
+#                         ANTHROPIC_* 는 건드리지 않아요 (본인 로그인을 덮어쓰면 안 돼서요). 대신 Claude Code의
+#                         OpenTelemetry 내보내기(CLAUDE_CODE_ENABLE_TELEMETRY, OTEL_*)를 허브로 켜요.
+#                         처음이면 claude 를 실행해 /login 으로 본인 구독에 로그인해야 해요.
+#   회사 키 (company_key) AI 사용료는 회사 계정으로 나가요. env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN 이
+#                         회사 허브를 가리켜서 모델 요청이 허브를 거쳐요.
+# 다른 방식으로 바뀐 뒤 다시 실행하면, 전에 더한 값 중 필요 없어진 것은 지우고 원래 값이 있었다면 되돌려요.
 #
 # 옵션: --name <이 PC 이름>   허브의 "내 PC" 목록에 보일 이름 (기본: 컴퓨터 이름)
 set -euo pipefail
@@ -81,7 +91,8 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------------------------------------------
 # JSON helper. Claude Code's settings.json is read, merged and written by a small program: on macOS with JavaScript
 # for Automation (/usr/bin/osascript, always present), on Linux with python3 or node. Inputs are passed in TRINA_*
-# environment variables, never as arguments, so the token never shows up in a process list. Results go to a file.
+# environment variables, never as arguments, so the token never shows up in a process list (the env keys to set and
+# the keys we manage come from the hub as JSON in TRINA_ENV and TRINA_ENV_OWNED). Results go to a file.
 
 write_js_helper() {
   cat >"$WORK/settings.js" <<'JS'
@@ -125,35 +136,71 @@ function readState() {
 function dump(v) { return JSON.stringify(v, null, 2) + '\n'; }
 function oneLine(v) { return (typeof v === 'string' ? v : JSON.stringify(v)).replace(/[\r\n]+/g, ' '); }
 
-var ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'];
+// installs before the generic env handling always set these two (state files without setKeys)
+var LEGACY_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'];
 var CONTAINERS = ['env', 'extraKnownMarketplaces', 'enabledPlugins'];
+
+// The hub decides the environment: TRINA_ENV is the JSON object of env keys to set, TRINA_ENV_OWNED the JSON array
+// of every key either mode may set.
+function jsonVar(k, wantArray) {
+  var v;
+  try { v = JSON.parse(env(k)); } catch (e) { fail('PARSE_RESPONSE'); }
+  if (wantArray ? !Array.isArray(v) : !isObj(v)) fail('PARSE_RESPONSE');
+  return v;
+}
+
+// The device token in our marketplace entry's Authorization header (set in both modes), and the entry's URL.
+function ourMarketplace(s, name, prefix) {
+  var m = isObj(s.extraKnownMarketplaces) && has(s.extraKnownMarketplaces, name) ? s.extraKnownMarketplaces[name] : null;
+  var src = m && isObj(m.source) ? m.source : null;
+  var h = src && isObj(src.headers) ? src.headers.Authorization : null;
+  return {
+    token: typeof h === 'string' && h.indexOf('Bearer ' + prefix) === 0 ? h.slice(7) : '',
+    url: src && typeof src.url === 'string' ? src.url : ''
+  };
+}
+
+function restore(o, k, previous) { if (has(previous, k)) o[k] = previous[k]; else delete o[k]; }
 
 function install() {
   var s = parseDoc(readText(env('TRINA_SETTINGS')), 'SETTINGS');
   var state = readState();
   var hub = env('TRINA_HUB'), token = env('TRINA_TOKEN'), prefix = env('TRINA_PREFIX');
   var name = env('TRINA_MARKETPLACE'), plugin = env('TRINA_PLUGIN');
-  var i;
+  var toSet = jsonVar('TRINA_ENV', false), owned = jsonVar('TRINA_ENV_OWNED', true);
+  var keys = Object.keys(toSet);
+  var i, k;
+  for (i = 0; i < keys.length; i++) if (typeof toSet[keys[i]] !== 'string') fail('PARSE_RESPONSE');
   for (i = 0; i < CONTAINERS.length; i++) {
     var c = s[CONTAINERS[i]];
     if (c !== undefined && c !== null && !isObj(c)) fail('SHAPE_SETTINGS');
   }
   var e = isObj(s.env) ? s.env : null;
-  var oldToken = e && typeof e.ANTHROPIC_AUTH_TOKEN === 'string' ? e.ANTHROPIC_AUTH_TOKEN : '';
-  var oursBefore = oldToken.indexOf(prefix) === 0;
-  var previous, created;
+  var old = ourMarketplace(s, name, prefix);
+  var envTok = e && typeof e.ANTHROPIC_AUTH_TOKEN === 'string' ? e.ANTHROPIC_AUTH_TOKEN : '';
+  var legacyOurs = envTok.indexOf(prefix) === 0;
+  var oursBefore = legacyOurs || old.token !== '';
+  var managed = owned.map(String);
+  for (i = 0; i < keys.length; i++) if (managed.indexOf(keys[i]) < 0) managed.push(keys[i]);
+  var previous, created, setBefore;
   if (state && isObj(state.previous) && isObj(state.previous.env) && Array.isArray(state.created)) {
     previous = state.previous; created = state.created; // keep what was there before the very first install
+    setBefore = Array.isArray(state.setKeys) ? state.setKeys : LEGACY_KEYS;
   } else {
     previous = { env: {} }; created = [];
     for (i = 0; i < CONTAINERS.length; i++) if (!isObj(s[CONTAINERS[i]])) created.push(CONTAINERS[i]);
-    if (e && !oursBefore) for (i = 0; i < ENV_KEYS.length; i++) if (has(e, ENV_KEYS[i])) previous.env[ENV_KEYS[i]] = e[ENV_KEYS[i]];
+    setBefore = legacyOurs ? LEGACY_KEYS : [];
+    if (e && !oursBefore) for (i = 0; i < managed.length; i++) if (has(e, managed[i])) previous.env[managed[i]] = e[managed[i]];
   }
   // the old token of this same hub is revoked after the switch (never sent anywhere else)
-  var revoke = oursBefore && e.ANTHROPIC_BASE_URL === hub && oldToken !== token ? oldToken : '';
+  var revoke = old.token !== '' && old.token !== token && old.url.indexOf(hub + '/') === 0 ? old.token : '';
   for (i = 0; i < CONTAINERS.length; i++) if (!isObj(s[CONTAINERS[i]])) s[CONTAINERS[i]] = {};
-  s.env.ANTHROPIC_BASE_URL = hub;
-  s.env.ANTHROPIC_AUTH_TOKEN = token;
+  // keys the other mode set before: back to what the person had, or gone
+  for (i = 0; i < setBefore.length; i++) {
+    k = String(setBefore[i]);
+    if (!has(toSet, k)) restore(s.env, k, previous.env);
+  }
+  for (i = 0; i < keys.length; i++) s.env[keys[i]] = toSet[keys[i]];
   s.extraKnownMarketplaces[name] = {
     source: { source: 'url', url: env('TRINA_MARKETPLACE_URL'), headers: { Authorization: 'Bearer ' + token } },
     autoUpdate: true
@@ -162,12 +209,10 @@ function install() {
   writeText(env('TRINA_SETTINGS_OUT'), dump(s));
   writeText(env('TRINA_STATE_OUT'), dump({
     product: 'trina-ax', hubUrl: hub, marketplace: name, plugin: plugin, installedAt: env('TRINA_NOW'),
-    created: created, previous: previous
+    created: created, previous: previous, setKeys: keys
   }));
   return revoke;
 }
-
-function restore(o, k, previous) { if (has(previous, k)) o[k] = previous[k]; else delete o[k]; }
 
 function uninstall() {
   var s = parseDoc(readText(env('TRINA_SETTINGS')), 'SETTINGS');
@@ -176,21 +221,31 @@ function uninstall() {
   var name = env('TRINA_MARKETPLACE'), plugin = env('TRINA_PLUGIN');
   var previous = state && isObj(state.previous) && isObj(state.previous.env) ? state.previous.env : {};
   var created = state && Array.isArray(state.created) ? state.created : [];
-  var hubs = [hub];
-  if (state && typeof state.hubUrl === 'string') hubs.push(state.hubUrl);
-  var revoke = '', changed = false, i;
+  var old = ourMarketplace(s, name, prefix);
+  var revoke = old.token !== '' && old.url.indexOf(hub + '/') === 0 ? old.token : '';
+  var changed = false, i, k;
   if (isObj(s.env)) {
-    var tok = s.env.ANTHROPIC_AUTH_TOKEN, base = s.env.ANTHROPIC_BASE_URL;
-    var oursTok = typeof tok === 'string' && tok.indexOf(prefix) === 0;
-    var oursBase = typeof base === 'string' && hubs.indexOf(base) >= 0;
-    if (oursTok && base === hub) revoke = tok;
-    if (oursTok) { restore(s.env, 'ANTHROPIC_AUTH_TOKEN', previous); changed = true; }
-    if (oursBase) { restore(s.env, 'ANTHROPIC_BASE_URL', previous); changed = true; }
+    if (state && Array.isArray(state.setKeys)) {
+      for (i = 0; i < state.setKeys.length; i++) {
+        k = String(state.setKeys[i]);
+        if (has(s.env, k) || has(previous, k)) { restore(s.env, k, previous); changed = true; }
+      }
+    } else {
+      // state files from before the modes: the two ANTHROPIC_* keys, recognised by the token prefix and the hub URL
+      var hubs = [hub];
+      if (state && typeof state.hubUrl === 'string') hubs.push(state.hubUrl);
+      var tok = s.env.ANTHROPIC_AUTH_TOKEN, base = s.env.ANTHROPIC_BASE_URL;
+      var oursTok = typeof tok === 'string' && tok.indexOf(prefix) === 0;
+      var oursBase = typeof base === 'string' && hubs.indexOf(base) >= 0;
+      if (revoke === '' && oursTok && base === hub) revoke = tok;
+      if (oursTok) { restore(s.env, 'ANTHROPIC_AUTH_TOKEN', previous); changed = true; }
+      if (oursBase) { restore(s.env, 'ANTHROPIC_BASE_URL', previous); changed = true; }
+    }
   }
   if (isObj(s.extraKnownMarketplaces) && has(s.extraKnownMarketplaces, name)) { delete s.extraKnownMarketplaces[name]; changed = true; }
   if (isObj(s.enabledPlugins) && has(s.enabledPlugins, plugin)) { delete s.enabledPlugins[plugin]; changed = true; }
   for (i = 0; i < created.length; i++) {
-    var k = String(created[i]);
+    k = String(created[i]);
     if (CONTAINERS.indexOf(k) >= 0 && isObj(s[k]) && isEmpty(s[k])) { delete s[k]; changed = true; }
   }
   if (changed) writeText(env('TRINA_SETTINGS_OUT'), dump(s));
@@ -202,9 +257,11 @@ function get() {
   try { doc = JSON.parse(env('TRINA_JSON')); } catch (e) { fail('PARSE_RESPONSE'); }
   var fields = env('TRINA_FIELDS').split(','), out = [], i, j;
   for (i = 0; i < fields.length; i++) {
-    var v = doc, parts = fields[i].split('.');
+    var raw = fields[i].charAt(0) === '@'; // @name: the value as one line of JSON (objects and arrays stay whole)
+    var v = doc, parts = (raw ? fields[i].slice(1) : fields[i]).split('.');
     for (j = 0; j < parts.length && v !== null && v !== undefined; j++) v = isObj(v) ? v[parts[j]] : undefined;
-    if (Array.isArray(v)) { for (j = 0; j < v.length; j++) out.push(oneLine(v[j])); }
+    if (raw) out.push(JSON.stringify(v === undefined ? null : v));
+    else if (Array.isArray(v)) { for (j = 0; j < v.length; j++) out.push(oneLine(v[j])); }
     else out.push(v === null || v === undefined ? '' : oneLine(v));
   }
   return out.join('\n');
@@ -236,7 +293,8 @@ write_py_helper() {
   cat >"$WORK/settings.py" <<'PY'
 import json, os, sys
 
-ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN']
+# installs before the generic env handling always set these two (state files without setKeys)
+LEGACY_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN']
 CONTAINERS = ['env', 'extraKnownMarketplaces', 'enabledPlugins']
 
 class Fail(Exception):
@@ -295,31 +353,70 @@ def one_line(v):
     s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
     return s.replace('\r', ' ').replace('\n', ' ')
 
+# The hub decides the environment: TRINA_ENV is the JSON object of env keys to set, TRINA_ENV_OWNED the JSON array of
+# every key either mode may set.
+def json_var(k, want_list):
+    try:
+        v = json.loads(env(k))
+    except ValueError:
+        fail('PARSE_RESPONSE')
+    if not (isinstance(v, list) if want_list else is_obj(v)):
+        fail('PARSE_RESPONSE')
+    return v
+
+# The device token in our marketplace entry's Authorization header (set in both modes), and the entry's URL.
+def our_marketplace(s, name, prefix):
+    m = s['extraKnownMarketplaces'].get(name) if is_obj(s.get('extraKnownMarketplaces')) else None
+    src = m.get('source') if is_obj(m) and is_obj(m.get('source')) else None
+    h = src['headers'].get('Authorization') if src is not None and is_obj(src.get('headers')) else None
+    url = src.get('url') if src is not None and isinstance(src.get('url'), str) else ''
+    return (h[7:] if isinstance(h, str) and h.startswith('Bearer ' + prefix) else ''), url
+
+def restore(o, k, previous):
+    if k in previous:
+        o[k] = previous[k]
+    else:
+        o.pop(k, None)
+
 def install():
     s = parse_doc(read_text(env('TRINA_SETTINGS')), 'SETTINGS')
     state = read_state()
     hub, token, prefix = env('TRINA_HUB'), env('TRINA_TOKEN'), env('TRINA_PREFIX')
     name, plugin = env('TRINA_MARKETPLACE'), env('TRINA_PLUGIN')
+    to_set, owned = json_var('TRINA_ENV', False), [str(k) for k in json_var('TRINA_ENV_OWNED', True)]
+    keys = list(to_set.keys())
+    if any(not isinstance(to_set[k], str) for k in keys):
+        fail('PARSE_RESPONSE')
     for c in CONTAINERS:
         if s.get(c) is not None and not is_obj(s.get(c)):
             fail('SHAPE_SETTINGS')
     e = s['env'] if is_obj(s.get('env')) else None
-    old_token = e.get('ANTHROPIC_AUTH_TOKEN') if e is not None and isinstance(e.get('ANTHROPIC_AUTH_TOKEN'), str) else ''
-    ours_before = old_token.startswith(prefix)
+    old_token, old_url = our_marketplace(s, name, prefix)
+    env_tok = e.get('ANTHROPIC_AUTH_TOKEN') if e is not None and isinstance(e.get('ANTHROPIC_AUTH_TOKEN'), str) else ''
+    legacy_ours = env_tok.startswith(prefix)
+    ours_before = legacy_ours or old_token != ''
+    managed = owned + [k for k in keys if k not in owned]
     if state and is_obj(state.get('previous')) and is_obj(state['previous'].get('env')) and isinstance(state.get('created'), list):
-        previous, created = state['previous'], state['created']
+        previous, created = state['previous'], state['created']  # keep what was there before the very first install
+        set_before = state['setKeys'] if isinstance(state.get('setKeys'), list) else LEGACY_KEYS
     else:
         previous, created = {'env': {}}, [c for c in CONTAINERS if not is_obj(s.get(c))]
+        set_before = LEGACY_KEYS if legacy_ours else []
         if e is not None and not ours_before:
-            for k in ENV_KEYS:
+            for k in managed:
                 if k in e:
                     previous['env'][k] = e[k]
-    revoke = old_token if ours_before and e.get('ANTHROPIC_BASE_URL') == hub and old_token != token else ''
+    # the old token of this same hub is revoked after the switch (never sent anywhere else)
+    revoke = old_token if old_token != '' and old_token != token and old_url.startswith(hub + '/') else ''
     for c in CONTAINERS:
         if not is_obj(s.get(c)):
             s[c] = {}
-    s['env']['ANTHROPIC_BASE_URL'] = hub
-    s['env']['ANTHROPIC_AUTH_TOKEN'] = token
+    # keys the other mode set before: back to what the person had, or gone
+    for k in set_before:
+        if str(k) not in to_set:
+            restore(s['env'], str(k), previous['env'])
+    for k in keys:
+        s['env'][k] = to_set[k]
     s['extraKnownMarketplaces'][name] = {
         'source': {'source': 'url', 'url': env('TRINA_MARKETPLACE_URL'), 'headers': {'Authorization': 'Bearer ' + token}},
         'autoUpdate': True,
@@ -328,15 +425,9 @@ def install():
     write_text(env('TRINA_SETTINGS_OUT'), dump(s))
     write_text(env('TRINA_STATE_OUT'), dump({
         'product': 'trina-ax', 'hubUrl': hub, 'marketplace': name, 'plugin': plugin, 'installedAt': env('TRINA_NOW'),
-        'created': created, 'previous': previous,
+        'created': created, 'previous': previous, 'setKeys': keys,
     }))
     return revoke
-
-def restore(o, k, previous):
-    if k in previous:
-        o[k] = previous[k]
-    else:
-        o.pop(k, None)
 
 def uninstall():
     s = parse_doc(read_text(env('TRINA_SETTINGS')), 'SETTINGS')
@@ -346,20 +437,30 @@ def uninstall():
     prev = state.get('previous') if state else None
     previous = prev['env'] if is_obj(prev) and is_obj(prev.get('env')) else {}
     created = state['created'] if state and isinstance(state.get('created'), list) else []
-    hubs = [hub] + ([state['hubUrl']] if state and isinstance(state.get('hubUrl'), str) else [])
-    revoke, changed = '', False
+    old_token, old_url = our_marketplace(s, name, prefix)
+    revoke = old_token if old_token != '' and old_url.startswith(hub + '/') else ''
+    changed = False
     if is_obj(s.get('env')):
-        tok, base = s['env'].get('ANTHROPIC_AUTH_TOKEN'), s['env'].get('ANTHROPIC_BASE_URL')
-        ours_tok = isinstance(tok, str) and tok.startswith(prefix)
-        ours_base = isinstance(base, str) and base in hubs
-        if ours_tok and base == hub:
-            revoke = tok
-        if ours_tok:
-            restore(s['env'], 'ANTHROPIC_AUTH_TOKEN', previous)
-            changed = True
-        if ours_base:
-            restore(s['env'], 'ANTHROPIC_BASE_URL', previous)
-            changed = True
+        if state and isinstance(state.get('setKeys'), list):
+            for k in state['setKeys']:
+                k = str(k)
+                if k in s['env'] or k in previous:
+                    restore(s['env'], k, previous)
+                    changed = True
+        else:
+            # state files from before the modes: the two ANTHROPIC_* keys, recognised by the token prefix and the hub URL
+            hubs = [hub] + ([state['hubUrl']] if state and isinstance(state.get('hubUrl'), str) else [])
+            tok, base = s['env'].get('ANTHROPIC_AUTH_TOKEN'), s['env'].get('ANTHROPIC_BASE_URL')
+            ours_tok = isinstance(tok, str) and tok.startswith(prefix)
+            ours_base = isinstance(base, str) and base in hubs
+            if revoke == '' and ours_tok and base == hub:
+                revoke = tok
+            if ours_tok:
+                restore(s['env'], 'ANTHROPIC_AUTH_TOKEN', previous)
+                changed = True
+            if ours_base:
+                restore(s['env'], 'ANTHROPIC_BASE_URL', previous)
+                changed = True
     if is_obj(s.get('extraKnownMarketplaces')) and name in s['extraKnownMarketplaces']:
         del s['extraKnownMarketplaces'][name]
         changed = True
@@ -381,10 +482,13 @@ def get():
         fail('PARSE_RESPONSE')
     out = []
     for field in env('TRINA_FIELDS').split(','):
+        raw = field.startswith('@')  # @name: the value as one line of JSON (objects and arrays stay whole)
         v = doc
-        for part in field.split('.'):
+        for part in (field[1:] if raw else field).split('.'):
             v = v.get(part) if is_obj(v) else None
-        if isinstance(v, list):
+        if raw:
+            out.append(json.dumps(v, ensure_ascii=False, separators=(',', ':')))
+        elif isinstance(v, list):
             out.extend(one_line(x) for x in v)
         else:
             out.append('' if v is None else one_line(v))
@@ -493,6 +597,13 @@ plugin_installed() {
   claude_quiet plugin list --json && grep -q "\"$PLUGIN\"" "$WORK/claude.out"
 }
 
+# claude_logged_in: success when Claude Code has a login (`claude auth status --json` exits 0 and does not say
+# "loggedIn": false). A failing command (an older Claude Code, say) counts as not logged in.
+claude_logged_in() {
+  claude_quiet auth status --json || return 1
+  ! grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*false' "$WORK/claude.out"
+}
+
 # ---------------------------------------------------------------------------------------------------------------
 # settings.json
 
@@ -514,7 +625,8 @@ put_file() {
 # ---------------------------------------------------------------------------------------------------------------
 # hub
 
-# enroll: trades $CODE for a device token; sets TOKEN, HUB, MCP_URL, MARKETPLACE_URL, USER_NAME, COMPANY, SKILLS_READY
+# enroll: trades $CODE for a device token; sets TOKEN, HUB, MCP_URL, MARKETPLACE_URL, USER_NAME, COMPANY, SKILLS_READY,
+# ACCESS_MODE (subscription | company_key), LOGIN_HINT, ENV_JSON (the settings env to set) and ENV_OWNED_JSON
 enroll() {
   local device os_label resp status json
   device="$DEVICE_NAME"
@@ -536,13 +648,18 @@ enroll() {
     [ -n "$msg" ] || msg="허브가 HTTP $status 로 답했어요."
     die "연결 코드를 확인하지 못했어요: $msg"
   fi
-  read_fields "$json" 'token,hubUrl,mcpUrl,marketplaceUrl,user.name,companyName,skillsReady' || die "$(json_error_message)"
+  read_fields "$json" 'token,hubUrl,mcpUrl,marketplaceUrl,user.name,companyName,skillsReady,mode,loginHint,@env,@envOwned' || die "$(json_error_message)"
   {
     IFS= read -r TOKEN; IFS= read -r HUB; IFS= read -r MCP_URL; IFS= read -r MARKETPLACE_URL
     IFS= read -r USER_NAME; IFS= read -r COMPANY; IFS= read -r SKILLS_READY
+    IFS= read -r ACCESS_MODE; IFS= read -r LOGIN_HINT; IFS= read -r ENV_JSON; IFS= read -r ENV_OWNED_JSON
   } <"$WORK/result" || true
   case "$TOKEN" in "$TOKEN_PREFIX"?*) ;; *) die "허브의 응답에 토큰이 없어요. 관리자에게 알려 주세요." ;; esac
   [ -n "$HUB" ] && [ -n "$MCP_URL" ] && [ -n "$MARKETPLACE_URL" ] || die "허브의 응답이 모자라요. 관리자에게 알려 주세요."
+  case "$ACCESS_MODE" in subscription|company_key) ;; *) die "허브의 응답이 모자라요. 관리자에게 알려 주세요." ;; esac
+  case "$ENV_JSON" in '{'*'}') ;; *) die "허브의 응답이 모자라요. 관리자에게 알려 주세요." ;; esac
+  case "$ENV_OWNED_JSON" in '['*']') ;; *) die "허브의 응답이 모자라요. 관리자에게 알려 주세요." ;; esac
+  [ -n "$LOGIN_HINT" ] || LOGIN_HINT='터미널에서 claude 를 실행하고 /login 으로 본인 Claude 구독에 로그인해 주세요.'
   NOTICES=''
   if read_fields "$json" 'notices'; then NOTICES="$(cat "$WORK/result")"; fi
 }
@@ -583,7 +700,7 @@ do_install() {
   export TRINA_HUB="$HUB" TRINA_MARKETPLACE="$MARKETPLACE" TRINA_PLUGIN="$PLUGIN" TRINA_MARKETPLACE_URL="$MARKETPLACE_URL"
   export TRINA_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   local old_token
-  if ! TRINA_TOKEN="$TOKEN" json_op install; then
+  if ! TRINA_TOKEN="$TOKEN" TRINA_ENV="$ENV_JSON" TRINA_ENV_OWNED="$ENV_OWNED_JSON" json_op install; then
     revoke "$TOKEN"
     die "$(json_error_message)"
   fi
@@ -601,6 +718,10 @@ do_install() {
     warn "회사 파일(MCP) 등록에 실패했어요: $(claude_said)"
   fi
 
+  # subscription: the person signs in to Claude Code themselves; find out whether they already have
+  local logged_in=1
+  if [ "$ACCESS_MODE" = subscription ] && ! claude_logged_in; then logged_in=0; fi
+
   local plugin_ok=0
   if [ "$SKILLS_READY" = true ]; then
     # A short local-only session (/cost makes no model request) lets Claude Code register the marketplace from
@@ -609,17 +730,22 @@ do_install() {
       claude_quiet -p /cost --no-session-persistence --setting-sources user) || true
     claude_quiet plugin install "$PLUGIN" --scope user || true
     if plugin_installed; then plugin_ok=1; info "회사 스킬(플러그인 $PLUGIN)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요."
+    elif [ "$logged_in" = 0 ]; then info "회사 스킬은 로그인한 뒤 Claude Code를 처음 열 때 자동으로 설치돼요."
     else warn "회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. ($(claude_said))"
     fi
   fi
 
   chmod 600 "$SETTINGS" 2>/dev/null || true
   if [ -n "$old_token" ]; then revoke "$old_token"; fi
-  unset TRINA_TOKEN
+  unset TRINA_TOKEN TRINA_ENV TRINA_ENV_OWNED
 
   say ''
   say "✓ 연결을 마쳤어요."
-  say "  - 모델: Claude의 요청이 회사 허브를 거쳐요. 비용은 회사가 내요."
+  if [ "$ACCESS_MODE" = subscription ]; then
+    say "  - 모델: AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요."
+  else
+    say "  - 모델: Claude의 요청이 회사 허브를 거쳐요. AI 사용료는 회사 계정으로 나가요."
+  fi
   if [ "$mcp_ok" = 1 ]; then say "  - 회사 파일: Claude가 mcp__${MCP_NAME}__* 도구로 회사 폴더를 읽고 써요."; fi
   if [ "$plugin_ok" = 1 ]; then say "  - 회사 스킬: /${PLUGIN%%@*}:<스킬 이름> 으로 쓸 수 있어요."; fi
   if [ -n "$NOTICES" ]; then printf '%s\n' "$NOTICES" | while IFS= read -r line; do [ -n "$line" ] && say "  ! $line"; done; fi
@@ -627,7 +753,15 @@ do_install() {
   say "  되돌리기: curl -fsSL ${HUB_URL}/install.sh | bash -s -- --uninstall"
   if [ -n "$BACKUP" ]; then say "  원래 설정 파일: $BACKUP"; fi
   if ! command -v claude >/dev/null 2>&1; then say "  새 터미널을 열면 claude 명령을 쓸 수 있어요 ($CLAUDE_BIN)."; fi
-  say "  이제 터미널에서 claude 를 실행해 보세요."
+  if [ "$logged_in" = 0 ]; then
+    say ''
+    say '  ┌──────────────────────────────────────────────────────────'
+    say '  │ ! 마지막으로 한 가지만 남았어요'
+    say "  │   $LOGIN_HINT"
+    say '  └──────────────────────────────────────────────────────────'
+  else
+    say "  이제 터미널에서 claude 를 실행해 보세요."
+  fi
 }
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -638,7 +772,7 @@ do_uninstall() {
   pick_json_engine
   find_claude
   if [ -n "$CLAUDE_BIN" ]; then
-    # while the settings still carry the token (Claude Code needs some login to run these)
+    # while the settings still carry the marketplace entry (and, in company-key mode, the relay token)
     claude_quiet plugin uninstall "$PLUGIN" --scope user || true
     claude_quiet plugin marketplace remove "$MARKETPLACE" --scope user || true
     claude_quiet mcp remove "$MCP_NAME" --scope user || true

@@ -6,10 +6,11 @@ import { testHub, type TestHub } from '../lib/hub'
 import { makeEnrollCode } from '../../src/auth/enroll'
 import { verifyToken } from '../../src/auth/tokens'
 import { updateUser } from '../../src/auth/users'
+import { setDefaultModelAccess, setUserModelAccess } from '../../src/auth/access-mode'
 import { listAudit } from '../../src/audit'
 import { setSetting } from '../../src/db'
 import { bakeableUrl, installCommands, renderScript } from '../../src/install/scripts'
-import { cleanDeviceName, normalizeCode } from '../../src/install/enroll'
+import { ENV_OWNED, LOGIN_HINT, cleanDeviceName, installEnv, normalizeCode } from '../../src/install/enroll'
 import { FailureLimiter } from '../../src/install/limits'
 import { findPwsh } from './install-lib'
 
@@ -48,6 +49,13 @@ describe('enrollment API', async () => {
       companyName: '에이크미',
       skillsReady: false,
       notices: [expect.stringContaining('공개 주소')],
+      mode: 'company_key',
+      env: { ANTHROPIC_BASE_URL: hub.url, ANTHROPIC_AUTH_TOKEN: j.token },
+      envOwned: [
+        'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_ENABLE_TELEMETRY', 'OTEL_LOGS_EXPORTER',
+        'OTEL_METRICS_EXPORTER', 'OTEL_EXPORTER_OTLP_PROTOCOL', 'OTEL_EXPORTER_OTLP_LOGS_ENDPOINT', 'OTEL_EXPORTER_OTLP_HEADERS',
+      ],
+      loginHint: null,
     })
     const auth = verifyToken(db, j.token)!
     expect(auth.user.id).toBe(kim.id)
@@ -56,7 +64,65 @@ describe('enrollment API', async () => {
     const a = listAudit(db).find((e) => e.action === 'device.enroll')!
     expect(a.actor).toBe(kim.id)
     expect(a.detail).toContain('203.0.113.1')
+    expect(JSON.parse(a.detail as string).mode).toBe('company_key')
     expect(a.detail).not.toContain(j.token)
+  })
+
+  test('a person on their own subscription gets telemetry to the hub and no ANTHROPIC_* variables', async () => {
+    const lee = await hub.user('lee-sub')
+    setUserModelAccess(db, lee.id, 'subscription')
+    const r = await enroll({ code: code(lee.id), os: 'macos' }, '203.0.113.20')
+    expect(r.status).toBe(200)
+    const j = await r.json() as any
+    expect(j.mode).toBe('subscription')
+    expect(j.env).toEqual({
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOGS_EXPORTER: 'otlp',
+      OTEL_METRICS_EXPORTER: 'none',
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${hub.url}/otel/v1/logs`,
+      OTEL_EXPORTER_OTLP_HEADERS: `Authorization=Bearer ${j.token}`,
+    })
+    expect(j.loginHint).toBe('터미널에서 claude 를 실행하고 /login 으로 본인 Claude 구독에 로그인해 주세요.')
+    expect(j.loginHint).toBe(LOGIN_HINT)
+    expect(verifyToken(db, j.token)?.user.id).toBe(lee.id)
+    const a = listAudit(db).filter((e) => e.action === 'device.enroll').find((e) => e.actor === lee.id)!
+    expect(JSON.parse(a.detail as string).mode).toBe('subscription')
+    expect(a.detail).not.toContain(j.token)
+  })
+
+  test('the company default decides when the person has no setting of their own', async () => {
+    const own = await hub.user('own-key')
+    const follow = await hub.user('follow-default')
+    setUserModelAccess(db, own.id, 'company_key')
+    setDefaultModelAccess(db, 'subscription')
+    try {
+      const a = await (await enroll({ code: code(follow.id) }, '203.0.113.21')).json() as any
+      const b = await (await enroll({ code: code(own.id) }, '203.0.113.21')).json() as any
+      expect([a.mode, b.mode]).toEqual(['subscription', 'company_key'])
+      expect(Object.keys(a.env)).not.toContain('ANTHROPIC_BASE_URL')
+      expect(Object.keys(b.env)).toEqual(['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'])
+      expect(a.loginHint).toBeString()
+      expect(b.loginHint).toBeNull()
+    } finally { setDefaultModelAccess(db, 'company_key') }
+    // and back: the same person now follows the company_key default
+    const c = await (await enroll({ code: code(follow.id) }, '203.0.113.21')).json() as any
+    expect(c.mode).toBe('company_key')
+  })
+
+  test('envOwned is every key either mode sets, so switching modes can clean up', async () => {
+    const lee = await hub.user('owned')
+    const modes = ['subscription', 'company_key'] as const
+    const union = new Set<string>()
+    for (const m of modes) {
+      setUserModelAccess(db, lee.id, m)
+      const j = await (await enroll({ code: code(lee.id) }, '203.0.113.22')).json() as any
+      expect(j.mode).toBe(m)
+      for (const k of Object.keys(j.env)) { expect(j.envOwned).toContain(k); union.add(k) }
+      expect(Object.keys(j.env)).toEqual(Object.keys(installEnv(m, j.hubUrl, j.token)))
+    }
+    expect([...union].sort()).toEqual([...ENV_OWNED].sort())
+    expect(new Set(ENV_OWNED).size).toBe(ENV_OWNED.length)
   })
 
   test('codes are forgiving about case, spaces and dashes', async () => {
@@ -127,6 +193,7 @@ describe('enrollment API', async () => {
       expect(j.skillsReady).toBe(true)
       expect(j.notices).toEqual([])
       expect(j.hubUrl).toBe('https://acme.ax.trina.app')
+      expect(j.env.ANTHROPIC_BASE_URL).toBe('https://acme.ax.trina.app')
       expect(j.marketplaceUrl).toBe('https://acme.ax.trina.app/plugins/marketplace.json')
       expect(j.mcpUrl).toBe('https://acme.ax.trina.app/mcp')
     } finally { hub.ctx.config.publicUrl = null }

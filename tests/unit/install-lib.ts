@@ -22,13 +22,24 @@ export function findPwsh(): string | null {
 // The fake records every call (args separated by \x1f, plus the sync env var) and imitates the few answers the
 // installer reads. `mcp add` echoes its arguments, token included, the way a careless tool might: the installer
 // must never let that reach the terminal.
+// FAKE_CLAUDE_AUTH decides what `auth status --json` says: in (default), out (loggedIn false, exit 1), out0 (loggedIn
+// false, exit 0), broken (no such command, exit 2). FAKE_CLAUDE_PLUGIN_FAIL=1 makes `plugin install` fail.
 const FAKE_CLAUDE = `#!/bin/bash
 { printf '%s\\x1f' "$@"; printf 'SYNC=%s\\n' "\${CLAUDE_CODE_SYNC_PLUGIN_INSTALL:-}"; } >> "$FAKE_CLAUDE_LOG"
 case "$1 \${2:-}" in
   "mcp add") echo "Added HTTP MCP server: $*" ;;
-  "plugin install") : > "$FAKE_CLAUDE_STATE/plugin-installed"; echo "installed" ;;
+  "plugin install")
+    if [ -n "\${FAKE_CLAUDE_PLUGIN_FAIL:-}" ]; then echo "Not logged in" >&2; exit 1; fi
+    : > "$FAKE_CLAUDE_STATE/plugin-installed"; echo "installed" ;;
   "plugin uninstall") rm -f "$FAKE_CLAUDE_STATE/plugin-installed" ;;
   "plugin list") if [ -f "$FAKE_CLAUDE_STATE/plugin-installed" ]; then echo '[{"id":"company@trina-ax","scope":"user"}]'; else echo '[]'; fi ;;
+  "auth status")
+    case "\${FAKE_CLAUDE_AUTH:-in}" in
+      in) echo '{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}' ;;
+      out) echo '{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}'; exit 1 ;;
+      out0) echo '{ "loggedIn": false, "authMethod": "none" }' ;;
+      *) echo "error: unknown command 'auth'" >&2; exit 2 ;;
+    esac ;;
 esac
 exit 0
 `
