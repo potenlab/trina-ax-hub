@@ -1,4 +1,5 @@
-node_modules/
+# no trailing slash: also ignores a node_modules symlink (worktrees)
+node_modules
 .dev/
 *.log
 .DS_Store
