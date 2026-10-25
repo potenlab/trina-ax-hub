@@ -68,3 +68,11 @@ done
 
 Anything that is not MIT, ISC, BSD, Apache-2.0, 0BSD or similar needs a decision before it is merged: nothing GPL or
 AGPL may become a runtime dependency.
+
+## Product site (`website/`)
+
+| Component | License | Where |
+|---|---|---|
+| Geist, Geist Mono (Vercel) | SIL Open Font License 1.1 | `website/src/assets/fonts/`, license text in `website/public/fonts/OFL-Geist.txt` |
+| Pretendard (subset) | SIL Open Font License 1.1 | `website/src/assets/fonts/`, license text in `website/public/fonts/OFL-Pretendard.txt` |
+| Astro | MIT | build-time dependency (`website/package.json`) |
