@@ -377,9 +377,24 @@ Pro/Max and company-key companies get their own short paths.
 
 ## Web file manager (2026-10-25)
 
-Hosted hubs live on Trina's servers, where nobody can copy files onto the disk, so files also come in through the browser:
-`/files` ("회사 파일") lists, uploads, downloads, renames, moves and deletes through the same `authorize()` and file store
-as MCP (hidden looks like nonexistent, versions and trash as with MCP writes). See `src/web/files*.tsx`.
+Hosted hubs live on Trina's servers, where nobody copies files onto the disk, so files also come in through the browser.
+`/files` ("회사 파일", `src/web/files.tsx`) lists, uploads, downloads, makes folders, renames, moves and deletes through
+the same `authorize()` and `FileService` as MCP, with `source = 'web'`: hidden looks like nonexistent, write permission is
+needed for every change, overwrites keep a version and deletes go to the trash (90 days), as with MCP writes.
+
+- Session only (device and hub tokens open nothing here), CSRF on every form and on upload (checked before the first file
+  byte is read).
+- Uploads stream (`src/files/multipart.ts`) into `.trina/uploads/<id>/` and are placed with one rename each after the whole
+  request arrived, so a broken request changes nothing (`src/files/upload.ts`); stale staging folders older than 24 hours
+  are swept. Limits: 50 MB per file, 200 MB per request, 3 uploads in flight per person and 8 in all; the page sends
+  batches of at most 64 MB (Cloudflare caps a request at 100 MB). Existing names are skipped unless "replace" is ticked.
+  `src/http/body-limit.ts` keeps 64 MB for every other route (Bun has one server-wide body limit, raised for this route).
+- Downloads are `attachment` / `octet-stream` with a sandbox CSP; only images and PDFs whose first bytes match their type
+  open inline. Korean names round-trip (RFC 5987 `filename*`).
+- `file_changes` (migration 170) records who changed a file last, from the web, MCP or hub sessions, and is trusted only
+  if it is not older than the file's modified time. Tool events are recorded per file as `web:upload`, `web:download`,
+  `web:move`, `web:delete`, `web:make_folder`; one audit row per upload request (a personal folder is named, its files
+  are not).
 
 ## Product site (2026-10-25)
 
