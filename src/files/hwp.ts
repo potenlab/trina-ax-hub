@@ -1,13 +1,14 @@
 // Text of Hangul (한글) documents for read_file and search_files (ported from Team AX): .hwp (HWP 5.x, an OLE compound file of zlib-compressed record
 // streams) and .hwpx (OWPML, a zip of XML). Korean offices and public bodies send forms and notices in these, and
-// pandoc / pdftotext don't read them. Pure TypeScript in-process like SheetJS for xlsx (SheetJS's CFB reads both
-// containers), with output caps against decompression bombs. Distribution (배포용) and password-protected .hwp keep
+// pandoc / pdftotext don't read them. Pure TypeScript (SheetJS's CFB reads both containers), run in the office
+// worker process (office-worker.ts), never on the hub's thread, with caps against decompression bombs: an .hwpx zip
+// may unpack to at most `unpackedMax` bytes (checkUnpacked), an .hwp body likewise in total over its sections. Distribution (배포용) and password-protected .hwp keep
 // their body encrypted: only the preview text (PrvText, the first page or so) comes out, with a note.
 import zlib from 'node:zlib'
 import * as XLSX from 'xlsx'
 import { ToolError } from '../policy/errors'
+import { checkUnpacked, DEFAULT_LIMITS, isZip, type OfficeLimits } from './office-parse'
 
-const TEXT_MAX = 8 * 1024 * 1024
 const STREAM_MAX = 64 * 1024 * 1024
 const SECTIONS_MAX = 500
 
@@ -34,7 +35,8 @@ const unescapeXml = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e
  * Paragraphs nest (a picture caption or table cell inside a paragraph): each gets its line where it opens, so the
  * text around a caption doesn't run into it (same order as the .hwp records).
  */
-export function hwpxText(bytes: Uint8Array): string {
+export function hwpxText(bytes: Uint8Array, lim: OfficeLimits = DEFAULT_LIMITS): string {
+  if (isZip(bytes)) checkUnpacked(bytes, lim.unpackedMax)
   const sections = entries(bytes).filter((e) => /^Contents\/section\d+\.xml$/i.test(e.path)).sort((a, b) => sectionNo(a.path) - sectionNo(b.path))
   if (!sections.length) throw new ToolError('could not read this Hangul document (no sections found in the .hwpx)')
   const out: string[] = []
@@ -55,9 +57,9 @@ export function hwpxText(bytes: Uint8Array): string {
       else if (inText && open.length) out[open.at(-1)!] += name === 'tab' ? '\t' : '\n'
     }
     size = out.reduce((n, l) => n + l.length, 0)
-    if (size > TEXT_MAX) break
+    if (size > lim.textMax) break
   }
-  return tidy(out.join('\n'))
+  return tidy(out.join('\n'), lim.textMax)
 }
 
 // ---------------- .hwp (HWP 5.x) ----------------
@@ -80,12 +82,17 @@ function paraText(rec: Uint8Array): string {
   return s
 }
 
-function inflate(data: Uint8Array): Uint8Array {
-  try { return zlib.inflateRawSync(data, { maxOutputLength: STREAM_MAX }) } catch { throw new ToolError('could not read this Hangul document (a body section is damaged or too large)') }
+/** Inflate one body section; `budget.left` is what the whole document may still unpack to. */
+function inflate(data: Uint8Array, budget: { left: number }): Uint8Array {
+  let out: Buffer
+  try { out = zlib.inflateRawSync(data, { maxOutputLength: Math.max(1, Math.min(STREAM_MAX, budget.left + 1)) }) } catch { throw new ToolError('could not read this Hangul document (a body section is damaged or too large)') }
+  budget.left -= out.length
+  if (budget.left < 0) throw new ToolError('could not read this Hangul document (its text is too large)')
+  return out
 }
 
 /** The text records of one BodyText/SectionN stream, a paragraph per line. */
-export function sectionText(stream: Uint8Array): string {
+export function sectionText(stream: Uint8Array, textMax = DEFAULT_LIMITS.textMax): string {
   const v = new DataView(stream.buffer, stream.byteOffset, stream.byteLength)
   const paras: string[] = []
   let cur: string | null = null
@@ -100,13 +107,13 @@ export function sectionText(stream: Uint8Array): string {
     if (tag === TAG_PARA_HEADER) { if (cur !== null) paras.push(cur); cur = '' }
     else if (tag === TAG_PARA_TEXT) { const t = paraText(stream.subarray(i, i + len)); cur = (cur ?? '') + t; size += t.length }
     i += len
-    if (size > TEXT_MAX) break
+    if (size > textMax) break
   }
   if (cur !== null) paras.push(cur)
   return paras.join('\n')
 }
 
-export function hwpText(bytes: Uint8Array): string {
+export function hwpText(bytes: Uint8Array, lim: OfficeLimits = DEFAULT_LIMITS): string {
   const all = entries(bytes)
   const header = all.find((e) => e.path === 'FileHeader')?.content
   if (!header || header.length < 40 || new TextDecoder('latin1').decode(header.subarray(0, 17)) !== 'HWP Document File') {
@@ -121,14 +128,23 @@ export function hwpText(bytes: Uint8Array): string {
   }
   if (locked) {
     const p = preview()
-    return tidy(`[Only the preview text of this document can be read: it is a distribution-only or password-protected HWP file.]\n\n${p}`)
+    return tidy(`[Only the preview text of this document can be read: it is a distribution-only or password-protected HWP file.]\n\n${p}`, lim.textMax)
   }
   const sections = all.filter((e) => /^BodyText\/Section\d+$/.test(e.path)).sort((a, b) => sectionNo(a.path) - sectionNo(b.path))
-  if (!sections.length) return tidy(preview())
-  return tidy(sections.slice(0, SECTIONS_MAX).map((s) => sectionText(compressed ? inflate(s.content) : s.content)).join('\n'))
+  if (!sections.length) return tidy(preview(), lim.textMax)
+  const budget = { left: lim.unpackedMax }
+  const out: string[] = []
+  let size = 0
+  for (const s of sections.slice(0, SECTIONS_MAX)) {
+    const t = sectionText(compressed ? inflate(s.content, budget) : s.content, lim.textMax)
+    out.push(t)
+    size += t.length
+    if (size > lim.textMax) break
+  }
+  return tidy(out.join('\n'), lim.textMax)
 }
 
 /** No trailing spaces, at most one empty line in a row, capped. */
-function tidy(s: string): string {
-  return s.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, TEXT_MAX)
+function tidy(s: string, textMax: number): string {
+  return s.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, textMax)
 }

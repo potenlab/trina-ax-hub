@@ -16,7 +16,7 @@ import { verifyChain } from '../policy/resolve'
 import { skillFiles, skillsFor, type Skill } from '../skills/catalog'
 import { BINARY_EXT, decodeText, ext, extractText, IMAGE_MAX_BYTES, imageMime, isImageName, isOffice, looksBinary, utf16, type Converters, type TextEncoding } from './extract'
 import { OfficeCache, searchContent, searchNames, type SearchDeps } from './search'
-import { atomicWrite, MAX_WRITE_BYTES, moveToTrash, readRegular, renameChecked, saveVersion, sha256 } from './store'
+import { atomicWrite, MAX_WRITE_BYTES, moveToTrash, readRegular, renameChecked, sha256 } from './store'
 
 /** read_file: lines and characters returned per call. Claude Code keeps an MCP text result inline only up to about
  * 50,000 characters (above that it saves the result to a file on the PC and shows the model a 2 KB preview, which a
@@ -96,9 +96,9 @@ export class FileService {
     if (segs.length === 0 || (segs[0] === 'users' && segs.length <= 2)) throw new ToolError(`'${segs.join('/') || '/'}' cannot be ${what}`, 'protected')
   }
 
-  /** Is `rel` a folder with its own permission rules, or does it hold one? */
-  private holdsRules(rules: RuleSet, rel: string) {
-    return rules.ruleFolders().some((f) => f === rel || isUnder(rel, f))
+  /** Is `segs` a folder with its own permission rules, or does it hold one? (canonical names, like the rules) */
+  private holdsRules(rules: RuleSet, segs: readonly string[]) {
+    return rules.holdsRuleFolder(segs)
   }
 
   // ---------------- list ----------------
@@ -265,8 +265,7 @@ export class FileService {
     if (r.st!.size === data.length && sha256(readRegular(r.abs, MAX_WRITE_BYTES).bytes) === sha256(data)) {
       return { path: r.rel, created: false, changed: false, size: data.length, versionId: null }
     }
-    const versionId = saveVersion(this.ctx.db, this.fx.root, r.rel, this.user.id, 'overwrite')
-    atomicWrite(this.fx.root, r.segs, data)
+    const versionId = atomicWrite(this.fx.root, r.segs, data, { db: this.ctx.db, userId: this.user.id, reason: 'overwrite' })
     return { path: r.rel, created: false, changed: true, size: data.length, versionId }
   }
 
@@ -294,9 +293,8 @@ export class FileService {
     const next = replaceAll ? text.split(from).join(to) : spliceOnce(text, from, to)
     const data = Buffer.from(next, 'utf8')
     if (data.length > MAX_WRITE_BYTES) throw new ToolError(`the result would be too large (over ${MAX_WRITE_BYTES / 1048576} MB)`, 'too_large')
-    const versionId = saveVersion(this.ctx.db, this.fx.root, r.rel, this.user.id, 'overwrite', current)
-    atomicWrite(this.fx.root, r.segs, data)
-    return { path: r.rel, replacements: replaceAll ? n : 1, size: data.length, versionId }
+    const versionId = atomicWrite(this.fx.root, r.segs, data, { db: this.ctx.db, userId: this.user.id, reason: 'overwrite', bytes: current })
+    return { path: r.rel, replacements: replaceAll ? n : 1, size: data.length, versionId: versionId! }
   }
 
   // ---------------- folders ----------------
@@ -323,10 +321,15 @@ export class FileService {
     const fr = this.existingForWrite(rules, fromInput)
     this.assertNotProtected(fr.segs, 'moved')
     const isDir = fr.st!.isDirectory()
-    if (isDir && this.holdsRules(rules, fr.rel)) {
+    if (isDir && this.holdsRules(rules, fr.segs)) {
       throw new ToolError(`'${fr.rel}' has its own folder permissions (or holds a folder that does), so it cannot be moved with this tool; ask an admin`, 'rule_folder')
     }
     const tr = authorize(this.fx, rules, this.user, toInput, 'write', { createDirs: true })
+    // a rename must not turn a text file into an .xlsx / .hwp / ... (write_file refuses those names for the same
+    // reason: the converters would then parse whatever the text says, and people would open a broken document)
+    if (!isDir && ext(tr.rel) !== ext(fr.rel) && BINARY_EXT.has(ext(tr.rel))) {
+      throw new ToolError(`a file cannot be renamed to '.${ext(tr.rel)}' (that would not make it a real .${ext(tr.rel)} file); keep its extension, or write a .md, .txt or .csv file instead`, 'binary')
+    }
     if (tr.exists && tr.rel === fr.rel) {
       // the same entry: a case-only / Unicode-form rename on a case-insensitive volume, or nothing to do
       const typed = toInput.normalize('NFC').split('/').filter((s) => s && s !== '.').pop() ?? ''
@@ -342,13 +345,11 @@ export class FileService {
       throw new ToolError(`'${tr.rel}' is an existing folder; give the full new path including the name, e.g. '${tr.rel}/${fr.segs[fr.segs.length - 1]}'`, 'exists')
     }
     this.assertNotProtected(tr.segs, 'replaced')
-    let replacedVersionId: string | null = null
     if (tr.exists) {
       if (isDir) throw new ToolError(`'${tr.rel}' already exists`, 'exists')
       if (!o.overwrite) throw new ToolError(`'${tr.rel}' already exists. Pick another name, or pass overwrite: true to replace it (the replaced file is kept on the hub)`, 'exists')
-      replacedVersionId = saveVersion(this.ctx.db, this.fx.root, tr.rel, this.user.id, 'move')
     }
-    renameChecked(this.fx.root, fr.segs, tr.segs, tr.exists)
+    const replacedVersionId = renameChecked(this.fx.root, fr.segs, tr.segs, tr.exists, tr.exists ? { db: this.ctx.db, userId: this.user.id, reason: 'move' } : undefined)
     return { from: fr.rel, to: tr.rel, type: isDir ? 'folder' : 'file', replacedVersionId }
   }
 
@@ -364,7 +365,7 @@ export class FileService {
     // emptiness first: a folder holding something the person cannot see answers just "not empty"
     const names = fs.readdirSync(r.abs).filter((n) => n !== '.DS_Store')
     if (names.length) throw new ToolError(`the folder '${r.rel}' is not empty; delete or move the files inside it first`, 'not_empty')
-    if (rules.ruleFolders().includes(r.rel) && !this.isAdmin()) {
+    if (rules.isRuleFolder(r.segs) && !this.isAdmin()) {
       throw new ToolError(`'${r.rel}' has its own folder permissions, so only an admin can delete it`, 'rule_folder')
     }
     verifyChain(this.fx.root, r.segs)

@@ -1,5 +1,8 @@
-// Folder permission resolution (ported from Team AX). Paths are arrays of ACTUAL on-disk names
-// (see resolve.ts) and are compared exactly — never case-folded.
+// Folder permission resolution (ported from Team AX). Paths are arrays of actual on-disk names (see resolve.ts) plus,
+// for a path being created, the names as typed. Rule paths and request paths are compared on a canonical key
+// (pathKey): Unicode NFC always (macOS Finder writes Korean names decomposed, a browser sends them composed), and
+// lowercase as well when the team folder's file system ignores case (then 'shared/HR' and 'shared/hr' are one
+// folder). Otherwise a rule saved for one spelling stopped applying to a folder made with the other.
 import type { Database } from 'bun:sqlite'
 import { PRODUCT } from '../product'
 
@@ -15,6 +18,12 @@ interface Rule { subject_type: 'everyone' | 'role' | 'group' | 'user'; subject_i
 const RANK: Record<Access, number> = { none: 0, read: 1, write: 2 }
 export const atLeast = (a: Access, b: Access) => RANK[a] >= RANK[b]
 
+/** One path segment as rules compare it. */
+export const segKey = (s: string, caseInsensitive: boolean) =>
+  caseInsensitive ? s.normalize('NFC').toLowerCase().normalize('NFC') : s.normalize('NFC')
+/** A team-folder path ('' = root) as rules compare it. */
+export const pathKey = (segs: readonly string[], caseInsensitive: boolean) => segs.map((s) => segKey(s, caseInsensitive)).join('/')
+
 export function loadPrincipal(db: Database, userId: string): Principal | null {
   const u = db.query("SELECT id, name, role, status FROM users WHERE id = ?").get(userId) as any
   if (!u || u.status !== 'active') return null
@@ -23,19 +32,36 @@ export function loadPrincipal(db: Database, userId: string): Principal | null {
 }
 
 export class RuleSet {
-  private byPath = new Map<string, Rule[]>()
-  constructor(rows: { path: string; subject_type: Rule['subject_type']; subject_id: string | null; access: Access }[]) {
+  /** rules by canonical folder key */
+  private byKey = new Map<string, Rule[]>()
+  /** canonical key -> the folder path as saved (the first spelling seen) */
+  private saved = new Map<string, string>()
+  readonly caseInsensitive: boolean
+  constructor(rows: { path: string; subject_type: Rule['subject_type']; subject_id: string | null; access: Access }[], o: { caseInsensitive?: boolean } = {}) {
+    this.caseInsensitive = o.caseInsensitive ?? false
     for (const r of rows) {
-      const list = this.byPath.get(r.path) ?? []
+      const k = this.key(r.path === '' ? [] : r.path.split('/'))
+      const list = this.byKey.get(k) ?? []
       list.push({ subject_type: r.subject_type, subject_id: r.subject_id, access: r.access })
-      this.byPath.set(r.path, list)
+      this.byKey.set(k, list)
+      if (!this.saved.has(k)) this.saved.set(k, r.path)
     }
   }
-  static load(db: Database): RuleSet {
-    return new RuleSet(db.query('SELECT f.path, r.subject_type, r.subject_id, r.access FROM folder_rules r JOIN folders f ON f.id = r.folder_id').all() as any)
+  static load(db: Database, o: { caseInsensitive?: boolean } = {}): RuleSet {
+    return new RuleSet(db.query('SELECT f.path, r.subject_type, r.subject_id, r.access FROM folder_rules r JOIN folders f ON f.id = r.folder_id ORDER BY f.rowid').all() as any, o)
   }
-  /** folder paths that carry at least one rule */
-  ruleFolders(): string[] { return [...this.byPath.keys()] }
+  /** the canonical key of a path (segments) */
+  key(segs: readonly string[]): string { return pathKey(segs, this.caseInsensitive) }
+  /** folder paths that carry at least one rule, as saved (one per folder; compare them with key(), never exactly) */
+  ruleFolders(): string[] { return [...this.saved.values()] }
+  /** whether the folder `segs` has rules of its own */
+  isRuleFolder(segs: readonly string[]): boolean { return this.byKey.has(this.key(segs)) }
+  /** whether `segs` has rules of its own or holds a folder that does */
+  holdsRuleFolder(segs: readonly string[]): boolean {
+    const k = this.key(segs)
+    for (const f of this.byKey.keys()) if (f === k || k === '' || f.startsWith(k + '/')) return true
+    return false
+  }
 
   access(p: Principal, segs: readonly string[]): Access {
     if (segs.length && segs[0] === PRODUCT.systemDir) return 'none'
@@ -48,8 +74,9 @@ export class RuleSet {
     // folder for a person who does not exist yet, no renaming or trashing the whole tree)
     if (segs.length === 1 && segs[0] === 'users') return 'read'
     if (p.role === 'owner' || p.role === 'admin') return 'write' // everything else
-    for (let len = segs.length; len >= 0; len--) {
-      const rules = this.byPath.get(segs.slice(0, len).join('/'))
+    const ks = segs.map((s) => segKey(s, this.caseInsensitive))
+    for (let len = ks.length; len >= 0; len--) {
+      const rules = this.byKey.get(ks.slice(0, len).join('/'))
       if (!rules) continue
       const mine = rules.filter((r) => applies(r, p))
       if (mine.length) return pick(mine)
@@ -65,9 +92,10 @@ export class RuleSet {
       return segs[1] === p.id && !p.noPersonal
     }
     if (p.role === 'owner' || p.role === 'admin') return true
-    const cands = [...this.ruleFolders().map((f) => (f === '' ? [] : f.split('/'))).filter((c) => c[0] !== 'users'), ...(p.noPersonal ? [] : [['users', p.id]])]
+    const ks = segs.map((s) => segKey(s, this.caseInsensitive))
+    const cands = [...[...this.byKey.keys()].map((f) => (f === '' ? [] : f.split('/'))).filter((c) => c[0] !== 'users'), ...(p.noPersonal ? [] : [['users', p.id]])]
     for (const c of cands) {
-      if (c.length > segs.length && segs.every((s, i) => s === c[i]) && atLeast(this.access(p, c), 'read')) return true
+      if (c.length > ks.length && ks.every((s, i) => s === c[i]) && atLeast(this.access(p, c), 'read')) return true
     }
     return false
   }

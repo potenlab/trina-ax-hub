@@ -20,7 +20,7 @@ describe('extractText', () => {
       expect(t, f).toContain('계약 금액은 1,200만 원입니다')
     }
   })
-  test('xlsx / ods through SheetJS, every sheet', async () => {
+  test('xlsx / ods through SheetJS in the office worker, every sheet', async () => {
     for (const f of ['xlsx', 'ods'] as const) {
       const t = await extractText(`a.${f}`, xlsxBook([['월', '매출'], ['1월', 3500000], ['2월', 4200000]], f), tools)
       expect(t).toContain('# sheet: 매출')
@@ -33,7 +33,7 @@ describe('extractText', () => {
     expect(await extractText('a.pdf', tinyPdf('Annual leave is 17 days'), tools)).toContain('Annual leave is 17 days')
     await expect(extractText('bad.pdf', new Uint8Array(Buffer.from('not a pdf')), tools)).rejects.toThrow('could not convert')
   })
-  test('hwp / hwpx in process', async () => {
+  test('hwp / hwpx (the readers, and through the office worker)', async () => {
     expect(hwpText(hwpDoc('진료 안내'))).toBe('진료 안내')
     expect(hwpxText(hwpxDoc('고객 &amp; 보호자'))).toBe('고객 & 보호자')
     expect(await extractText('공지.HWP', hwpDoc('hwp 본문'), tools)).toBe('hwp 본문')

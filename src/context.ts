@@ -30,11 +30,13 @@ export function makeCtx(o: { config: Config; db: Database; secrets: Secrets; log
   let rules: RuleSet | null = null
   const events = new EventEmitter()
   events.setMaxListeners(1000)
+  const fx: FsCtx = { root: fs.realpathSync(o.config.teamRoot), caseInsensitive: detectCaseInsensitive(o.config.teamRoot) }
   return {
     config: o.config,
     db: o.db,
-    fx: { root: fs.realpathSync(o.config.teamRoot), caseInsensitive: detectCaseInsensitive(o.config.teamRoot) },
-    rules: () => (rules ??= RuleSet.load(o.db)),
+    fx,
+    // rules compare folder names the way this file system does (case-insensitive here or not)
+    rules: () => (rules ??= RuleSet.load(o.db, { caseInsensitive: fx.caseInsensitive })),
     rulesChanged: () => { rules = null; events.emit('skills') },
     secrets: o.secrets,
     log: o.log,

@@ -5,9 +5,13 @@
 //   a symlink or a hard link after authorize() is never read.
 // - Writes go to a temp file (O_CREAT|O_EXCL|O_NOFOLLOW, prefix PRODUCT.tmpPrefix) in the same folder, are fsynced,
 //   the folder chain is lstat'ed again (verifyChain) and only then renamed over the target.
-// - Old content is never lost: before an overwrite, edit or move-over the current bytes are copied to
-//   .trina/versions/<id>; a delete renames the file into .trina/trash/<YYYY-MM-DD>/<id>/<name>. Both get a
-//   file_versions row.
+// - Old content is never lost: an overwrite, edit or move-over keeps the current file as
+//   .trina/versions/<id>-<name> (older rows: .trina/versions/<id>), right before the rename that replaces it; a
+//   delete renames the file into .trina/trash/<YYYY-MM-DD>/<id>/<name>. Both get a file_versions row (versions.ts
+//   lists and restores them).
+// - Large files never stall the hub: a delete is a rename (no hashing), and a file over VERSION_COPY_MAX is kept by
+//   a hard link to the same inode (instant; the rename that follows leaves the version as its only name) instead of
+//   a byte copy, with sha256 '' (not hashed).
 // Everything here is synchronous, so a read-compare-write sequence cannot interleave with another tool call in this
 // process.
 import fs from 'node:fs'
@@ -57,26 +61,6 @@ export function readRegular(abs: string, maxBytes: number, tooLarge = 'the file 
   } finally { fs.closeSync(fd) }
 }
 
-/** Stream a checked file into `onChunk`; returns size and sha256 (files of any size, constant memory). */
-function streamChecked(abs: string, onChunk?: (b: Buffer) => void): { size: number; sha256: string } {
-  const { fd } = openChecked(abs)
-  const h = crypto.createHash('sha256')
-  const buf = Buffer.allocUnsafe(CHUNK)
-  let size = 0
-  try {
-    for (let pos = 0; ; ) {
-      const n = fs.readSync(fd, buf, 0, buf.length, pos)
-      if (n <= 0) break
-      const part = buf.subarray(0, n)
-      h.update(part)
-      onChunk?.(part)
-      pos += n
-      size += n
-    }
-  } finally { fs.closeSync(fd) }
-  return { size, sha256: h.digest('hex') }
-}
-
 export const sha256 = (b: Uint8Array | string) => crypto.createHash('sha256').update(b).digest('hex')
 
 /** Create the missing parent folders of `segs` (names already checked by authorize) and lstat the chain again. */
@@ -98,37 +82,75 @@ function assertReplaceable(target: string) {
   if (!st.isFile() || st.nlink > 1) throw new Denied('the target is not a regular file')
 }
 
-/** Write `data` to team path `segs` atomically (temp file in the same folder, fsync, verifyChain, rename). */
-export function atomicWrite(root: string, segs: readonly string[], data: Uint8Array) {
-  ensureParents(root, segs)
-  const dir = path.join(root, ...segs.slice(0, -1))
-  const target = path.join(dir, segs[segs.length - 1]!)
-  const tmp = tmpPath(dir)
-  const fd = fs.openSync(tmp, C.O_WRONLY | C.O_CREAT | C.O_EXCL | C.O_NOFOLLOW, 0o600)
-  try {
+/** Keep the file being replaced as a version (see keepVersion). */
+export interface KeepVersion { db: Database; userId: string; reason: VersionReason; /** its content when the caller already holds it (edit) */ bytes?: Uint8Array }
+
+/**
+ * Write `data` to team path `segs` atomically (temp file in the same folder, fsync, verifyChain, rename). With
+ * `keep`, an existing target is kept as a version right before the rename; returns that version's id.
+ */
+export function atomicWrite(root: string, segs: readonly string[], data: Uint8Array, keep?: KeepVersion): string | null {
+  return placeAtomically(root, segs, (tmp) => {
+    const fd = fs.openSync(tmp, C.O_WRONLY | C.O_CREAT | C.O_EXCL | C.O_NOFOLLOW, 0o600)
     try {
       let off = 0
       while (off < data.length) off += fs.writeSync(fd, data, off, data.length - off)
       fs.fsyncSync(fd)
     } finally { fs.closeSync(fd) }
+  }, keep)
+}
+
+/**
+ * Copy the server-side file `src` (a stored version under .trina) to team path `segs` atomically, like atomicWrite.
+ * A clone where the disk can (APFS: instant at any size), else a kernel copy.
+ */
+export function atomicCopy(root: string, segs: readonly string[], src: string, keep?: KeepVersion): string | null {
+  return placeAtomically(root, segs, (tmp) => {
+    if (!fs.lstatSync(src).isFile()) throw new ToolError('the stored copy is not a regular file')
+    fs.copyFileSync(src, tmp, C.COPYFILE_EXCL | C.COPYFILE_FICLONE)
+    fs.chmodSync(tmp, 0o600)
+    const fd = fs.openSync(tmp, C.O_RDONLY | C.O_NOFOLLOW)
+    try { fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
+  }, keep)
+}
+
+/** fill(tmp) creates the temp file; then verifyChain, the target check, the version (keep) and the rename. */
+function placeAtomically(root: string, segs: readonly string[], fill: (tmp: string) => void, keep?: KeepVersion): string | null {
+  ensureParents(root, segs)
+  const dir = path.join(root, ...segs.slice(0, -1))
+  const target = path.join(dir, segs[segs.length - 1]!)
+  const tmp = tmpPath(dir)
+  let kept: Kept | null = null
+  try {
+    fill(tmp)
     verifyChain(root, [...segs], true)
     assertReplaceable(target)
+    if (keep && fs.existsSync(target)) kept = keepVersion(root, segs, keep)
     fs.renameSync(tmp, target)
   } catch (e) {
     fs.rmSync(tmp, { force: true })
+    kept?.undo()
     throw e
   }
+  return kept?.id ?? null
 }
 
-/** Rename an authorized team entry to another authorized team path (parents created; both chains re-checked). */
-export function renameChecked(root: string, from: readonly string[], to: readonly string[], replaceFile: boolean) {
+/**
+ * Rename an authorized team entry to another authorized team path (parents created; both chains re-checked). With
+ * `keep`, a file being replaced is kept as a version right before the rename; returns that version's id.
+ */
+export function renameChecked(root: string, from: readonly string[], to: readonly string[], replaceFile: boolean, keep?: KeepVersion): string | null {
   ensureParents(root, to)
   verifyChain(root, [...from])
   verifyChain(root, [...to], true)
   const target = path.join(root, ...to)
   if (replaceFile) assertReplaceable(target)
   else if (fs.existsSync(target) || isLink(target)) throw new ToolError(`'${to.join('/')}' already exists`, 'exists')
-  fs.renameSync(path.join(root, ...from), target)
+  const kept = replaceFile && keep && fs.existsSync(target) ? keepVersion(root, to, keep) : null
+  try {
+    fs.renameSync(path.join(root, ...from), target)
+  } catch (e) { kept?.undo(); throw e }
+  return kept?.id ?? null
 }
 
 const isLink = (p: string) => { try { return fs.lstatSync(p).isSymbolicLink() } catch { return false } }
@@ -136,46 +158,117 @@ const isLink = (p: string) => { try { return fs.lstatSync(p).isSymbolicLink() } 
 // ---------------- versions and trash ----------------
 const systemPath = (root: string, ...segs: string[]) => path.join(root, PRODUCT.systemDir, ...segs)
 
+/** Files up to this size are copied (and hashed) into the version store; larger ones are kept by a hard link. */
+export const VERSION_COPY_MAX = 32 * 1024 * 1024
+
 function insertVersion(db: Database, v: { id: string; path: string; storedAs: string; size: number; sha256: string; userId: string; reason: VersionReason }) {
   db.query('INSERT INTO file_versions (id, path, stored_as, size, sha256, user_id, reason, created_at) VALUES (?,?,?,?,?,?,?,?)')
     .run(v.id, v.path, v.storedAs, v.size, v.sha256, v.userId, v.reason, nowIso())
 }
 
+/** `<id>-<name>`, the name shortened (extension kept) so the whole stays within 255 bytes. */
+export function storedName(id: string, name: string): string {
+  const room = 255 - Buffer.byteLength(id + '-')
+  if (Buffer.byteLength(name) <= room) return `${id}-${name}`
+  const dot = name.lastIndexOf('.')
+  const extPart = dot > 0 && Buffer.byteLength(name.slice(dot)) <= 32 ? name.slice(dot) : ''
+  let stem = [...name.slice(0, name.length - extPart.length)]
+  while (stem.length && Buffer.byteLength(stem.join('') + extPart) > room) stem.pop()
+  return `${id}-${stem.join('')}${extPart}`
+}
+
+interface Kept { id: string; undo(): void }
+
 /**
- * Keep the current content of team file `rel` before it is replaced. `bytes`: the content when the caller already
- * holds it (edit); otherwise it is copied from the checked file. Returns the file_versions id.
+ * Keep the current content of team file `segs` (about to be replaced by a rename) as
+ * .trina/versions/<id>-<name> with a file_versions row. `keep.bytes` when the caller holds the content; otherwise
+ * the checked file is copied (and hashed) when small, or hard-linked (not hashed: sha256 '') when large.
  */
-export function saveVersion(db: Database, root: string, rel: string, userId: string, reason: VersionReason, bytes?: Uint8Array): string {
+function keepVersion(root: string, segs: readonly string[], keep: KeepVersion): Kept {
+  const rel = segs.join('/')
   const id = newId(16)
+  const name = storedName(id, segs[segs.length - 1]!)
   const dir = systemPath(root, 'versions')
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
-  const dest = path.join(dir, id)
+  const dest = path.join(dir, name)
   let info: { size: number; sha256: string }
-  if (bytes) {
-    fs.writeFileSync(dest, bytes, { mode: 0o600, flag: 'wx' })
-    info = { size: bytes.length, sha256: sha256(bytes) }
+  if (keep.bytes) {
+    fs.writeFileSync(dest, keep.bytes, { mode: 0o600, flag: 'wx' })
+    info = { size: keep.bytes.length, sha256: sha256(keep.bytes) }
   } else {
-    const out = fs.openSync(dest, C.O_WRONLY | C.O_CREAT | C.O_EXCL | C.O_NOFOLLOW, 0o600)
+    const abs = path.join(root, ...segs)
+    const { fd, st } = openChecked(abs)
     try {
-      info = streamChecked(path.join(root, ...rel.split('/')), (b) => { let off = 0; while (off < b.length) off += fs.writeSync(out, b, off, b.length - off) })
-      fs.fsyncSync(out)
-    } catch (e) { fs.closeSync(out); fs.rmSync(dest, { force: true }); throw e }
-    fs.closeSync(out)
+      info = st.size <= VERSION_COPY_MAX ? copyFd(fd, dest) : { size: st.size, sha256: linkOrCopy(abs, dest, st) }
+    } finally { fs.closeSync(fd) }
   }
   try {
-    insertVersion(db, { id, path: rel, storedAs: `${PRODUCT.systemDir}/versions/${id}`, ...info, userId, reason })
+    insertVersion(keep.db, { id, path: rel, storedAs: `${PRODUCT.systemDir}/versions/${name}`, ...info, userId: keep.userId, reason: keep.reason })
   } catch (e) { fs.rmSync(dest, { force: true }); throw e }
-  return id
+  return {
+    id,
+    undo() {
+      fs.rmSync(dest, { force: true })
+      try { keep.db.query('DELETE FROM file_versions WHERE id = ?').run(id) } catch {}
+    },
+  }
+}
+
+/** Copy an open checked file into a new file `dest`, hashing it. */
+function copyFd(fd: number, dest: string): { size: number; sha256: string } {
+  const out = fs.openSync(dest, C.O_WRONLY | C.O_CREAT | C.O_EXCL | C.O_NOFOLLOW, 0o600)
+  const h = crypto.createHash('sha256')
+  const buf = Buffer.allocUnsafe(CHUNK)
+  let size = 0
+  try {
+    for (let pos = 0; ; ) {
+      const n = fs.readSync(fd, buf, 0, buf.length, pos)
+      if (n <= 0) break
+      const part = buf.subarray(0, n)
+      h.update(part)
+      let off = 0
+      while (off < n) off += fs.writeSync(out, part, off, n - off)
+      pos += n
+      size += n
+    }
+    fs.fsyncSync(out)
+  } catch (e) { fs.closeSync(out); fs.rmSync(dest, { force: true }); throw e }
+  fs.closeSync(out)
+  return { size, sha256: h.digest('hex') }
+}
+
+/**
+ * A second name for the checked file `abs` (same inode `st`) at `dest`: instant, whatever the size. Where the disk
+ * has no hard links, a clone or kernel copy instead. Either way the result is checked to be that same file.
+ * Returns the sha256 to store ('' = not hashed).
+ */
+function linkOrCopy(abs: string, dest: string, st: fs.Stats): string {
+  const same = (p: string) => { try { const s = fs.lstatSync(p); return s.isFile() && s.ino === st.ino && s.dev === st.dev } catch { return false } }
+  try {
+    fs.linkSync(abs, dest)
+    if (!same(dest)) { fs.rmSync(dest, { force: true }); throw new Denied('path changed while saving the earlier version') }
+    return ''
+  } catch (e: any) {
+    if (!['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EMLINK', 'ENOSYS'].includes(e?.code)) throw e
+  }
+  fs.copyFileSync(abs, dest, C.COPYFILE_EXCL | C.COPYFILE_FICLONE)
+  fs.chmodSync(dest, 0o600)
+  if (!same(abs)) { fs.rmSync(dest, { force: true }); throw new Denied('path changed while saving the earlier version') }
+  return ''
 }
 
 /** Server-local calendar day, YYYY-MM-DD (trash folders are named by the day people see). */
 export const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-/** Move team file `segs` into .trina/trash/<day>/<id>/<name> (a rename: nothing is unlinked) with a version row. */
+/**
+ * Move team file `segs` into .trina/trash/<day>/<id>/<name> (a rename: nothing is unlinked, nothing is read, so a
+ * file of any size goes at once) with a version row (sha256 '': not hashed).
+ */
 export function moveToTrash(db: Database, root: string, segs: readonly string[], userId: string): { id: string; storedAs: string; size: number } {
   const rel = segs.join('/')
   const abs = path.join(root, ...segs)
-  const info = streamChecked(abs)
+  const { fd, st } = openChecked(abs) // a regular, singly linked file, not a link
+  fs.closeSync(fd)
   const id = newId(16)
   const name = segs[segs.length - 1]!
   const day = localDay()
@@ -185,11 +278,11 @@ export function moveToTrash(db: Database, root: string, segs: readonly string[],
   fs.renameSync(abs, path.join(dir, name))
   const storedAs = `${PRODUCT.systemDir}/trash/${day}/${id}/${name}`
   try {
-    insertVersion(db, { id, path: rel, storedAs, ...info, userId, reason: 'trash' })
+    insertVersion(db, { id, path: rel, storedAs, size: st.size, sha256: '', userId, reason: 'trash' })
   } catch (e) {
     // put it back: a delete without its record would look like a lost file
     try { fs.renameSync(path.join(dir, name), abs) } catch {}
     throw e
   }
-  return { id, storedAs, size: info.size }
+  return { id, storedAs, size: st.size }
 }

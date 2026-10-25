@@ -1,16 +1,16 @@
 // Text of a team file for read_file and search_files (ported from Team AX server/src/files/extract.ts).
 //   docx / pptx / odt   pandoc (--sandbox: no file or network access of its own)
-//   xlsx / xls / ods    SheetJS, in process
+//   xlsx / xls / ods    SheetJS   } in the office worker (office-worker.ts): a separate bun process, never on the
+//   hwp / hwpx          hwp.ts    } hub's thread (a crafted 44-byte sheet once kept SheetJS busy for 44 s)
 //   pdf                 pdftotext
-//   hwp / hwpx          hwp.ts, in process
 // The bytes always come from a checked file descriptor (store.ts readRegular) and are fed to the converter on stdin,
 // so a converter never opens a team path itself. Converters run isolated (isolate.ts): no network, no reading of the
 // team folder or the hub's data, an empty work folder, a time limit and an output cap.
 import path from 'node:path'
-import * as XLSX from 'xlsx'
 import { ToolError } from '../policy/errors'
-import { hwpText, hwpxText } from './hwp'
 import { runConverter } from './isolate'
+import type { OfficeLimits } from './office-parse'
+import { MARK } from './office-worker'
 
 export const OFFICE_EXT = ['docx', 'pptx', 'odt', 'xlsx', 'xls', 'ods', 'pdf', 'hwp', 'hwpx'] as const
 export const ext = (name: string) => (/\.([^./]+)$/.exec(name)?.[1] ?? '').toLowerCase()
@@ -77,25 +77,8 @@ export async function extractText(name: string, bytes: Uint8Array, tools: Conver
     case 'docx': case 'pptx': case 'odt':
       if (!tools.pandoc) throw new ToolError(`.${e} files cannot be read on this hub (pandoc is not installed); ask the admin to install it`)
       return cap(await convert(tools.pandoc, ['--sandbox', '-f', e, '-t', 'plain', '--wrap=none'], bytes, tools))
-    case 'xlsx': case 'xls': case 'ods': {
-      let wb: XLSX.WorkBook
-      try { wb = XLSX.read(bytes, { type: 'array', cellFormula: false, cellHTML: false, cellStyles: false }) } catch {
-        throw new ToolError('could not read this spreadsheet (damaged or password-protected)')
-      }
-      const parts: string[] = []
-      let size = 0
-      for (const s of wb.SheetNames) {
-        const sheet = wb.Sheets[s]
-        if (!sheet) continue
-        const part = `# sheet: ${s} (tab-separated)\n` + XLSX.utils.sheet_to_csv(sheet, { FS: '\t', blankrows: false })
-        parts.push(part)
-        size += part.length
-        if (size > TEXT_MAX) break
-      }
-      return cap(parts.join('\n\n'))
-    }
-    case 'hwp': return hwpText(bytes)
-    case 'hwpx': return hwpxText(bytes)
+    case 'xlsx': case 'xls': case 'ods': case 'hwp': case 'hwpx':
+      return cap(await officeText(e, bytes, tools))
     case 'pdf':
       if (!tools.pdftotext) throw new ToolError('PDF files cannot be read on this hub (pdftotext is not installed); ask the admin to install poppler')
       return cap(await convert(tools.pdftotext, ['-layout', '-enc', 'UTF-8', '-', '-'], bytes, tools))
@@ -103,6 +86,43 @@ export async function extractText(name: string, bytes: Uint8Array, tools: Conver
       if (looksBinary(bytes)) throw new ToolError('this is a binary file; it cannot be shown as text')
       return decodeText(bytes).text
   }
+}
+
+// ---------------- the office worker ----------------
+const WORKER = path.join(import.meta.dir, 'office-worker.ts')
+/** the hub's code (the worker and its modules): the only server folder the isolated worker may read */
+const APP_ROOT = path.resolve(import.meta.dir, '..', '..')
+export const OFFICE_TIMEOUT_MS = 30_000
+/** office workers at once on this hub (each may use a few hundred MB on a huge workbook); the rest wait */
+export const OFFICE_WORKERS = 3
+
+let running = 0
+const waiting: (() => void)[] = []
+async function inSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running < OFFICE_WORKERS) running++
+  else await new Promise<void>((r) => waiting.push(r)) // the slot is handed over by the one finishing
+  try { return await fn() } finally {
+    const next = waiting.shift()
+    if (next) next(); else running--
+  }
+}
+
+/**
+ * Text of a spreadsheet or Hangul document, read by the office worker in its own isolated process: killed after
+ * `timeoutMs`, output capped. `limits` override the worker's caps (tests).
+ */
+export async function officeText(kind: 'xlsx' | 'xls' | 'ods' | 'hwp' | 'hwpx', bytes: Uint8Array, tools: Converters,
+  o: { timeoutMs?: number; limits?: Partial<OfficeLimits> } = {}): Promise<string> {
+  const what = kind === 'hwp' || kind === 'hwpx' ? 'Hangul document' : 'spreadsheet'
+  return inSlot(async () => {
+    const r = await runConverter(process.execPath, ['--no-install', '--no-env-file', WORKER, kind, JSON.stringify(o.limits ?? {})], bytes,
+      { denyRead: tools.denyRead, allowRead: [APP_ROOT], timeoutMs: o.timeoutMs ?? OFFICE_TIMEOUT_MS, maxStdout: 4 * TEXT_MAX })
+    if (r.killed === 'timeout') throw new ToolError(`could not read this ${what}: it is too large or too complex to convert in time`)
+    if (r.killed === 'output') throw new ToolError(`could not read this ${what}: the text is too large`)
+    if (r.code === 0) return r.stdout.toString('utf8')
+    const msg = r.stderr.split('\n').filter((l) => l.startsWith(MARK)).pop()?.slice(MARK.length).trim()
+    throw new ToolError(msg || `could not read this ${what} (damaged, password-protected or not a .${kind} file)`)
+  })
 }
 
 // ---------------- images (read_file returns them as MCP image content) ----------------

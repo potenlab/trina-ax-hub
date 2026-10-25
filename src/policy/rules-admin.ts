@@ -6,7 +6,7 @@ import path from 'node:path'
 import { newId } from '../ids'
 import { HttpError } from '../http/errors'
 import { parseInput } from './resolve'
-import type { Access } from './access'
+import { pathKey, type Access } from './access'
 
 export type Subject = 'everyone' | 'role' | 'group' | 'user'
 export interface RuleView { path: string; subjectType: Subject; subjectId: string | null; subjectName: string; access: Access }
@@ -20,24 +20,34 @@ export function listRules(db: Database): RuleView[] {
     .map((r) => ({ path: r.path, subjectType: r.subject_type, subjectId: r.subject_id, subjectName: r.subject_name ?? '(삭제됨)', access: r.access }))
 }
 
-/** Set (or with access null, remove) one rule. `folder` is a team-folder path ('' = root). */
-export function setRule(db: Database, folder: string, subjectType: Subject, subjectId: string | null, access: Access | null) {
-  const segs = folder === '' ? [] : parseInput(folder)
-  if (segs[0] === 'users' && segs.length >= 1) throw new HttpError(400, 'validation', '개인 폴더(users/)에는 규칙을 둘 수 없어요.')
-  const p = segs.join('/')
+/**
+ * Set (or with access null, remove) one rule. `folder` is a team-folder path ('' = root). Rules match folders on the
+ * canonical key (access.ts pathKey), so the path is stored composed (NFC), and a rule for a folder that already has
+ * rules under another spelling (decomposed, or another case on a case-insensitive team folder) joins that folder's
+ * row instead of making a second one. Pass `caseInsensitive` = ctx.fx.caseInsensitive.
+ */
+export function setRule(db: Database, folder: string, subjectType: Subject, subjectId: string | null, access: Access | null,
+  o: { caseInsensitive?: boolean } = {}) {
+  const segs = (folder === '' ? [] : parseInput(folder)).map((s) => s.normalize('NFC'))
+  if (segs.length >= 1 && segs[0]!.toLowerCase() === 'users') throw new HttpError(400, 'validation', '개인 폴더(users/)에는 규칙을 둘 수 없어요.')
+  const key = pathKey(segs, o.caseInsensitive ?? false)
   if (subjectType === 'everyone') subjectId = null
   else if (!subjectId) throw new HttpError(400, 'validation', '대상을 골라 주세요.')
   if (subjectType === 'role' && !['admin', 'member'].includes(subjectId!)) throw new HttpError(400, 'validation', '역할은 admin 또는 member예요.')
   if (subjectType === 'group' && !db.query('SELECT 1 FROM groups WHERE id = ?').get(subjectId)) throw new HttpError(400, 'validation', '없는 그룹이에요.')
   if (subjectType === 'user' && !db.query('SELECT 1 FROM users WHERE id = ?').get(subjectId)) throw new HttpError(400, 'validation', '없는 사람이에요.')
   db.transaction(() => {
-    let f = db.query('SELECT id FROM folders WHERE path = ?').get(p) as { id: string } | null
-    if (!f && access === null) return
-    if (!f) { f = { id: newId() }; db.query('INSERT INTO folders (id, path) VALUES (?, ?)').run(f.id, p) }
-    // NULL subject ids never compare equal in the primary key, so delete first
-    db.query('DELETE FROM folder_rules WHERE folder_id = ? AND subject_type = ? AND subject_id IS ?').run(f.id, subjectType, subjectId)
-    if (access !== null) db.query('INSERT INTO folder_rules (folder_id, subject_type, subject_id, access) VALUES (?,?,?,?)').run(f.id, subjectType, subjectId, access)
-    db.query('DELETE FROM folders WHERE id = ? AND NOT EXISTS (SELECT 1 FROM folder_rules WHERE folder_id = ?)').run(f.id, f.id)
+    // every row of the same folder (any spelling): a removal clears the subject's rule from all of them
+    const same = (db.query('SELECT id, path FROM folders ORDER BY rowid').all() as { id: string; path: string }[])
+      .filter((r) => pathKey(r.path === '' ? [] : r.path.split('/'), o.caseInsensitive ?? false) === key)
+    for (const r of same) db.query('DELETE FROM folder_rules WHERE folder_id = ? AND subject_type = ? AND subject_id IS ?').run(r.id, subjectType, subjectId)
+    let f = same[0] ?? null
+    if (access !== null) {
+      if (!f) { f = { id: newId(), path: segs.join('/') }; db.query('INSERT INTO folders (id, path) VALUES (?, ?)').run(f.id, f.path) }
+      // NULL subject ids never compare equal in the primary key, hence the delete above
+      db.query('INSERT INTO folder_rules (folder_id, subject_type, subject_id, access) VALUES (?,?,?,?)').run(f.id, subjectType, subjectId, access)
+    }
+    for (const r of same) db.query('DELETE FROM folders WHERE id = ? AND NOT EXISTS (SELECT 1 FROM folder_rules WHERE folder_id = ?)').run(r.id, r.id)
   })()
 }
 
