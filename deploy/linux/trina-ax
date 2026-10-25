@@ -1,0 +1,49 @@
+#!/bin/bash
+# trina-ax for a Linux hub (systemd). Install: install -m 755 deploy/linux/trina-ax /usr/local/bin/trina-ax
+#   trina-ax start|stop|restart     systemctl (sudo)
+#   trina-ax status                 systemctl status + 허브 설정
+#   trina-ax logs [-f] [-n N]       journalctl -u trina-ax
+#   trina-ax <그 밖의 명령>          관리 명령, trina-ax 사용자로 실행 (trina-ax help)
+# 다른 위치에 설치했다면 TRINA_AX_HOME, TRINA_AX_USER, BUN 환경 변수로 바꿀 수 있어요.
+set -euo pipefail
+
+HOME_DIR="${TRINA_AX_HOME:-/srv/trina-ax}"
+SVC_USER="${TRINA_AX_USER:-trina-ax}"
+BUN="${BUN:-/usr/local/bin/bun}"
+UNIT=trina-ax
+
+root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else echo "  [sudo] $*" >&2; sudo "$@"; fi; }
+cli() {
+  if [ "$(id -un)" = "$SVC_USER" ]; then exec env TRINA_AX_HOME="$HOME_DIR" "$BUN" "$HOME_DIR/app/src/cli.ts" "$@"; fi
+  # the database and secrets belong to the service user (0700)
+  exec sudo -u "$SVC_USER" env TRINA_AX_HOME="$HOME_DIR" "$BUN" "$HOME_DIR/app/src/cli.ts" "$@"
+}
+
+case "${1:-help}" in
+  start|stop|restart)
+    root systemctl "$1" "$UNIT"
+    if [ "$1" != stop ]; then
+      if [ "$(id -un)" = "$SVC_USER" ]; then env TRINA_AX_HOME="$HOME_DIR" "$BUN" "$HOME_DIR/app/src/cli.ts" ping --wait 30
+      else sudo -u "$SVC_USER" env TRINA_AX_HOME="$HOME_DIR" "$BUN" "$HOME_DIR/app/src/cli.ts" ping --wait 30; fi
+    fi
+    ;;
+  status)
+    if [ "${2:-}" != --json ]; then systemctl --no-pager --lines=0 status "$UNIT" || true; fi
+    cli "$@"
+    ;;
+  logs)
+    shift
+    args=(-u "$UNIT" --no-pager -o cat -n 200)
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -f|--follow) args+=(-f) ;;
+        -n) args+=(-n "$2"); shift ;;
+        --tunnel) args[1]=cloudflared ;;
+        *) echo "모르는 옵션이에요: $1" >&2; exit 1 ;;
+      esac
+      shift
+    done
+    exec journalctl "${args[@]}"
+    ;;
+  *) cli "$@" ;;
+esac

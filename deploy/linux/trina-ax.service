@@ -1,27 +1,67 @@
-# systemd unit for a Linux hub (hosted or on-prem server).
-#   sudo useradd --system --create-home --home-dir /srv/trina-ax trina-ax
-#   sudo -u trina-ax git clone … /srv/trina-ax/app && cd /srv/trina-ax/app && sudo -u trina-ax bun install --production
-#   sudo cp deploy/linux/trina-ax.service /etc/systemd/system/ && sudo systemctl enable --now trina-ax
+# systemd unit for a Linux hub (hosted or on-prem server). Logs go to journald (rotated by journald itself):
+#   journalctl -u trina-ax -f        or   trina-ax logs -f   (deploy/linux/trina-ax)
+#
+# Install (as root; the hub itself runs as the unprivileged user trina-ax):
+#   useradd --system --create-home --home-dir /srv/trina-ax --shell /usr/sbin/nologin trina-ax
+#   install -d -o trina-ax -g trina-ax -m 0750 /srv/trina-ax /srv/trina-ax/team
+#   install -d -o trina-ax -g trina-ax -m 0700 /srv/trina-ax/data
+#   sudo -u trina-ax git clone <repo> /srv/trina-ax/app     (or unpack the tarball there)
+#   cd /srv/trina-ax/app && sudo -u trina-ax bun install --production --frozen-lockfile
+#   bun must be at /usr/local/bin/bun (curl -fsSL https://bun.sh/install | bash; install -m 755 ~/.bun/bin/bun /usr/local/bin/bun)
+#   apt install ripgrep pandoc poppler-utils         (search, docx/pptx and pdf text)
+#   cp /srv/trina-ax/app/deploy/linux/trina-ax.service /etc/systemd/system/
+#   install -m 755 /srv/trina-ax/app/deploy/linux/trina-ax /usr/local/bin/trina-ax
+#   systemctl daemon-reload && systemctl enable --now trina-ax && trina-ax status
+# Claude Code for hub sessions (phone chat, schedules), as the trina-ax user:
+#   sudo -u trina-ax -H bash -c 'curl -fsSL https://claude.ai/install.sh | bash'   → /srv/trina-ax/.local/bin/claude
+# Tunnel: cloudflared ships its own unit (cloudflared service install <token>); point it at http://localhost:47900.
+#
+# Listening address: config.json `host` (default 127.0.0.1 = only the tunnel / a reverse proxy on this machine).
+# For office PCs on the LAN set "host": "0.0.0.0" in /srv/trina-ax/data/config.json and open the port in the firewall.
+# Local changes: systemctl edit trina-ax (a drop-in), not this file.
 [Unit]
 Description=Trina AX hub
+Documentation=file:///srv/trina-ax/app/docs/OPERATOR.md
 After=network-online.target
 Wants=network-online.target
+# never give up restarting (the default stops after 5 quick failures, and then everyone's Claude stays down)
+StartLimitIntervalSec=0
 
 [Service]
+Type=simple
 User=trina-ax
 Group=trina-ax
 Environment=TRINA_AX_HOME=/srv/trina-ax
-Environment=TRINA_AX_HOST=127.0.0.1
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/srv/trina-ax/.local/bin
+Environment=LANG=C.UTF-8
+# the app folder is read-only for the service; no transpiler cache writes there
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
 WorkingDirectory=/srv/trina-ax/app
 ExecStart=/usr/local/bin/bun /srv/trina-ax/app/src/main.ts
 Restart=always
 RestartSec=5
+# SIGTERM → the hub closes the database and stops hub sessions; give model streams a moment
+TimeoutStopSec=30
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trina-ax
+LimitNOFILE=65536
+UMask=0027
+
+# hardening (bun's JIT needs writable+executable memory, so no MemoryDenyWriteExecute)
 NoNewPrivileges=yes
 PrivateTmp=yes
+PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/srv/trina-ax
-UMask=0077
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# only the database/secrets and the team folder are writable (data/hub holds hub-session homes for claude)
+ReadWritePaths=/srv/trina-ax/data /srv/trina-ax/team
 
 [Install]
 WantedBy=multi-user.target
