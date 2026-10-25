@@ -277,7 +277,9 @@ describe('cli', async () => {
     const r = await cli(['logs', '-n', '2'])
     expect(r.code).toBe(0)
     expect(r.out).toBe('two\nthree\n')
-    expect((await cli(['logs', '--tunnel'])).code).toBe(1)
+    // no tunnel.log: macOS has nothing else to show (1); Linux with systemd shows the journal instead (journalctl, 0)
+    const journal = process.platform === 'linux' && !!Bun.which('journalctl')
+    expect((await cli(['logs', '--tunnel'])).code).toBe(journal ? 0 : 1)
   })
 
   test('init on a fresh home: owner from stdin; refuses a second owner', async () => {

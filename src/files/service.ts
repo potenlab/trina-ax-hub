@@ -349,7 +349,7 @@ export class FileService {
     if (isDir && this.holdsRules(rules, fr.segs)) {
       throw new ToolError(`'${fr.rel}' has its own folder permissions (or holds a folder that does), so it cannot be moved with this tool; ask an admin`, 'rule_folder')
     }
-    const tr = authorize(this.fx, rules, this.user, toInput, 'write', { createDirs: true })
+    const tr = authorize(this.fx, rules, this.user, toInput, 'write', { createDirs: true, movingFrom: fr.segs })
     // a rename must not turn a text file into an .xlsx / .hwp / ... (write_file refuses those names for the same
     // reason: the converters would then parse whatever the text says, and people would open a broken document)
     if (!isDir && ext(tr.rel) !== ext(fr.rel) && BINARY_EXT.has(ext(tr.rel))) {

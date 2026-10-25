@@ -24,7 +24,7 @@ export interface Authorized {
 const hidden = (input: unknown) => `not found or no access: '${typeof input === 'string' ? input : ''}'`
 
 export function authorize(fx: FsCtx, rules: RuleSet, user: Principal, input: unknown, op: Op,
-  opts: { mustExist?: boolean; createDirs?: boolean } = {}): Authorized {
+  opts: { mustExist?: boolean; createDirs?: boolean; movingFrom?: readonly string[] } = {}): Authorized {
   const mustExist = opts.mustExist ?? op !== 'write'
   const segs = parseInput(input)
   const w = walk(fx.root, segs, fx.caseInsensitive)
@@ -61,8 +61,13 @@ export function authorize(fx: FsCtx, rules: RuleSet, user: Principal, input: unk
     // Writes only: the guard is about creating a name, and a read creates nothing. A read of a missing path
     // (history) that scanned the siblings answered "no access" for a hidden look-alike and "nothing here" for any other
     // name, which told a reader with only READ on the parent that the hidden entry exists (security r2).
+    // A move or rename names its source (`movingFrom`, actual names): that entry leaves, so it is no clash. On a
+    // case-sensitive volume (Linux) a case-only rename 'Case.md' → 'case.md' reaches this check with the source as the
+    // only look-alike; on a case-insensitive one it resolves to the source itself and never gets here.
     const k = foldKey(w.missing[0])
-    const clashes = op !== 'write' ? [] : fs.readdirSync(path.join(fx.root, ...w.actual)).filter((n) => n !== w.missing[0] && foldKey(n) === k)
+    const src = opts.movingFrom
+    const leaving = (n: string) => !!src && src.length === w.actual.length + 1 && src.slice(0, -1).every((s, i) => s === w.actual[i]) && src[src.length - 1] === n
+    const clashes = op !== 'write' ? [] : fs.readdirSync(path.join(fx.root, ...w.actual)).filter((n) => n !== w.missing[0] && foldKey(n) === k && !leaving(n))
     if (clashes.length) {
       const seen = clashes.find((n) => siblingVisible(fx, rules, user, w.actual, n))
       if (seen === undefined) throw new Denied(hidden(input))

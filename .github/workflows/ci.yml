@@ -34,7 +34,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ripgrep pandoc poppler-utils bubblewrap
+          sudo apt-get install -y --no-install-recommends ripgrep poppler-utils bubblewrap
+          # Ubuntu's own pandoc (3.1.3) has no .pptx reader (added in 3.1.6); use a pinned upstream release.
+          curl -fsSL -o /tmp/pandoc.deb https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-1-amd64.deb
+          sudo apt-get install -y /tmp/pandoc.deb
+          pandoc --version | head -1
           # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor; the file parsers run under bwrap.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
