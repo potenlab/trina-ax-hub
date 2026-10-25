@@ -129,11 +129,16 @@ describe('content security policy (the page must work with script-src and style-
   const headers = readFileSync(join(root, 'public/_headers'), 'utf8')
   const csp = headers.match(/Content-Security-Policy: (.*)/)![1]
 
-  test('policy is first-party only', () => {
+  test('policy is first-party only, plus Cloudflare Web Analytics', () => {
     expect(csp).toContain("default-src 'self'")
     expect(csp).toContain("script-src 'self'")
     expect(csp).toContain("style-src 'self'")
-    expect(csp).not.toMatch(/https?:|unsafe-inline|unsafe-eval|\*/)
+    // The only other origins: the cookieless beacon Cloudflare injects for the trina.app zone's Web Analytics.
+    const others = [...csp.matchAll(/https?:\/\/[^\s;]+/g)].map((m) => m[0]).sort()
+    expect(others).toEqual(['https://cloudflareinsights.com', 'https://static.cloudflareinsights.com'])
+    expect(csp).toMatch(/script-src 'self' https:\/\/static\.cloudflareinsights\.com;/)
+    expect(csp).toMatch(/connect-src 'self' https:\/\/cloudflareinsights\.com;/)
+    expect(csp).not.toMatch(/unsafe-inline|unsafe-eval|\*/)
   })
 
   test.each(files)('%s: no inline style attributes, no inline scripts other than JSON-LD, no inline <style>', (_, file) => {
