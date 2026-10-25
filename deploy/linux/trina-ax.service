@@ -8,8 +8,8 @@
 #   sudo -u trina-ax git clone <repo> /srv/trina-ax/app     (or unpack the tarball there)
 #   cd /srv/trina-ax/app && sudo -u trina-ax bun install --production --frozen-lockfile
 #   bun must be at /usr/local/bin/bun (curl -fsSL https://bun.sh/install | bash; install -m 755 ~/.bun/bin/bun /usr/local/bin/bun)
-#   apt install ripgrep pandoc poppler-utils         (search, docx/pptx and pdf text; pandoc 3.1.6 or newer reads .pptx:
-#                                                     on Ubuntu 24.04 install the .deb from github.com/jgm/pandoc/releases)
+#   apt install ripgrep pandoc poppler-utils         (search, docx/pptx and pdf text; Ubuntu's pandoc can't read .pptx:
+#                                                     install pandoc 3.9 or newer from github.com/jgm/pandoc/releases)
 #   cp /srv/trina-ax/app/deploy/linux/trina-ax.service /etc/systemd/system/
 #   install -m 755 /srv/trina-ax/app/deploy/linux/trina-ax /usr/local/bin/trina-ax
 #   systemctl daemon-reload && systemctl enable --now trina-ax && trina-ax status
