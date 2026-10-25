@@ -7,7 +7,7 @@
 //   GET  /me/password  POST     change password (forced when must_change_password)
 //   /me                         my PCs (enroll code + install commands, approve one an admin set up, revoke), my usage, budgets, skills
 //   /admin, /admin/users, /admin/groups, /admin/folders, /admin/budgets, /admin/usage (+ /admin/usage.csv),
-//   /admin/skills, /admin/settings, /admin/audit
+//   /admin/skills, /admin/settings, /admin/claude (Claude 조직 설정), /admin/audit
 //
 // Pages are server-rendered (Hono JSX) and call the foundation services directly. Every POST checks `_csrf`
 // (session secret; a double-submit cookie before login).
@@ -25,6 +25,7 @@ import { mountBudgets } from './admin/budgets'
 import { mountUsage } from './admin/usage'
 import { mountSkills } from './admin/skills'
 import { mountSettings } from './admin/settings'
+import { mountClaudeOrg } from './admin/claude'
 import { mountAudit } from './admin/audit'
 import { mountVersions } from './admin/versions'
 
@@ -53,6 +54,7 @@ export const register: Register = (app, ctx) => {
   mountUsage(app, web)
   mountSkills(app, web)
   mountSettings(app, web)
+  mountClaudeOrg(app, web)
   mountAudit(app, web)
   mountVersions(app, web)
 }

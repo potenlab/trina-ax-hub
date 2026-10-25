@@ -207,6 +207,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/usage', label: '사용량' },
   { href: '/admin/skills', label: '스킬' },
   { href: '/admin/settings', label: '설정' },
+  { href: '/admin/claude', label: 'Claude 조직 설정' },
   { href: '/admin/audit', label: '기록' },
 ]
 const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '채팅' }]

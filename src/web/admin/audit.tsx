@@ -52,6 +52,13 @@ export const ACTION_LABEL: Record<string, string> = {
   'connector.allow': 'Claude 앱 연결 허용',
   'connector.deny': 'Claude 앱 연결 거부',
   'connector.revoke': 'Claude 앱 연결 끊음',
+  'org_token.create': '조직 토큰 만듦',
+  'org_token.rotate': '조직 토큰 새로 만듦 (이전 토큰 멈춤)',
+  'org_token.revoke': '조직 토큰 멈춤',
+  'claude_org.plan': 'Claude 조직 설정: 종류 선택',
+  'claude_org.name': 'Claude 조직 설정: 커넥터 이름 변경',
+  'claude_org.pasted': 'Claude 조직 설정: 관리 콘솔에 붙여 넣음',
+  'claude_org.unknown_clear': 'Claude 조직 설정: 허브에 없는 이메일 목록 비움',
 }
 
 const KEY_LABEL: Record<string, string> = {
@@ -59,10 +66,12 @@ const KEY_LABEL: Record<string, string> = {
   device: 'PC', os: 'OS', ip: 'IP', subject: '대상', access: '권한', period: '기간', limitUsd: '달러 한도', limitTokens: '토큰 한도',
   action: '넘으면', companyName: '회사 이름', hubConcurrency: '동시 실행', publicUrl: '공개 주소', lanUrl: '사내 주소', krwPerUsd: '원화 환산',
   replaced: '교체', ok: '성공', status_code: '응답', from: '시작', to: '끝', first: '첫 변경', apiKey: 'API 키', path: '경로', version: '버전',
+  plan: '종류', connectorName: '커넥터 이름',
 }
 
 const VALUE_LABEL: Record<string, Record<string, string>> = {
   role: ROLE_LABEL, access: ACCESS_LABEL, period: PERIOD_LABEL, action: BUDGET_ACTION_LABEL,
+  plan: { team: 'Claude Team·Enterprise', individual: 'Pro·Max 개인 구독', company_key: '회사 API 키' },
   status: { active: '사용 중', disabled: '꺼짐' }, os: { macos: '맥', windows: '윈도우', linux: '리눅스', other: '기타' },
 }
 

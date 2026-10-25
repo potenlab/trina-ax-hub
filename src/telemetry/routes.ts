@@ -5,16 +5,23 @@
 //   POST /otel/v1/logs     events → usage rows (source 'sub'), skill and tool counts
 //   POST /otel/v1/metrics  accepted and ignored (the events carry everything we show)
 //
+// Two kinds of token may send events:
+//   a person's own token (the PC installer's device token)   the events are that person's
+//   the org token (Claude admin console managed settings, Cowork OTLP form)   each event names its person by
+//       `user.email`, in the record's or the resource's attributes; an email no active person has is counted, not stored
+//       (src/org/telemetry.ts)
+//
 // Nothing here relays or sees the person's Claude login. Prompt text is never stored (Claude Code redacts it unless
 // OTEL_LOG_USER_PROMPTS is set, and we ignore user_prompt events anyway).
 import type { Register } from '../http/app'
-import { requireToken } from '../http/app'
 import { jsonError } from '../http/errors'
 import type { Ctx } from '../context'
 import { newId } from '../ids'
 import { nowIso } from '../db'
 import { insertUsage } from '../usage/rollup'
 import { modelAccessFor } from '../auth/access-mode'
+import { requireTokenOrOrg } from '../org/auth'
+import { emailIndex, normalizeEmail, recordOrgIngest, recordUnknownEmails } from '../org/telemetry'
 
 const MAX_BODY = 5 * 1024 * 1024
 const MODEL_RE = /^[a-z0-9][a-z0-9.@:_-]{0,99}$/i
@@ -57,54 +64,120 @@ function eventTime(a: Record<string, unknown>, rec: { timeUnixNano?: string | nu
   return new Date(Math.min(ms, Date.now() + 86_400_000)).toISOString()
 }
 
-export interface IngestResult { requests: number; skills: number; tools: number; ignored: number }
+export interface IngestResult {
+  requests: number; skills: number; tools: number; ignored: number
+  /** org token only: events that named no email, or an email no single active person has (not stored) */
+  unattributed: number
+}
 
-/** Record the events of one OTLP logs request for this person (exported for tests). */
-export function ingestLogs(ctx: Ctx, who: { userId: string; tokenId: string }, body: unknown): IngestResult {
-  const res: IngestResult = { requests: 0, skills: 0, tools: 0, ignored: 0 }
+interface Who { userId: string; tokenId: string }
+
+/** What one log record would be stored as, or null when it is not something we keep. */
+type Parsed =
+  | { kind: 'api'; model: string; at: string }
+  | { kind: 'skill'; name: string; at: string }
+  | { kind: 'tool'; name: string; ok: boolean; at: string }
+
+function parseRecord(a: Record<string, unknown>, rec: Record<string, any>): Parsed | null {
+  const bodyName = typeof rec?.body?.stringValue === 'string' ? rec.body.stringValue : ''
+  const name = String(a['event.name'] ?? bodyName).replace(/^claude_code\./, '')
+  const at = eventTime(a, rec ?? {})
+  if (name === 'api_request') {
+    const model = str(a['model'], 100)
+    return MODEL_RE.test(model) ? { kind: 'api', model, at } : null
+  }
+  if (name === 'skill_activated') {
+    const s = str(a['skill.name'], 120)
+    // third-party plugin skills arrive as the placeholder "custom_skill" unless tool details are on
+    return s && s !== 'custom_skill' ? { kind: 'skill', name: s.replace(/^company(?:-all)?:/, ''), at } : null
+  }
+  if (name === 'tool_result') {
+    const t = str(a['tool_name'], 64)
+    // MCP calls to this hub are already in tool_events from the MCP endpoint itself
+    return !t || t === 'mcp_tool' || t.startsWith('mcp__') ? null : { kind: 'tool', name: t, ok: String(a['success']) !== 'false', at }
+  }
+  return null
+}
+
+/** Who an event belongs to; null = not attributable (the picker has counted it). */
+type Pick = (a: Record<string, unknown>) => Who | null
+
+function ingest(ctx: Ctx, body: unknown, pick: Pick): IngestResult & { seen: number } {
+  const res = { requests: 0, skills: 0, tools: 0, ignored: 0, unattributed: 0, seen: 0 }
   const resourceLogs = (body as { resourceLogs?: unknown })?.resourceLogs
   if (!Array.isArray(resourceLogs)) return res
   // a person on the company key is already counted by the relay; telemetry would count them twice
-  const countRequests = modelAccessFor(ctx.db, who.userId) === 'subscription'
+  const countRequests = new Map<string, boolean>()
+  const subscription = (userId: string) => {
+    let v = countRequests.get(userId)
+    if (v === undefined) { v = modelAccessFor(ctx.db, userId) === 'subscription'; countRequests.set(userId, v) }
+    return v
+  }
   const skill = ctx.db.query('INSERT INTO skill_events (user_id, skill, source, at) VALUES (?, ?, ?, ?)')
   const tool = ctx.db.query('INSERT INTO tool_events (user_id, token_id, tool, summary, ok, at) VALUES (?, ?, ?, ?, ?, ?)')
   for (const rl of resourceLogs as { resource?: { attributes?: unknown }; scopeLogs?: unknown }[]) {
     const resAttrs = attrs(rl?.resource?.attributes)
     for (const sl of (Array.isArray(rl?.scopeLogs) ? rl.scopeLogs : []) as { logRecords?: unknown }[]) {
       for (const rec of (Array.isArray(sl?.logRecords) ? sl.logRecords : []) as Record<string, any>[]) {
+        res.seen++
+        // the record's own attributes win over the resource's
         const a: Record<string, unknown> = { ...resAttrs, ...attrs(rec?.attributes) }
-        const bodyName = typeof rec?.body?.stringValue === 'string' ? rec.body.stringValue : ''
-        const name = String(a['event.name'] ?? bodyName).replace(/^claude_code\./, '')
-        const at = eventTime(a, rec ?? {})
-        if (name === 'api_request') {
-          if (!countRequests) { res.ignored++; continue }
-          const model = str(a['model'], 100)
-          if (!MODEL_RE.test(model)) { res.ignored++; continue }
+        const p = parseRecord(a, rec)
+        if (!p) { res.ignored++; continue }
+        const who = pick(a)
+        if (!who) { res.unattributed++; continue }
+        if (p.kind === 'api') {
+          if (!subscription(who.userId)) { res.ignored++; continue }
           // the same event sent twice (an exporter retry) must count once
           const seq = str(a['event.sequence'], 40) || str(a['request_id'], 120)
           const session = str(a['session.id'], 80)
           const extId = seq && session ? `otel:${who.userId}:${session}:${seq}` : null
           insertUsage(ctx.db, {
-            id: newId(), userId: who.userId, tokenId: who.tokenId, source: 'sub', jobId: null, model,
+            id: newId(), userId: who.userId, tokenId: who.tokenId, source: 'sub', jobId: null, model: p.model,
             input: int(a['input_tokens']), output: int(a['output_tokens']), cacheRead: int(a['cache_read_tokens']), cacheWrite: int(a['cache_creation_tokens']),
-            costUsd: Math.min(num(a['cost_usd']), 10_000), status: 200, startedAt: at, durationMs: int(a['duration_ms']), extId,
+            costUsd: Math.min(num(a['cost_usd']), 10_000), status: 200, startedAt: p.at, durationMs: int(a['duration_ms']), extId,
           })
           res.requests++
-        } else if (name === 'skill_activated') {
-          const s = str(a['skill.name'], 120)
-          // third-party plugin skills arrive as the placeholder "custom_skill" unless tool details are on
-          if (s && s !== 'custom_skill') { skill.run(who.userId, s.replace(/^company:/, ''), 'telemetry', at); res.skills++ } else res.ignored++
-        } else if (name === 'tool_result') {
-          const t = str(a['tool_name'], 64)
-          // MCP calls to this hub are already in tool_events from the MCP endpoint itself
-          if (!t || t === 'mcp_tool' || t.startsWith('mcp__')) { res.ignored++; continue }
-          tool.run(who.userId, who.tokenId, `pc:${t}`, '', String(a['success']) === 'false' ? 0 : 1, at)
+        } else if (p.kind === 'skill') {
+          skill.run(who.userId, p.name, 'telemetry', p.at)
+          res.skills++
+        } else {
+          tool.run(who.userId, who.tokenId, `pc:${p.name}`, '', p.ok ? 1 : 0, p.at)
           res.tools++
-        } else res.ignored++
+        }
       }
     }
   }
   return res
+}
+
+/** Record the events of one OTLP logs request for this person (exported for tests). */
+export function ingestLogs(ctx: Ctx, who: Who, body: unknown): IngestResult {
+  const { seen: _seen, ...r } = ingest(ctx, body, () => who)
+  return r
+}
+
+/**
+ * Record the events of one OTLP logs request sent with the org token. Each event is the person whose email it names
+ * (case-insensitive, among active people). An event with an unknown or missing email is not stored: unknown emails are
+ * counted per email for the admin page, a missing one only in the total (exported for tests).
+ */
+export function ingestOrgLogs(ctx: Ctx, org: { tokenId: string }, body: unknown): IngestResult {
+  const people = emailIndex(ctx.db)
+  const unknown = new Map<string, number>()
+  let missing = 0
+  const { seen, ...r } = ingest(ctx, body, (a) => {
+    const email = normalizeEmail(a['user.email'])
+    if (!email) { missing++; return null }
+    const id = people.get(email)
+    if (typeof id === 'string') return { userId: id, tokenId: org.tokenId }
+    unknown.set(email, (unknown.get(email) ?? 0) + 1)
+    return null
+  })
+  const at = nowIso()
+  recordUnknownEmails(ctx.db, unknown, at)
+  if (seen) recordOrgIngest(ctx.db, { at, stored: r.requests + r.skills + r.tools, missingEmail: missing })
+  return r
 }
 
 async function readJson(req: Request): Promise<unknown> {
@@ -120,16 +193,23 @@ async function readJson(req: Request): Promise<unknown> {
 }
 
 export const register: Register = (app, ctx) => {
-  app.use('/otel/*', requireToken(ctx, 'json'))
+  // a person's token, or the org token (then the events name their people by email)
+  app.use('/otel/*', requireTokenOrOrg(ctx))
 
   app.post('/otel/v1/logs', async (c) => {
-    const auth = c.get('tokenAuth')!
+    const auth = c.get('tokenAuth')
+    const org = c.get('orgAuth')
     if (!(c.req.header('content-type') ?? '').includes('json')) return jsonError(415, 'unsupported', 'OTLP/HTTP JSON만 받아요 (OTEL_EXPORTER_OTLP_PROTOCOL=http/json).')
     let body: unknown
     try { body = await readJson(c.req.raw) } catch { return jsonError(400, 'bad_request', '읽을 수 없는 요청이에요.') }
     try {
-      const r = ingestLogs(ctx, { userId: auth.user.id, tokenId: auth.token.id }, body)
-      if (r.requests) ctx.log.info('telemetry', { user: auth.user.id, requests: r.requests, at: nowIso() })
+      if (org) {
+        const r = ingestOrgLogs(ctx, { tokenId: org.token.id }, body)
+        if (r.requests || r.unattributed) ctx.log.info('telemetry (org)', { requests: r.requests, unattributed: r.unattributed, at: nowIso() })
+      } else if (auth) {
+        const r = ingestLogs(ctx, { userId: auth.user.id, tokenId: auth.token.id }, body)
+        if (r.requests) ctx.log.info('telemetry', { user: auth.user.id, requests: r.requests, at: nowIso() })
+      }
     } catch (e) {
       ctx.log.warn('telemetry ingest failed', { err: String((e as Error)?.message ?? e).slice(0, 200) })
     }

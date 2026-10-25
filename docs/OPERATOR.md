@@ -511,7 +511,18 @@ trina-ax restart && trina-ax doctor      # claude ✓ 와 버전 확인, 휴대�
 - 회사 기본값: 관리 › 설정 › Claude 사용 방식. 사람별: 관리 › 사람 › (이름) › Claude 사용 방식.
 - 방식을 바꾼 사람은 '내 PC'에서 PC를 다시 연결해야 적용돼요(설치 명령을 한 번 더 실행).
 - **Claude 앱 커넥터**: 공개 주소가 있어야 해요. 커넥터 주소는 `https://<공개 주소>/mcp`.
-  - Claude Team: Claude 조직 설정 › 커넥터 › 추가 › 커스텀에 소유자가 한 번 넣어요. 직원은 Claude 앱 › 설정 › 커넥터에서 '연결' → 허브 아이디로 로그인 → 허용.
-  - Pro·Max 개인: 각자 설정 › 커넥터 › 커스텀 커넥터 추가.
+  - Claude Team·Enterprise: Claude 소유자가 `Organization settings › Connectors › Add › Custom`(종류는 Web)에 한 번 넣어요. Authentication은 `Sign in now`, OAuth client는 `Register automatically`. 직원은 Claude `Customize › Connectors`에서 `Custom` 표시가 붙은 커넥터의 `Connect` → 허브 아이디로 로그인 → 허용. 값은 관리 › **Claude 조직 설정**(`/admin/claude`)이 만들어 줘요.
+  - Pro·Max 개인: 각자 `Customize › Connectors › Add custom connector`.
   - Cloudflare: `/mcp`, `/oauth/*`, `/.well-known/*` 에 Access·봇 차단·WAF 챌린지를 두지 마세요. Claude는 Anthropic 서버(160.79.104.0/21)에서 접속해요.
 - 휴대폰 채팅(/app)과 예약 작업은 허브에서 회사 키로 실행돼요. 회사 키가 없으면 꺼지고, 직원에게 Claude 앱 커넥터를 안내해요.
+
+### Claude 조직 설정 (`/admin/claude`)
+
+Claude Team·Enterprise라면 직원 PC에 아무것도 설치하지 않아도 돼요. 관리자가 Claude 관리 콘솔에 값을 한 번 붙여 넣고, 직원은 Claude에 로그인해 `Connect`만 눌러요. 공개 주소(https)가 있어야 하고, 관리 › Claude 조직 설정 페이지가 단계별로 값을 만들어 줘요(소유자·관리자만).
+
+- **조직 토큰**: 이 허브 전체용 토큰 하나(종류 `org`). 만들 때 한 번만 보이고 해시로만 저장돼요. 하는 일은 두 가지뿐이에요. (1) `POST /otel/v1/logs` 로 사용 기록 보내기, (2) `/plugins/marketplace.json` 과 전체 스킬 플러그인 읽기. AI 요청(릴레이), MCP, 웹 페이지, 설치 API는 이 토큰으로 안 열려요. '새로 만들기'는 이전 토큰을 바로 멈추고, 그러면 Claude 관리 콘솔에 JSON을 다시 붙여 넣어야 해요. 토큰은 관리 콘솔에 붙이는 순간 직원 PC에 저장돼서 직원이 볼 수 있어요. 그래서 위 두 가지만 되게 막았어요.
+- **2단계 JSON** (`Organization settings › Claude Code › Managed settings`): `env`(`CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_*` → `<공개 주소>/otel/v1/logs`, 헤더는 조직 토큰, `OTEL_LOG_USER_PROMPTS=0`), `extraKnownMarketplaces`(`trina-ax-org`), `enabledPlugins`(`company-all@trina-ax-org`). `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`은 일부러 넣지 않아요(넣으면 Claude Code가 관리 설정을 받지 않아요). 직원이 Claude Code를 다시 시작하면 처음 한 번 '조직 설정 적용' 승인 화면이 나와요(거절하면 Claude Code가 종료돼요).
+- **사람 찾기**: 사용 기록의 `user.email` 로 사람을 찾아요(대소문자 무시, 활성 사람만). 그래서 관리 › 사람에 직원 이메일을 넣어야 해요. 허브에 없는 이메일은 저장하지 않고, 이메일별 건수(최근 50개)를 페이지에 보여 줘요. 회사 API 키 방식인 사람은 사용량을 릴레이가 세므로 건너뛰어요.
+- **전체 스킬만**: 조직 마켓플레이스에는 '모든 직원이 읽을 수 있는 스킬'만 들어요(그룹 없는 직원 기준). 그룹별 스킬은 Claude Code 설치 명령(개인 플러그인 `company`)이나 Claude 앱 연결의 스킬 목록으로 나눠져요. 설치 명령을 쓰는 PC는 `company`와 `company-all` 둘 다 받아서 같은 스킬이 두 번 보일 수 있어요.
+- **Cowork**(`Admin settings › Cowork`): OTLP endpoint `<공개 주소>/otel`, protocol `http/json`, headers `Authorization=Bearer <조직 토큰>`. 사용 기록은 Claude Code와 같은 방식으로 이메일로 사람을 찾아요.
+- **스킬 .zip**: `Organization settings › Plugins & skills › Add › Upload a skill` 에 올릴 .zip을 스킬마다 받을 수 있어요. 올린 스킬은 복사본이라 팀 폴더가 바뀌어도 저절로 바뀌지 않아요.

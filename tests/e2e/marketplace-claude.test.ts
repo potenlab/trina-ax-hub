@@ -15,7 +15,9 @@ import { setRule } from '../../src/policy/rules-admin'
 import { makeEnrollCode } from '../../src/auth/enroll'
 import { verifyToken } from '../../src/auth/tokens'
 import { loadPrincipal, type Principal } from '../../src/policy/access'
-import { pluginFor } from '../../src/skills/marketplace'
+import { EVERYONE, ORG_EDITION, pluginFor } from '../../src/skills/marketplace'
+import { rotateOrgToken } from '../../src/org/token'
+import { managedSettings } from '../../src/org/managed'
 import {
   CLAUDE_BIN, egressGuard, findCloudflared, quickTunnel, run, sandboxEnv, walk, type EgressGuard, type Tunnel,
 } from './marketplace-helpers'
@@ -185,5 +187,41 @@ describe.skipIf(!ready)('real Claude Code against the hub over a Cloudflare tunn
     const left = await pc.claude(['plugin', 'list', '--json'], { ANTHROPIC_AUTH_TOKEN: 'tax_placeholder' })
     expect(left.code, show(left)).toBe(0)
     expect(JSON.parse(left.stdout).some((x: { id: string }) => x.id === 'company@trina-ax')).toBe(false)
+  }, 600_000)
+
+  test('org edition: the marketplace the admin console would deliver installs company-all (everyone\'s skills only) next to a person\'s own company plugin', async () => {
+    const h = hub!
+    expect(parkToken).not.toBe('')
+    const org = rotateOrgToken(h.ctx.db, h.owner.id)
+    // Claude Code merges managed settings over the person's own; keys from both are in play here. The org part is
+    // exactly the JSON the admin pastes (the sandbox cannot fetch server-managed settings, so it sits in user settings).
+    const gen = managedSettings(tunnel!.url, org.token)
+    const sh = freshHome()
+    fs.writeFileSync(path.join(sh.configDir, 'settings.json'), JSON.stringify({
+      env: { ANTHROPIC_BASE_URL: h.url, ANTHROPIC_AUTH_TOKEN: parkToken },
+      extraKnownMarketplaces: {
+        'trina-ax': { source: { source: 'url', url: `${tunnel!.url}/plugins/marketplace.json`, headers: { Authorization: `Bearer ${parkToken}` } }, autoUpdate: true },
+        ...gen.extraKnownMarketplaces,
+      },
+      enabledPlugins: { 'company@trina-ax': true, ...gen.enabledPlugins },
+    }, null, 2))
+    const sync = await sh.claude(['-p', '/cost', '--no-session-persistence', '--setting-sources', 'user'], { CLAUDE_CODE_SYNC_PLUGIN_INSTALL: '1' })
+    expect(sync.code, show(sync)).toBe(0)
+    for (const id of ['company@trina-ax', 'company-all@trina-ax-org']) {
+      const i = await sh.claude(['plugin', 'install', id, '--scope', 'user'])
+      expect(i.code, show(i)).toBe(0)
+    }
+    const list = await sh.plugins()
+    const mine = list.find((x) => x.id === 'company@trina-ax')!
+    const all = list.find((x) => x.id === 'company-all@trina-ax-org')!
+    expect(mine && all, 'both plugins installed').toBeTruthy()
+    expect(all.version).toBe(pluginFor(h.ctx, EVERYONE, ORG_EDITION).sha12)
+    // the person's own plugin keeps the group skill; the org one has only what every member may read
+    expect(fs.existsSync(path.join(mine.installPath, 'skills/pitch/SKILL.md'))).toBe(true)
+    expect(fs.existsSync(path.join(all.installPath, 'skills/quote/SKILL.md'))).toBe(true)
+    expect(fs.existsSync(path.join(all.installPath, 'skills/pitch/SKILL.md'))).toBe(false)
+    expect(JSON.parse(fs.readFileSync(path.join(all.installPath, '.claude-plugin/plugin.json'), 'utf8')).name).toBe('company-all')
+    // the org token reached the hub as the org token, nothing else
+    expect((h.ctx.db.query("SELECT last_used_at FROM tokens WHERE id = ?").get(org.id) as { last_used_at: string | null }).last_used_at).not.toBeNull()
   }, 600_000)
 })
