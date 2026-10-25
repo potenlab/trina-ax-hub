@@ -1,0 +1,70 @@
+---
+// /security and /ko/security (A17): intro, five promises with how each is kept, known limits, where it runs, and how
+// to report a vulnerability. The promises are the same words as the home page's security section.
+import type { Copy } from '../content/en'
+import Base from '../layouts/Base.astro'
+import { CONTACT_EMAIL, LINKS, ROUTES } from '../site'
+import { breadcrumbJsonLd } from '../seo'
+import Footer from './Footer.astro'
+import Icon from './Icon.astro'
+import Nav from './Nav.astro'
+
+interface Props { t: Copy }
+const { t } = Astro.props
+const sp = t.secPage
+const runIcons = ['cloud', 'server', 'mac']
+---
+<Base t={t} route="security" title={sp.title} description={sp.description} ogImage={sp.ogImage} jsonLd={breadcrumbJsonLd(t)}>
+  <Nav t={t} route="security" />
+  <main id="main" class="secpage">
+    <section class="secpage-hero">
+      <div class="container">
+        <h1>{sp.h1}</h1>
+        <p class="secpage-lead">{sp.lead}</p>
+      </div>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="sp-promises">
+      <h2 id="sp-promises">{sp.promisesTitle}</h2>
+      <ol class="guarantees">
+        {sp.promises.map((g, i) => (
+          <li>
+            <span class="step-num" aria-hidden="true">{i + 1}</span>
+            <div><h3>{g.title}</h3><p>{g.how}</p></div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="sp-limits">
+      <h2 id="sp-limits">{sp.limitsTitle}</h2>
+      <p class="secpage-sub">{sp.limitsLead}</p>
+      <ul class="limits">
+        {sp.limits.map((l) => <li><Icon name="minus" />{l}</li>)}
+      </ul>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="sp-runs">
+      <h2 id="sp-runs">{sp.runsTitle}</h2>
+      <ul class="secpage-cards">
+        {sp.runs.map((r, i) => (
+          <li class="secpage-card"><span class="icon-chip"><Icon name={runIcons[i] ?? 'server'} /></span><h3>{r.title}</h3><p>{r.body}</p></li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="sp-report">
+      <h2 id="sp-report">{sp.reportTitle}</h2>
+      <p class="secpage-sub">{sp.reportBody}</p>
+      <p class="secpage-links">
+        <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Security: Trina AX')}`}><Icon name="mail" />{sp.reportMail}</a>
+        <a href={LINKS.securityMd} rel="noopener"><Icon name="github" />{sp.reportLink}</a>
+      </p>
+      <a class="back" href={ROUTES.home[t.lang]}>← {sp.back}</a>
+    </section>
+  </main>
+  <Footer t={t} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

@@ -1,0 +1,29 @@
+---
+// Paying for Claude (A8): own subscriptions, or one company key.
+import type { Copy } from '../content/en'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const p = t.paying
+---
+<section class="section section-tint" id="paying" aria-labelledby="paying-title">
+  <div class="container paying">
+    <div class="section-head">
+      <h2 id="paying-title"><Lines text={p.title} /></h2>
+      <p>{p.body}</p>
+    </div>
+    <div class="paying-options" aria-hidden="true">
+      {p.options.map((o, i) => (
+        <>
+          {i > 0 && <p class="pay-or">{p.or}</p>}
+          <div class="pay-opt">
+            <span class="icon-chip"><Icon name={i === 0 ? 'user' : 'key'} /></span>
+            <h3>{o.title}</h3>
+            <ul class="chips">{o.chips.map((c) => <li>{c}</li>)}</ul>
+          </div>
+        </>
+      ))}
+    </div>
+  </div>
+</section>

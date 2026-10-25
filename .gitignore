@@ -7,3 +7,11 @@ dist/
 # Cloudflare tunnel tokens written by deploy/cloudflare/customer-address.ts
 *-tunnel-token.txt
 tunnel-token*.txt
+
+# Astro build cache and generated types
+.astro/
+# Wrangler local state
+.wrangler/
+website/scripts/.og-tmp/
+website/scripts/.og-profile/
+website/.shots/

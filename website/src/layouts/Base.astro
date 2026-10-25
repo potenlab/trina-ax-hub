@@ -1,0 +1,85 @@
+---
+import '../styles/tokens.css'
+import '../styles/fonts.css'
+import '../styles/fonts-pretendard.css'
+import '../styles/base.css'
+import '../styles/sections.css'
+import '../styles/stage.css'
+import '../styles/secpage.css'
+import type { Copy } from '../content/en'
+import { LOCALES, ROUTES, abs, type RouteId } from '../site'
+// Same files the CSS @font-face rules use; Vite fingerprints them, so the preload URL matches the CSS one.
+import geistUrl from '../assets/fonts/Geist-Variable.woff2?url'
+import koCoreUrl from '../assets/fonts/Pretendard-ko-core.woff2?url'
+
+interface Props {
+  t: Copy
+  /** The page, for the canonical URL and the language alternates. Omit for 404 (noindex, no alternates). */
+  route?: RouteId
+  title?: string
+  description?: string
+  ogImage?: string
+  ogAlt?: string
+  jsonLd?: object
+}
+const { t, route, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
+const lang = t.lang
+const locale = LOCALES[lang]
+const other = lang === 'en' ? 'ko' : 'en'
+const canonical = route ? abs(ROUTES[route][lang]) : undefined
+const image = abs(ogImage)
+const robots = route ? 'index, follow, max-image-preview:large, max-snippet:-1' : 'noindex, follow'
+---
+<!doctype html>
+<html lang={locale.html}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    {canonical && <link rel="canonical" href={canonical} />}
+    {route && (
+      <>
+        <link rel="alternate" hreflang="en" href={abs(ROUTES[route].en)} />
+        <link rel="alternate" hreflang="ko" href={abs(ROUTES[route].ko)} />
+        <link rel="alternate" hreflang="x-default" href={abs(ROUTES[route].en)} />
+      </>
+    )}
+    <meta name="theme-color" content="#fcfbf8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0c0b" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="preload" href={geistUrl} as="font" type="font/woff2" crossorigin />
+    {lang === 'ko' && <link rel="preload" href={koCoreUrl} as="font" type="font/woff2" crossorigin />}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="Trina AX for LLMs (llms.txt)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Trina AX" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={image} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogAlt} />
+    <meta property="og:locale" content={locale.og} />
+    {route && <meta property="og:locale:alternate" content={LOCALES[other].og} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image:alt" content={ogAlt} />
+    <!-- Applies a saved light/dark choice before first paint. An external file: the CSP allows no inline script. -->
+    <script is:inline src="/theme.js"></script>
+    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <a class="skip" href="#main">{t.skip}</a>
+    <slot />
+  </body>
+</html>

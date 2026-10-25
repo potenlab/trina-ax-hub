@@ -1,0 +1,26 @@
+---
+// FAQ (A14). The same items are the FAQPage JSON-LD (src/seo.ts), so the markup and the structured data cannot drift.
+import type { Copy } from '../content/en'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const f = t.faq
+---
+<section class="section" id="faq" aria-labelledby="faq-title">
+  <div class="container faq-grid">
+    <div class="faq-side">
+      <div class="section-head">
+        <h2 id="faq-title"><Lines text={f.title} /></h2>
+      </div>
+    </div>
+    <div class="faq">
+      {f.items.map((i) => (
+        <details>
+          <summary>{i.q}<Icon name="plus" /></summary>
+          <p class="answer">{i.a}</p>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

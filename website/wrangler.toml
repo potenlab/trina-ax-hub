@@ -1,0 +1,12 @@
+# Cloudflare Workers Assets: static files only, no Worker script.
+#   bun run build            # -> dist/
+#   bunx wrangler deploy     # from this folder (the lead deploys; nothing here deploys by itself)
+name = "trina-ax-site"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+# Unknown addresses get dist/404.html (with a 404 status).
+not_found_handling = "404-page"
+# html_handling stays at the default (auto-trailing-slash): /ko/ serves ko/index.html (and /ko redirects to /ko/),
+# /security serves security.html (and /security/ redirects to /security).

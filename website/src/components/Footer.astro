@@ -1,0 +1,30 @@
+---
+import type { Copy } from '../content/en'
+import { CONTACT_EMAIL, LINKS, ROUTES } from '../site'
+import Logo from './Logo.astro'
+
+interface Props { t: Copy }
+const { t } = Astro.props
+const f = t.footer
+const l = f.links
+const home = ROUTES.home[t.lang]
+---
+<footer class="footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="logo" href={home} aria-label={t.nav.home}><Logo /><span>{t.brand}</span></a>
+        <p class="footer-company">{f.company}</p>
+        <a class="footer-mail" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href={LINKS.company} rel="noopener">{l.company}</a>
+        <a href={LINKS.github} rel="noopener">{l.github}</a>
+        <a href={ROUTES.security[t.lang]}>{l.security}</a>
+        <a href={LINKS.privacy} rel="noopener" hreflang="ko">{l.privacy}</a>
+        <a href={LINKS.terms} rel="noopener" hreflang="ko">{l.terms}</a>
+      </nav>
+    </div>
+    <p class="footer-trademark">{f.trademark}</p>
+  </div>
+</footer>

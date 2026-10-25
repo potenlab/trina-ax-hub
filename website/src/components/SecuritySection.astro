@@ -1,0 +1,29 @@
+---
+// Security (A9): always-dark section with the five promises, what we don't promise, and a link to /security.
+import type { Copy } from '../content/en'
+import { ROUTES } from '../site'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const s = t.security
+---
+<section class="section security zone-dark" id="security" aria-labelledby="security-title">
+  <div class="container sec-grid">
+    <div class="sec-side">
+      <div class="section-head">
+        <h2 id="security-title"><Lines text={s.title} /></h2>
+        <p>{s.lead}</p>
+      </div>
+      <a class="sec-link" href={ROUTES.security[t.lang]}>{s.link}<Icon name="arrow" /></a>
+    </div>
+    <div>
+      <ol class="promises">
+        {s.promises.map((p, i) => (
+          <li class="promise"><span class="step-num" aria-hidden="true">{i + 1}</span><span>{p}</span></li>
+        ))}
+      </ol>
+      <p class="limits-box"><strong>{s.limitsLabel}:</strong> {s.limits}</p>
+    </div>
+  </div>
+</section>

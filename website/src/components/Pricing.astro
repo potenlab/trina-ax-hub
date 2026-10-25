@@ -1,0 +1,47 @@
+---
+// Pricing (A11): a two-column comparison, no numbers anywhere, and three small blocks under it. The table keeps its
+// semantics (explicit roles) because on phones its rows are re-laid out as stacked cards.
+import type { Copy } from '../content/en'
+import { LINKS, bookCall } from '../site'
+import Lines from './Lines.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const p = t.pricing
+---
+<section class="section section-tint" id="pricing" aria-labelledby="pricing-title">
+  <div class="container">
+    <div class="section-head">
+      <h2 id="pricing-title"><Lines text={p.title} /></h2>
+    </div>
+    <div class="cmp-wrap">
+      <table class="cmp" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th class="cmp-corner" scope="col" role="columnheader">{p.corner}</th>
+            <th scope="col" role="columnheader">{p.cols[0]}</th>
+            <th scope="col" role="columnheader" class="cmp-hosted">{p.cols[1]}</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {p.rows.map((r) => (
+            <tr role="row">
+              <th scope="row" role="rowheader">{r.label}</th>
+              <td role="cell" data-label={p.cols[0]}>{r.a}</td>
+              <td role="cell" data-label={p.cols[1]} class="cmp-hosted">{r.b}</td>
+            </tr>
+          ))}
+          <tr role="row">
+            <th scope="row" role="rowheader">{p.startLabel}</th>
+            <td role="cell" data-label={p.cols[0]}><a class="btn btn-secondary btn-sm" href={LINKS.install[t.lang]} rel="noopener">{p.startA}</a></td>
+            <td role="cell" data-label={p.cols[1]} class="cmp-hosted"><a class="btn btn-primary btn-sm" href={bookCall(t.lang)}>{p.startB}</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cmp-blocks">
+      {p.blocks.map((b) => (
+        <div class="cmp-block"><h3>{b.title}</h3><p>{b.body}</p></div>
+      ))}
+    </div>
+  </div>
+</section>

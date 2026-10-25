@@ -1,0 +1,12 @@
+/* Geist and Geist Mono (SIL OFL 1.1, public/fonts/OFL-Geist.txt), Latin subset, self-hosted. Vite fingerprints the files
+   under /_astro/, so they cache for a year. Hangul comes from Pretendard (fonts-pretendard.css), also self-hosted. */
+@font-face {
+  font-family: "Geist";
+  src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}
