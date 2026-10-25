@@ -37,6 +37,7 @@ customer owns (`<dataDir>/secrets/anthropic-api-key`).
 | `src/mcp/`, `src/files/` | MCP endpoint, file service, text extraction, search |
 | `src/skills/marketplace.ts`, `src/skills/zip.ts`, `src/skills/routes.ts`, `src/install/`, `installer/` | marketplace, PC installer, enrollment |
 | `src/oauth/`, `src/telemetry/` | authorization server for Claude app connectors; OpenTelemetry ingest for usage |
+| `src/org/` | Claude organization setup: the org token, telemetry by email, the org-wide skills plugin, `claude_org` |
 | `src/hub/` | hub sessions: runner, chat, schedules, phone pages |
 | `src/web/` | setup, login, invites, personal and admin pages |
 | `deploy/` | hub install (macOS LaunchDaemon, Linux unit) and `deploy/cloudflare/customer-address.ts` (operator side: customer addresses) |
@@ -44,7 +45,8 @@ customer owns (`<dataDir>/secrets/anthropic-api-key`).
 | `tests/unit/<area>*.test.ts`, `tests/e2e/<area>*.test.ts` | tests per area |
 
 The schema in `migrations/001_init.sql` is the base; later changes are numbered migration files per area:
-`migrations/1xx_<area>.sql` (relay 110–119, files 120–129, install 130–139, hub 140–149, web 150–159).
+`migrations/1xx_<area>.sql` (relay 110–119, files 120–129, install 130–139, hub 140–149, web 150–159,
+org setup 160–169, web files 170–179).
 
 ## Conventions
 
@@ -315,3 +317,74 @@ token) and another hub would read it. On https the hub only sets and reads `__Ho
 (Secure, Path=/, no Domain), which a browser accepts only from that exact host. Plain http on the office LAN keeps
 the bare names (the prefix needs Secure); that is a different host anyway. trina.app's own site and console set no
 cookie Domain in their code (checked 2026-10-25), so their sessions stay host-only and are not sent to customer hubs.
+
+## Employee onboarding: invites and the first-run page (2026-10-25)
+
+Goal: an employee installs Claude, opens one link and clicks Connect. The terminal is a fallback, not the front door.
+
+- **Invites** (`src/auth/invites.ts`, `src/web/join.tsx`, migration 150): an admin adds a person by name and email, one
+  by one or by pasting `이름, 이메일` lines (tabs from a spreadsheet work; at most 300 per paste; duplicates skipped with a
+  reason). Each person gets a single-use link `/join/<token>`: random, stored only as sha256, valid 7 days, revoked when
+  reissued. The person picks a password there and is logged in. Kinds `invite` and `reset` (password reset sends the same
+  kind of link). An invited person has `password_hash = NULL` and cannot log in until they join. Temporary passwords stay
+  behind an explicit "임시 비밀번호로 만들기". `setInviteMailer(ctx, mailer)` (`src/web/invite-mail.ts`) is the seam for
+  sending links by mail; the default sends nothing and the admin copies a ready message.
+- **Login** by email or username, case-insensitive. An email shared by two older accounts matches neither.
+- **Connect survives the first login.** `next` is kept through the forced password change and through `/join`; the login
+  page also leaves a 15-minute `tax_next` cookie (`__Host-` on https, only `/oauth/continue/...` values) so a person who
+  opens their invite after Claude sent them to the login page still lands on the consent screen.
+- **`/me` is a first-run page**: one "다음에 할 일" card chosen from the person's state (access mode, public URL, a live
+  connector connection, a connected PC, any usage). Subscription people get the Claude app steps (Team or Pro/Max, from
+  `claude_org`) and a status line that polls `GET /me/status.json`; company-key people get the one command for their OS
+  with the enrollment code made in place (`POST /me/enroll`). Usage, budgets and skills appear only when there is data.
+  "채팅" shows only where hub chat can run (`hubChatReady`).
+- **Dashboard**: a person counts as connected with a PC token or a connector connection, and as active with usage or tool
+  calls this month. The people list shows 초대함 / 가입함 / 연결함 / 사용 중.
+- **MCP friendliness**: `/mcp/` is `/mcp`; a browser `GET /mcp` gets a help page; the 401 text is app-neutral (the
+  `WWW-Authenticate` header is unchanged). `/oauth/register` allows 300 per client IP per hour (behind the tunnel the IP is
+  Anthropic's shared range), caps stored clients at 2000 and prunes clients idle for 30 days with no live refresh token.
+- **Installer** (`installer/*.tmpl`): `POST /api/enroll/check { code }` answers `{ ok: true }` or the same generic refusal
+  as `/api/enroll` without using the code (shared failure limits; the reason is only in the hub log), so a wrong code stops
+  before Claude Code is downloaded. The enroll response carries `modelNotice` when a company-key person has no company key
+  yet (the installer ends with a warning, exit 0). The skills sync prints progress and gives up after its time limit
+  without failing the install.
+
+## Claude organization setup (2026-10-25)
+
+On Claude Team/Enterprise, nothing is installed on employee PCs. `/admin/claude` (`src/web/admin/claude.tsx`, owner and
+admins) walks the Claude owner through four steps with values the hub generates: (1) the organization connector
+(`<public>/mcp`, sign in now, automatic registration; Anthropic's range 160.79.104.0/21 must reach the hub
+unchallenged); (2) Claude Code managed settings (`env` for OpenTelemetry logs to `<public>/otel/v1/logs` with the org
+token, plus the org-wide skills marketplace and plugin; never `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`, which would
+turn managed settings and connectors off); (3) the Cowork OTLP form; (4) optional per-skill zips for "Upload a skill".
+Pro/Max and company-key companies get their own short paths.
+
+- **Org token** (`src/org/token.ts`, migration 160): token kind `org`, the only kind with no person (`user_id` NULL, a
+  table CHECK), at most one active (partial unique index). Stored hashed, shown once, rotated or revoked from the page;
+  rotating resets `managedSettingsAt`. It may only send OTLP logs and read the org marketplace and plugin
+  (`requireTokenOrOrg`, `src/org/auth.ts`); `verifyToken` never returns it, so the relay, MCP, the installer API and every
+  page refuse it.
+- **Telemetry by email** (`src/org/telemetry.ts`): with the org token, each record is attributed by `user.email`
+  (record attributes win over resource attributes; case-insensitive; active people only). Unknown or ambiguous emails are
+  not stored; the last 50 distinct ones are counted for the page. Company-key people stay ignored (the relay counts them),
+  `ext_id` dedupe as before. Trust limit: every member can read the org token from their managed settings, so a member could
+  post usage under a colleague's email. Subscription usage is informational only (it never blocks anyone).
+- **Org-wide skills plugin**: marketplace `trina-ax-org`, plugin `company-all`, built for an everyone principal (member,
+  no groups). It is named differently from a person's `company@trina-ax` so managed settings never replace a PC's group
+  skills; the two install side by side.
+- **`claude_org` setting** (`src/org/claude-org.ts`): `{ plan: "team" | "individual" | null, connectorName,
+  managedSettingsAt, companyKeyChosen? }`. The first-run page and the dashboard read it.
+
+## Web file manager (2026-10-25)
+
+Hosted hubs live on Trina's servers, where nobody can copy files onto the disk, so files also come in through the browser:
+`/files` ("회사 파일") lists, uploads, downloads, renames, moves and deletes through the same `authorize()` and file store
+as MCP (hidden looks like nonexistent, versions and trash as with MCP writes). See `src/web/files*.tsx`.
+
+## Product site (2026-10-25)
+
+`website/` is the static product site for ax.trina.app (Astro 7, English at `/`, Korean at `/ko/`, `/security` in both),
+deployed to Cloudflare Workers Assets (`website/wrangler.toml`, name `trina-ax-site`). No third-party scripts; CSP `self`
+only (`website/public/_headers`). `bun run test` in `website/` checks SEO, CSP, the visible FAQ against its JSON-LD and that
+no page shows a price.
+
