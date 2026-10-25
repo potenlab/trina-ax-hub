@@ -1,18 +1,20 @@
 // PC installer routes.
 //
 //   GET  /install.sh, /install.ps1   the installer, rendered with this hub's URL (text/plain; no secrets inside)
+//   POST /api/enroll/check           { code } → { ok: true }, without using the code up (the installers ask first)
 //   POST /api/enroll                 { code, deviceName?, os? } → EnrollResponse (see enroll.ts)
 //   POST /api/unenroll               Bearer device token → revokes that token (uninstall, re-install)
 //
-// Guessing limits on /api/enroll: 10 failed attempts per client address and 5 per code prefix (first four
-// characters) per hour. The prefix limit slows down guessing spread over many addresses.
+// Guessing limits on /api/enroll and /api/enroll/check, one shared budget: 10 failed attempts per client address and
+// 5 per code prefix (first four characters) per hour. The prefix limit slows down guessing spread over many addresses.
+// The check answers a code it refuses exactly as the exchange does (one generic message), so it is no oracle.
 import type { C, Register } from '../http/app'
 import { requireToken } from '../http/app'
 import { jsonError } from '../http/errors'
 import { hubBase } from '../skills/marketplace'
 import { audit } from '../audit'
 import { revokeToken } from '../auth/tokens'
-import { EnrollBody, enroll, normalizeCode } from './enroll'
+import { EnrollBody, checkEnrollCode, enroll, normalizeCode } from './enroll'
 import { FailureLimiter, clientAddress } from './limits'
 import { renderScript, type ScriptKind } from './scripts'
 
@@ -39,10 +41,11 @@ export const register: Register = (app, ctx) => {
   app.get('/install.sh', script('sh'))
   app.get('/install.ps1', script('ps1'))
 
-  app.post('/api/enroll', async (c) => {
+  /** The part /api/enroll and /api/enroll/check share: the failure limits, the body and the code. A Response = stop here. */
+  const guarded = async (c: C, what: string) => {
     const ip = clientAddress(c)
     if (perAddress.blocked(ip)) {
-      ctx.log.warn('enroll rate limited', { ip })
+      ctx.log.warn(`${what} rate limited`, { ip })
       return jsonError(429, 'rate_limited', '시도가 너무 많아요. 한 시간쯤 뒤에 다시 해 주세요.')
     }
     const text = await c.req.text()
@@ -54,15 +57,34 @@ export const register: Register = (app, ctx) => {
     const code = normalizeCode(parsed.data.code)
     const prefix = code.slice(0, 4)
     if (perPrefix.blocked(prefix)) {
-      ctx.log.warn('enroll rate limited (code prefix)', { ip })
+      ctx.log.warn(`${what} rate limited (code prefix)`, { ip })
       return jsonError(429, 'rate_limited', '이 코드로 너무 여러 번 시도했어요. 관리자에게 새 코드를 받아 주세요.')
     }
-    const r = code.length === 12 ? enroll(ctx, { ...parsed.data, code }, ip, hubBase(ctx.config, c.req.url)) : null
-    if (!r) {
-      perAddress.fail(ip)
-      perPrefix.fail(prefix)
-      return jsonError(400, 'invalid_code', '연결 코드가 맞지 않거나, 이미 썼거나, 만료됐어요. 새 코드를 받아 주세요.')
+    return { ip, prefix, code, data: parsed.data }
+  }
+  /** Every refusal looks the same: unknown, used, expired and "account off" are not told apart. */
+  const refuse = (g: { ip: string; prefix: string }) => {
+    perAddress.fail(g.ip)
+    perPrefix.fail(g.prefix)
+    return jsonError(400, 'invalid_code', '연결 코드가 맞지 않거나, 이미 썼거나, 만료됐어요. 새 코드를 받아 주세요.')
+  }
+
+  app.post('/api/enroll/check', async (c) => {
+    const g = await guarded(c, 'enroll check')
+    if (g instanceof Response) return g
+    const state = g.code.length === 12 ? checkEnrollCode(ctx.db, g.code) : 'unknown'
+    if (state !== 'ok') {
+      ctx.log.info('enroll check refused', { ip: g.ip, reason: state }) // for the operator; the answer is the same for all of them
+      return refuse(g)
     }
+    return json({ ok: true })
+  })
+
+  app.post('/api/enroll', async (c) => {
+    const g = await guarded(c, 'enroll')
+    if (g instanceof Response) return g
+    const r = g.code.length === 12 ? enroll(ctx, { ...g.data, code: g.code }, g.ip, hubBase(ctx.config, c.req.url)) : null
+    if (!r) return refuse(g)
     return json(r)
   })
 

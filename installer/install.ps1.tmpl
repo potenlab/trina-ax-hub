@@ -4,13 +4,16 @@
 #   해제:  & ([scriptblock]::Create((irm @@HUB_URL@@/install.ps1))) -Uninstall
 #
 # 하는 일
-#   1. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.ps1)로 설치해요.
-#   2. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
-#   3. Claude Code 사용자 설정(%USERPROFILE%\.claude\settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
+#   1. 연결 코드가 아직 쓸 수 있는지 허브에 먼저 물어봐요 (코드는 쓰지 않아요). 안 되면 여기서 멈춰요.
+#   2. Claude Code가 없으면 공식 설치 스크립트(https://claude.ai/install.ps1)로 설치해요.
+#   3. 연결 코드를 이 PC 전용 토큰으로 바꿔요. 토큰은 화면에 나오지 않아요.
+#   4. Claude Code 사용자 설정(%USERPROFILE%\.claude\settings.json)을 백업한 뒤, 있던 값은 그대로 두고 아래만 더해요.
 #        env.*                                        허브가 이 사람의 방식에 맞춰 알려 주는 값만 (아래 두 가지 중 하나)
 #        extraKnownMarketplaces["@@MARKETPLACE@@"]               회사 스킬 마켓플레이스 (자동 업데이트)
 #        enabledPlugins["@@PLUGIN@@"]                  회사 스킬 플러그인
-#   4. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
+#   5. 회사 파일 MCP 서버 "@@MCP_NAME@@"를 등록하고 (claude mcp add --scope user) 회사 스킬을 설치해요.
+#      스킬을 받는 데 최대 3분 걸려요. 진행 상황을 10초마다 한 줄씩 보여 주고, 3분이 지나면 멈춰요 (연결은 그대로
+#      유효하고, 스킬은 다음에 Claude Code를 켤 때 받아요).
 #   -Uninstall 은 이 스크립트가 더한 것만 되돌려요 (바꾸기 전 값이 있었다면 그 값으로).
 #
 # 사람마다 Claude를 쓰는 방식이 둘 중 하나예요. 어느 쪽인지는 허브가 정하고, 이 스크립트는 허브가 준 env 값을
@@ -18,12 +21,15 @@
 #   구독 (subscription)   AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요.
 #                         ANTHROPIC_* 는 건드리지 않아요 (본인 로그인을 덮어쓰면 안 돼서요). 대신 Claude Code의
 #                         OpenTelemetry 내보내기(CLAUDE_CODE_ENABLE_TELEMETRY, OTEL_*)를 허브로 켜요.
-#                         처음이면 claude 를 실행해 /login 으로 본인 구독에 로그인해야 해요.
+#                         처음이면 claude 를 실행하면 브라우저에서 Claude 로그인이 열려요.
 #   회사 키 (company_key) AI 사용료는 회사 계정으로 나가요. env.ANTHROPIC_BASE_URL, env.ANTHROPIC_AUTH_TOKEN 이
-#                         회사 허브를 가리켜서 모델 요청이 허브를 거쳐요.
+#                         회사 허브를 가리켜서 모델 요청이 허브를 거쳐요. 허브에 회사 API 키가 아직 없으면 연결은 되지만
+#                         Claude가 답하지 못해요. 끝에 노란 경고로 알려요 (종료 코드는 0).
 # 다른 방식으로 바뀐 뒤 다시 실행하면, 전에 더한 값 중 필요 없어진 것은 지우고 원래 값이 있었다면 되돌려요.
 #
 # 옵션: -Name <이 PC 이름>   허브의 "내 PC" 목록에 보일 이름 (기본: 컴퓨터 이름)
+# 환경 변수 (시험용): TRINA_SYNC_TIMEOUT_SECONDS (스킬 받기 제한, 기본 180), TRINA_SYNC_GRACE_SECONDS (제한 뒤 기다리는 시간,
+#   기본 20), TRINA_PROGRESS_SECONDS (진행 줄 간격, 기본 10)
 param(
   [Parameter(Position = 0)][string]$Code = '',
   [switch]$Uninstall,
@@ -248,6 +254,56 @@ function Test-LoggedIn([string]$Claude) {
   return -not ($r.Output -match '"loggedIn"\s*:\s*false')
 }
 
+function Get-IntEnv([string]$Name, [int]$Default) {
+  $n = 0
+  $v = [Environment]::GetEnvironmentVariable($Name, 'Process')
+  if ($v -and [int]::TryParse($v, [ref]$n) -and $n -gt 0) { return $n }
+  return $Default
+}
+
+# The one local-only Claude Code session (`claude -p /cost` makes no model request) that lets Claude Code register the
+# marketplace from settings.json, with its auth header, and download the plugin. It can take minutes, so it runs as a
+# separate process while this prints a progress line every few seconds. Claude Code gives up by itself after
+# TRINA_SYNC_TIMEOUT_SECONDS (180); if it is still running a little later it is stopped here. Returns the seconds it took
+# and whether it did not finish in time. Its output is not needed.
+function Invoke-ClaudeSync([string]$Claude, [string]$WorkDir) {
+  $limit = Get-IntEnv 'TRINA_SYNC_TIMEOUT_SECONDS' 180
+  $grace = Get-IntEnv 'TRINA_SYNC_GRACE_SECONDS' 20
+  $every = Get-IntEnv 'TRINA_PROGRESS_SECONDS' 10
+  $inFile = Join-Path $WorkDir 'sync.in'
+  [System.IO.File]::WriteAllText($inFile, '')
+  $saved = @{}
+  foreach ($k in @('CLAUDE_CODE_SYNC_PLUGIN_INSTALL', 'CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS')) { $saved[$k] = [Environment]::GetEnvironmentVariable($k, 'Process') }
+  $timedOut = $false
+  $watch = [System.Diagnostics.Stopwatch]::StartNew()
+  try {
+    $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL = '1'
+    $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS = [string]($limit * 1000)
+    $p = Start-Process -FilePath $Claude -ArgumentList @('-p', '/cost', '--no-session-persistence', '--setting-sources', 'user') `
+      -WorkingDirectory $WorkDir -NoNewWindow -PassThru -RedirectStandardInput $inFile `
+      -RedirectStandardOutput (Join-Path $WorkDir 'sync.out') -RedirectStandardError (Join-Path $WorkDir 'sync.err')
+    $null = $p.Handle # keeps the process state readable after it has ended
+    $next = $every
+    while (-not $p.WaitForExit(1000)) {
+      $sec = [int][math]::Floor($watch.Elapsed.TotalSeconds)
+      if ($sec -ge $next) { Say "    … $($sec)초 지났어요"; $next += $every }
+      if ($sec -ge ($limit + $grace)) {
+        $timedOut = $true
+        try { if ((Get-OsName) -eq 'windows') { & taskkill /PID $p.Id /T /F *> $null } } catch {}
+        try { if (-not $p.HasExited) { $p.Kill() } } catch {}
+        break
+      }
+    }
+  } catch {
+    # Claude Code could not be started for this step: not fatal, the plugin step after it says what is missing
+  } finally {
+    foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k], 'Process') }
+  }
+  $seconds = [int][math]::Floor($watch.Elapsed.TotalSeconds)
+  if ($seconds -ge $limit) { $timedOut = $true }
+  return [pscustomobject]@{ Seconds = $seconds; TimedOut = $timedOut }
+}
+
 function Get-HttpError($Err) {
   $text = $null
   if ($Err.ErrorDetails -and $Err.ErrorDetails.Message) { $text = $Err.ErrorDetails.Message }
@@ -258,6 +314,24 @@ function Get-HttpError($Err) {
     try { $j = From-Json $text; $msg = Get-Prop (Get-Prop $j 'error') 'message'; if ($msg) { return [string]$msg } } catch {}
   }
   return $Err.Exception.Message
+}
+
+# Asks the hub whether $Code can still be used, without using it up. This runs before Claude Code is downloaded, so a
+# mistyped, used or expired code stops here and not after minutes of waiting. Only a clear "no" (400, 429) or a hub that
+# cannot be reached stops the install; anything else unexpected (an old hub, a proxy in between) is left to the real
+# exchange in Install-TrinaAX.
+function Test-EnrollCode([string]$Code) {
+  $body = [pscustomobject]@{ code = $Code } | ConvertTo-Json -Compress
+  try {
+    $null = Invoke-RestMethod -Method Post -Uri "$HubUrl/api/enroll/check" -ContentType 'application/json; charset=utf-8' `
+      -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -Headers @{ Accept = 'application/json' } -TimeoutSec 60
+  } catch {
+    $err = $_
+    $status = 0
+    if ($err.Exception.Response) { try { $status = [int]$err.Exception.Response.StatusCode } catch {} }
+    if ($status -eq 0) { Fail ("연결 코드를 확인하지 못했어요: " + (Get-HttpError $err)) }
+    if ($status -eq 400 -or $status -eq 429) { Fail ("연결 코드를 확인하지 못했어요: " + (Get-HttpError $err) + ' 아무것도 바꾸지 않았어요.') }
+  }
 }
 
 function Revoke-Token([string]$Token) {
@@ -276,11 +350,20 @@ function Get-OsName {
 function Install-TrinaAX([string]$Code, [string]$DeviceName) {
   Say "Trina AX: 이 PC를 회사 허브($HubUrl)에 연결해요."
   $os = Get-OsName
+
+  if (-not $Code) { $Code = Read-Host '연결 코드를 입력하세요 (예: ABCD-EFGH-JKLM)' }
+  $Code = ($Code -replace '\s', '')
+  if ($Code -notmatch '^[A-Za-z0-9-]+$') { Fail '연결 코드는 영문과 숫자예요 (예: ABCD-EFGH-JKLM). 다시 확인해 주세요.' }
+  if (-not $DeviceName) { $DeviceName = [System.Environment]::MachineName }
+
+  # the code first: Claude Code is only downloaded for a code that still works
+  Test-EnrollCode $Code
+
   $claude = Find-Claude
   if ($claude) { Info "Claude Code가 이미 있어요: $claude" }
   else {
     if ($os -ne 'windows') { Fail "Claude Code가 없어요. macOS와 Linux에서는 install.sh를 써 주세요." }
-    Say 'Claude Code를 설치해요 (공식 설치 스크립트)…'
+    Say 'Claude Code를 설치해요 (공식 설치 스크립트). 보통 1~2분, 느린 인터넷이면 더 걸려요…'
     $shell = (Get-Process -Id $PID).Path
     & $shell -NoProfile -ExecutionPolicy Bypass -Command 'irm https://claude.ai/install.ps1 | iex'
     $bin = Join-Path $HOME '.local\bin'
@@ -289,11 +372,6 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
     if (-not $claude) { Fail 'Claude Code를 설치하지 못했어요. https://code.claude.com 의 안내대로 설치한 뒤 다시 실행해 주세요.' }
     Info "Claude Code를 설치했어요: $claude"
   }
-
-  if (-not $Code) { $Code = Read-Host '연결 코드를 입력하세요 (예: ABCD-EFGH-JKLM)' }
-  $Code = ($Code -replace '\s', '')
-  if ($Code -notmatch '^[A-Za-z0-9-]+$') { Fail '연결 코드는 영문과 숫자예요 (예: ABCD-EFGH-JKLM). 다시 확인해 주세요.' }
-  if (-not $DeviceName) { $DeviceName = [System.Environment]::MachineName }
 
   $body = [pscustomobject]@{ code = $Code; deviceName = $DeviceName; os = $os } | ConvertTo-Json -Compress
   try {
@@ -314,7 +392,8 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
   }
   $envOwned = @($envOwnedRaw | ForEach-Object { [string]$_ })
   $loginHint = [string](Get-Prop $resp 'loginHint')
-  if (-not $loginHint) { $loginHint = '터미널에서 claude 를 실행하고 /login 으로 본인 Claude 구독에 로그인해 주세요.' }
+  if (-not $loginHint) { $loginHint = '터미널에서 claude 를 실행하면 브라우저에서 Claude 로그인이 열려요. 회사 Claude 계정으로 로그인해 주세요.' }
+  $modelNotice = [string](Get-Prop $resp 'modelNotice') # why Claude cannot answer yet (company key mode, no API key), or empty
   Info ("{0} 님 ({1}) 으로 연결해요." -f $resp.user.name, $resp.companyName)
 
   $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
@@ -350,34 +429,35 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
 
   $pluginOk = $false
   if ($resp.skillsReady -eq $true) {
-    # A short local-only session (/cost makes no model request) lets Claude Code register the marketplace from
-    # settings.json, with its auth header, and download the plugin; then the install is recorded.
+    # Claude Code registers the marketplace from settings.json and downloads the plugin in one short session; then the
+    # install is recorded. It can take minutes, so say so first and show progress (see Invoke-ClaudeSync).
+    Info '회사 스킬을 받는 중이에요. 최대 3분 걸려요.'
     $work = Join-Path ([System.IO.Path]::GetTempPath()) ("trina-ax-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $work | Out-Null
-    $saved = @{}
-    foreach ($k in @('CLAUDE_CODE_SYNC_PLUGIN_INSTALL', 'CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS')) { $saved[$k] = [Environment]::GetEnvironmentVariable($k, 'Process') }
-    Push-Location $work
-    try {
-      $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL = '1'
-      $env:CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS = '180000'
-      $null = Invoke-Claude $claude @('-p', '/cost', '--no-session-persistence', '--setting-sources', 'user')
-    } finally {
-      Pop-Location
-      foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k], 'Process') }
-      Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    try { $sync = Invoke-ClaudeSync $claude $work } finally { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($sync.TimedOut) {
+      # not an error: the connection is complete, and Claude Code installs the plugin from settings.json at its next start
+      Warn '3분 안에 끝나지 않아서 멈췄어요. 연결은 이미 끝났어요. 회사 스킬은 다음에 Claude Code를 켤 때 받아요.'
+    } else {
+      Info "회사 스킬 받기가 끝났어요 ($($sync.Seconds)초)."
+      $r = Invoke-Claude $claude @('plugin', 'install', $Plugin, '--scope', 'user')
+      $list = Invoke-Claude $claude @('plugin', 'list', '--json')
+      $pluginOk = $list.Ok -and $list.Output.Contains('"' + $Plugin + '"')
+      if ($pluginOk) { Info "회사 스킬(플러그인 $Plugin)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요." }
+      elseif (-not $loggedIn) { Info '회사 스킬은 로그인한 뒤 Claude Code를 처음 열 때 자동으로 설치돼요.' }
+      else { Warn ("회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. (" + $r.Tail + ")") }
     }
-    $r = Invoke-Claude $claude @('plugin', 'install', $Plugin, '--scope', 'user')
-    $list = Invoke-Claude $claude @('plugin', 'list', '--json')
-    $pluginOk = $list.Ok -and $list.Output.Contains('"' + $Plugin + '"')
-    if ($pluginOk) { Info "회사 스킬(플러그인 $Plugin)을 설치했어요. 스킬이 바뀌면 자동으로 업데이트돼요." }
-    elseif (-not $loggedIn) { Info '회사 스킬은 로그인한 뒤 Claude Code를 처음 열 때 자동으로 설치돼요.' }
-    else { Warn ("회사 스킬을 아직 설치하지 못했어요. 다음에 Claude Code를 켤 때 다시 시도해요. (" + $r.Tail + ")") }
   }
 
   if ($merged.Revoke) { Revoke-Token $merged.Revoke }
 
   Say ''
-  Say '✓ 연결을 마쳤어요.'
+  if ($modelNotice) {
+    # connected, but Claude cannot answer yet (company key mode and the hub has no API key): not a success line, not a failure
+    Write-Host "! $modelNotice" -ForegroundColor Yellow
+  } else {
+    Say '✓ 연결을 마쳤어요.'
+  }
   if ($mode -eq 'subscription') { Say '  - 모델: AI 사용은 본인 Claude 구독으로 해요. 사용량만 회사 허브에 기록돼요.' }
   else { Say '  - 모델: Claude의 요청이 회사 허브를 거쳐요. AI 사용료는 회사 계정으로 나가요.' }
   if ($mcpOk) { Say "  - 회사 파일: Claude가 mcp__$($McpName)__* 도구로 회사 폴더를 읽고 써요." }
@@ -386,11 +466,15 @@ function Install-TrinaAX([string]$Code, [string]$DeviceName) {
   Say ''
   Say "  되돌리기: & ([scriptblock]::Create((irm $HubUrl/install.ps1))) -Uninstall"
   if ($backup) { Say "  원래 설정 파일: $backup" }
-  if (-not $loggedIn) {
+  if ($modelNotice) {
+    Say ''
+    Say '  관리자가 키를 넣으면 이 PC에서 바로 쓸 수 있어요. 다시 설치하지 않아도 돼요.'
+  } elseif (-not $loggedIn) {
+    # subscription mode, nobody signed in yet: say what happens when they start Claude (one sentence per line)
     Say ''
     Write-Host '  ┌──────────────────────────────────────────────────────────' -ForegroundColor Yellow
     Write-Host '  │ ! 마지막으로 한 가지만 남았어요' -ForegroundColor Yellow
-    Write-Host "  │   $loginHint" -ForegroundColor Yellow
+    foreach ($line in ($loginHint -split '(?<=\.)\s+')) { if ($line) { Write-Host "  │   $line" -ForegroundColor Yellow } }
     Write-Host '  └──────────────────────────────────────────────────────────' -ForegroundColor Yellow
   } else {
     Say '  이제 새 터미널에서 claude 를 실행해 보세요.'

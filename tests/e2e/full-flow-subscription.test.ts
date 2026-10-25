@@ -153,7 +153,7 @@ describe.skipIf(!HAVE)('full flow, own subscriptions: installer → PC Claude (M
     expect(settings.env.CLAUDE_CODE_ENABLE_TELEMETRY).toBe('1')
     expect(settings.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT).toBe(`${tunnel.url}/otel/v1/logs`)
     expect(settings.env.OTEL_EXPORTER_OTLP_HEADERS).toMatch(/^Authorization=Bearer tax_/)
-    expect(r.stdout + r.stderr).toContain('/login')
+    expect(r.stdout + r.stderr).toContain('회사 Claude 계정으로 로그인해 주세요.') // the login hint at the end
     expect(settings.enabledPlugins['company@trina-ax']).toBe(true)
     const files = walk(env.CLAUDE_CONFIG_DIR!)
     expect(files.some((f) => f.endsWith('quote-draft/SKILL.md'))).toBe(true)
