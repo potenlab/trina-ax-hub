@@ -23,11 +23,27 @@ import { deterministicZip, safeZipPath, type ZipEntry } from './zip'
 export const PLUGIN_NAME = 'company'
 /** what goes into enabledPlugins and `claude plugin install` */
 export const PLUGIN_ID = `${PLUGIN_NAME}@${PRODUCT.marketplaceName}`
+
+/**
+ * The org-wide edition (src/org/): what the org token gets, built for an "everyone" principal. It has its own
+ * marketplace and plugin names on purpose. Claude Code's managed settings rank above a person's own, so if both used
+ * `company@trina-ax`, a PC set up with the installer would lose its group skills to the org marketplace.
+ */
+export const ORG_PLUGIN_NAME = 'company-all'
+export const ORG_MARKETPLACE_NAME = 'trina-ax-org'
+export const ORG_PLUGIN_ID = `${ORG_PLUGIN_NAME}@${ORG_MARKETPLACE_NAME}`
+/** No groups, member role, and an id no real person has (ids are lower case letters and digits). */
+export const EVERYONE: Principal = { id: '_everyone', name: '모든 직원', role: 'member', groups: [] }
+
+export interface Edition { plugin: string; marketplace: string; org: boolean }
+export const PERSON_EDITION: Edition = { plugin: PLUGIN_NAME, marketplace: PRODUCT.marketplaceName, org: false }
+export const ORG_EDITION: Edition = { plugin: ORG_PLUGIN_NAME, marketplace: ORG_MARKETPLACE_NAME, org: true }
 /** Claude Code refuses archives over 256 MiB; stay well below */
 const MAX_PLUGIN_BYTES = 200 * 1024 * 1024
 /** memory held by cached zips */
 const CACHE_MAX_BYTES = 256 * 1024 * 1024
 const ARCHIVE_FILE = /^company-([0-9a-f]{12})\.zip$/
+const ORG_ARCHIVE_FILE = /^company-all-([0-9a-f]{12})\.zip$/
 
 export interface PackagedSkill {
   pack: string
@@ -72,11 +88,11 @@ export function hubBase(config: Config, requestUrl?: string): string {
 // Claude Code only sends the marketplace's auth header to archive URLs on the same origin as the marketplace.json,
 // so both are always built from the same base.
 export const marketplaceUrl = (base: string) => `${base}/plugins/marketplace.json`
-export const archiveUrl = (base: string, sha: string) => `${base}/plugins/company-${sha.slice(0, 12)}.zip`
+export const archiveUrl = (base: string, sha: string, ed: Edition = PERSON_EDITION) => `${base}/plugins/${ed.plugin}-${sha.slice(0, 12)}.zip`
 
 /** sha12 from an archive file name, or null when the name is not one of ours */
-export function archiveSha12(file: string): string | null {
-  return ARCHIVE_FILE.exec(file)?.[1] ?? null
+export function archiveSha12(file: string, ed: Edition = PERSON_EDITION): string | null {
+  return (ed.org ? ORG_ARCHIVE_FILE : ARCHIVE_FILE).exec(file)?.[1] ?? null
 }
 
 /** Why PCs cannot install skills from this hub yet (Korean, for the personal page and the installer), or null when
@@ -108,7 +124,7 @@ export function companyName(ctx: Ctx): string {
 interface PlannedFile { zipPath: string; abs: string; size: number; mtimeMs: number; executable: boolean; renameTo?: string }
 interface Plan { key: string; files: PlannedFile[]; generated: ZipEntry[]; skills: PackagedSkill[]; skipped: string[] }
 
-function plan(ctx: Ctx, user: Principal): Plan {
+function plan(ctx: Ctx, user: Principal, ed: Edition): Plan {
   const root = ctx.fx.root
   const rules = ctx.rules()
   const company = companyName(ctx)
@@ -161,10 +177,10 @@ function plan(ctx: Ctx, user: Principal): Plan {
     skills.push({ pack: skill.pack, dir: skill.dir, pluginDir, name, description: skill.description, path: skill.path })
   }
 
-  const manifest = { name: PLUGIN_NAME, description: pluginDescription(company, skills.length), author: { name: company } }
+  const manifest = { name: ed.plugin, description: pluginDescription(company, skills.length, ed), author: { name: company } }
   const generated: ZipEntry[] = [
     { path: '.claude-plugin/plugin.json', data: utf8(JSON.stringify(manifest, null, 2) + '\n') },
-    { path: 'README.md', data: utf8(readme(company, skills)) },
+    { path: 'README.md', data: utf8(readme(company, skills, ed)) },
   ]
   const key = sha256(JSON.stringify({
     v: 1,
@@ -211,12 +227,13 @@ export function renameSkill(text: string, name: string): string {
   return `---${nl}${lines.join(nl)}${nl}---${nl}` + text.slice(fm[0].length)
 }
 
-function readme(company: string, skills: PackagedSkill[]): string {
+function readme(company: string, skills: PackagedSkill[], ed: Edition): string {
   const lines = [
-    `# ${company} 회사 스킬`,
+    `# ${company} 회사 스킬${ed.org ? ' (전체 직원)' : ''}`,
     '',
     '이 플러그인은 회사 허브(Trina AX)가 만들어요. 여기서 고치면 다음 업데이트 때 사라지니,',
     '스킬을 바꾸려면 회사 폴더의 `skills/` 아래 원본을 고쳐 주세요.',
+    ...(ed.org ? ['', '모든 직원이 쓸 수 있는 스킬만 들어 있어요. 그룹별 스킬은 Claude Code 설치 명령으로 받아요.'] : []),
     '',
   ]
   if (!skills.length) lines.push('지금은 쓸 수 있는 스킬이 없어요.')
@@ -224,8 +241,10 @@ function readme(company: string, skills: PackagedSkill[]): string {
   return lines.join('\n') + '\n'
 }
 
-const pluginDescription = (company: string, n: number) =>
-  n ? `${company} 회사 스킬 ${n}개 (Trina AX 허브가 관리해요)` : `${company} 회사 스킬 (아직 쓸 수 있는 스킬이 없어요)`
+const pluginDescription = (company: string, n: number, ed: Edition = PERSON_EDITION) => {
+  const what = ed.org ? '전체 직원 스킬' : '회사 스킬'
+  return n ? `${company} ${what} ${n}개 (Trina AX 허브가 관리해요)` : `${company} ${what} (아직 쓸 수 있는 스킬이 없어요)`
+}
 
 const utf8 = (s: string) => new TextEncoder().encode(s)
 
@@ -268,9 +287,9 @@ function cacheFor(ctx: Ctx): BuildCache {
   return c
 }
 
-/** The person's plugin as it should be right now (cached by content). */
-export function pluginFor(ctx: Ctx, user: Principal): PluginBuild {
-  const p = plan(ctx, user)
+/** The person's plugin as it should be right now (cached by content). `ed` = the org edition for the org token. */
+export function pluginFor(ctx: Ctx, user: Principal, ed: Edition = PERSON_EDITION): PluginBuild {
+  const p = plan(ctx, user, ed)
   const cache = cacheFor(ctx)
   const hit = cache.get(p.key)
   if (hit) return hit
@@ -291,23 +310,27 @@ export function pluginFor(ctx: Ctx, user: Principal): PluginBuild {
 }
 
 /** marketplace.json for this person (and the build it points at). `base` = hubBase(). */
-export function marketplaceFor(ctx: Ctx, user: Principal, base: string): { json: MarketplaceJson; build: PluginBuild } {
-  const build = pluginFor(ctx, user)
+export function marketplaceFor(ctx: Ctx, user: Principal, base: string, ed: Edition = PERSON_EDITION): { json: MarketplaceJson; build: PluginBuild } {
+  const build = pluginFor(ctx, user, ed)
   const company = companyName(ctx)
   return {
     build,
     json: {
-      name: PRODUCT.marketplaceName,
+      name: ed.marketplace,
       owner: { name: company },
-      description: `${company} 회사 스킬 마켓플레이스 (Trina AX)`,
+      description: `${company} ${ed.org ? '전체 직원 스킬' : '회사 스킬'} 마켓플레이스 (Trina AX)`,
       plugins: [{
-        name: PLUGIN_NAME,
-        description: pluginDescription(company, build.skills.length),
-        source: { source: 'archive', url: archiveUrl(base, build.sha256), sha256: build.sha256 },
+        name: ed.plugin,
+        description: pluginDescription(company, build.skills.length, ed),
+        source: { source: 'archive', url: archiveUrl(base, build.sha256, ed), sha256: build.sha256 },
       }],
     },
   }
 }
+
+/** The org edition: the skills every member may use (no group or role rules beyond "member"). */
+export const orgMarketplace = (ctx: Ctx, base: string) => marketplaceFor(ctx, EVERYONE, base, ORG_EDITION)
+export const orgPlugin = (ctx: Ctx) => pluginFor(ctx, EVERYONE, ORG_EDITION)
 
 /** number of cached builds (tests, diagnostics) */
 export const cachedBuilds = (ctx: Ctx) => cacheFor(ctx).size

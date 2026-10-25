@@ -10,14 +10,16 @@ import { getCookie } from 'hono/cookie'
 import type { Ctx } from '../context'
 import { verifySession, type SessionAuth } from '../auth/sessions'
 import { verifyToken, tokenFromHeaders, type TokenAuth } from '../auth/tokens'
+import type { OrgAuth } from '../org/token'
 import { PRODUCT } from '../product'
 import { cookieName } from './cookies'
 import { HttpError, jsonError } from './errors'
 
 export type AppEnv = {
   /** clientIp = the real client address (see clientAddress); localDirect = a browser/program on this very machine,
-   *  not something forwarded by the Cloudflare tunnel (which also connects from loopback) */
-  Variables: { session: SessionAuth | null; tokenAuth: TokenAuth | null; clientIp: string; localDirect: boolean }
+   *  not something forwarded by the Cloudflare tunnel (which also connects from loopback). orgAuth = the hub-wide org
+   *  token, set only on telemetry and marketplace requests (src/org/auth.ts); it never has a person. */
+  Variables: { session: SessionAuth | null; tokenAuth: TokenAuth | null; orgAuth: OrgAuth | null; clientIp: string; localDirect: boolean }
   Bindings: { ip?: string }
 }
 
@@ -89,6 +91,7 @@ export function createApp(ctx: Ctx, modules: Register[]): App {
     c.set('localDirect', LOOPBACK.test(peer) && !forwarded(c.req.raw.headers))
     c.set('session', null)
     c.set('tokenAuth', null)
+    c.set('orgAuth', null)
     await next()
     c.header('x-content-type-options', 'nosniff')
     c.header('referrer-policy', 'same-origin')

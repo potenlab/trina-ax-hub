@@ -6,7 +6,9 @@ import { nowIso } from '../db'
 import { PRODUCT } from '../product'
 import { loadPrincipal, type Principal } from '../policy/access'
 
-/** device = a PC (installer), hub = one hub job, connector = a Claude app connector the person approved (OAuth) */
+/** device = a PC (installer), hub = one hub job, connector = a Claude app connector the person approved (OAuth).
+ *  A fourth kind, 'org', exists in the table (src/org/token.ts): the hub-wide token for the Claude admin console. It
+ *  has no person behind it, so nothing in this file ever returns it. */
 export type TokenKind = 'device' | 'hub' | 'connector'
 
 export interface TokenRow {
@@ -60,7 +62,8 @@ const lastTouch = new Map<string, number>()
 /** The person behind a token, or null (unknown, revoked, expired, account disabled). */
 export function verifyToken(db: Database, token: string | null | undefined): TokenAuth | null {
   if (!token || !token.startsWith(PRODUCT.tokenPrefix) || token.length > 200) return null
-  const row = db.query(`SELECT ${COLS} FROM tokens WHERE token_hash = ?`).get(sha256(token)) as TokenRow | null
+  // never an org token: it has no person, and it may only send telemetry and read the org marketplace (src/org/auth.ts)
+  const row = db.query(`SELECT ${COLS} FROM tokens WHERE token_hash = ? AND kind != 'org'`).get(sha256(token)) as TokenRow | null
   if (!row || row.revoked_at) return null
   if (row.expires_at && row.expires_at < nowIso()) return null
   const user = loadPrincipal(db, row.user_id)

@@ -3,10 +3,15 @@
 //
 //   GET /plugins/marketplace.json        the person's marketplace (one plugin, "company")
 //   GET /plugins/company-<sha12>.zip     the person's current plugin archive; any other sha → 404
+//
+// With the org token (Claude admin console managed settings) the same two routes serve the org edition instead:
+// marketplace "trina-ax-org", plugin "company-all", built for an everyone principal (skills any member may read), and
+// the archive is company-all-<sha12>.zip. The org token never gets a person's own plugin, and a person's token never
+// gets the org plugin's name (their archive link would 404).
 import type { C, Register } from '../http/app'
-import { requireToken } from '../http/app'
 import { jsonError } from '../http/errors'
-import { archiveSha12, hubBase, marketplaceFor, pluginFor } from './marketplace'
+import { requireTokenOrOrg } from '../org/auth'
+import { ORG_EDITION, PERSON_EDITION, archiveSha12, hubBase, marketplaceFor, pluginFor, EVERYONE } from './marketplace'
 
 const NO_STORE = { 'cache-control': 'no-store' }
 const HOST = /^[a-z0-9.-]{1,253}(:\d{1,5})?$/i
@@ -26,28 +31,33 @@ function pcOrigin(c: C): string | null {
 }
 
 export const register: Register = (app, ctx) => {
-  app.use('/plugins/*', requireToken(ctx, 'json'))
+  // a person's token, or the org token
+  app.use('/plugins/*', requireTokenOrOrg(ctx))
 
   app.get('/plugins/marketplace.json', (c) => {
+    const base = pcOrigin(c) ?? hubBase(ctx.config, c.req.url)
+    if (c.get('orgAuth')) return c.json(marketplaceFor(ctx, EVERYONE, base, ORG_EDITION).json, 200, NO_STORE)
     const { user } = c.get('tokenAuth')!
-    const { json } = marketplaceFor(ctx, user, pcOrigin(c) ?? hubBase(ctx.config, c.req.url))
+    const { json } = marketplaceFor(ctx, user, base)
     return c.json(json, 200, NO_STORE)
   })
 
   app.get('/plugins/:file', (c) => {
-    const sha12 = archiveSha12(c.req.param('file'))
+    const org = c.get('orgAuth')
+    const ed = org ? ORG_EDITION : PERSON_EDITION
+    const sha12 = archiveSha12(c.req.param('file'), ed)
     if (!sha12) return jsonError(404, 'not_found', '없는 파일이에요.')
-    const { user, token } = c.get('tokenAuth')!
-    const build = pluginFor(ctx, user)
+    const auth = c.get('tokenAuth')
+    const build = pluginFor(ctx, org ? EVERYONE : auth!.user, ed)
     // Only the archive this person would get right now: an old link (or someone else's) must not leak skills that
     // were removed or that this person may not read.
     if (build.sha12 !== sha12) return jsonError(404, 'not_found', '스킬 묶음이 바뀌었어요. 마켓플레이스를 다시 받아 주세요.')
-    ctx.log.info('plugin archive served', { user: user.id, token: token.id, sha: sha12, bytes: build.zip.length, skills: build.skills.length })
+    ctx.log.info('plugin archive served', { user: auth?.user.id ?? 'org', token: (org?.token ?? auth!.token).id, sha: sha12, bytes: build.zip.length, skills: build.skills.length })
     return c.body(build.zip as Uint8Array<ArrayBuffer>, 200, {
       ...NO_STORE,
       'content-type': 'application/zip',
       'content-length': String(build.zip.length),
-      'content-disposition': `attachment; filename="company-${sha12}.zip"`,
+      'content-disposition': `attachment; filename="${ed.plugin}-${sha12}.zip"`,
     })
   })
 
