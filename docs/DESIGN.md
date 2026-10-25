@@ -261,3 +261,33 @@ Server-rendered with Hono JSX, one small CSS file inline, a little vanilla JS. K
   `trina-ax status`. One owner is enforced by a unique index.
 - **Operations**: `deploy/macos/install-hub.sh` installs LaunchDaemons (always on after a power cut), sleep/restart
   settings and log rotation; `trina-ax doctor|backup|users|versions|restore`; operator guide in `docs/OPERATOR.md`.
+
+## Two ways to use Claude (2026-10-25)
+
+Per person, with a company default (setting `defaultModelAccess`, initially **subscription**; `users.model_access`
+overrides; `src/auth/access-mode.ts`):
+
+| | subscription (default) | company_key |
+|---|---|---|
+| Model calls | the person's own Claude login (Team seat, Pro, Max), straight to Anthropic | through the hub relay, billed to the company API key |
+| Installer writes | MCP + plugin + telemetry env (`CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_*` → `<hub>/otel/v1/logs`) | MCP + plugin + `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` |
+| Usage on the hub | Claude Code OpenTelemetry events → `usage` rows with source `sub` (estimated cost) | relay → `usage` rows with source `pc` |
+| Budgets | shown, never blocking; not counted in company budgets | enforced (403) |
+| Relay | refuses this person's device tokens | allowed |
+
+The enroll response carries `mode`, `env` (exact keys to set) and `envOwned` (every key the installer manages), so
+the scripts apply whatever the hub says and switching modes is a re-install.
+
+**Claude apps (web, desktop, mobile, Cowork)**: each person adds `<public>/mcp` as a custom connector in their own
+Claude app (Team: the Claude org owner adds it once; members press Connect). The hub is an OAuth authorization
+server for that (`src/oauth/routes.tsx`: RFC 9728 protected-resource metadata, RFC 8414 metadata, RFC 7591 DCR
+limited to Claude's callbacks, code + PKCE S256, RFC 8707 resource, 1-hour access tokens of kind `connector`,
+rotating 60-day refresh tokens, code-replay revocation). `/mcp` answers 401 with
+`WWW-Authenticate: Bearer resource_metadata=…`. Connector tokens can never use the relay. Claude connects from
+Anthropic's cloud, so the public https address must reach `/mcp`, `/oauth/*` and `/.well-known/*` unchallenged.
+
+**Hub sessions** (phone chat in `/app`, schedules) run on the hub and always use the company key, so they need one;
+without it the phone path is the Claude app connector.
+
+Verified with real Claude Code 2.1.309 over a Cloudflare quick tunnel: `tests/e2e/full-flow-subscription.test.ts`
+(no relay, MCP + skills, telemetry usage, connector discovery) and `tests/e2e/full-flow.test.ts` (company key).

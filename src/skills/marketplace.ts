@@ -83,7 +83,7 @@ export function archiveSha12(file: string): string | null {
  *  they can. Claude Code only downloads plugin archives over https from a non-loopback, non-link-local host. */
 export function skillsUnavailableReason(config: Config): string | null {
   const u = config.publicUrl
-  if (!u) return '허브에 공개 주소(https)가 아직 없어서 회사 스킬은 설치되지 않아요. 관리자에게 공개 주소 설정을 부탁해 주세요. 파일과 모델 연결은 지금도 쓸 수 있어요.'
+  if (!u) return '허브에 공개 주소(https)가 아직 없어서 회사 스킬은 설치되지 않아요. 관리자에게 공개 주소 설정을 부탁해 주세요. 회사 파일은 지금도 쓸 수 있어요.'
   let url: URL
   try { url = new URL(u) } catch { return '허브의 공개 주소가 올바르지 않아서 회사 스킬을 설치할 수 없어요. 관리자에게 알려 주세요.' }
   if (url.protocol !== 'https:') return '허브의 공개 주소가 https가 아니라서 회사 스킬을 설치할 수 없어요. 관리자에게 알려 주세요.'

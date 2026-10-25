@@ -568,3 +568,46 @@ describe.skipIf(!pwsh)('install.ps1 (PowerShell)', () => {
   }, 120_000)
 })
 if (!pwsh) console.warn('[install] pwsh not found (set TRINA_PWSH or put pwsh on PATH): skipping install.ps1 runs')
+
+// Regression: the uninstaller runs `claude plugin marketplace remove` first, which drops the marketplace entry the
+// token used to be read from; the token must still be found (relay token or telemetry header) and revoked.
+describe('uninstall still revokes after the marketplace entry is gone', () => {
+  for (const mode of ['company_key', 'subscription'] as const) {
+    test(mode, async () => {
+      const { testHub } = await import('../lib/hub')
+      const { verifyToken } = await import('../../src/auth/tokens')
+      const { makeEnrollCode } = await import('../../src/auth/enroll')
+      const { renderScript } = await import('../../src/install/scripts')
+      const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path')
+      const h = await testHub({ access: mode })
+      try {
+        const u = await h.user('rev-' + mode)
+        const code = makeEnrollCode(h.ctx.db, u.id, u.id).code
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), 'trina-rev-'))
+        const script = path.join(home, 'install.sh')
+        fs.writeFileSync(script, renderScript('sh', h.url))
+        // a fake claude that, like the real one, removes the marketplace entry from settings on `marketplace remove`
+        const bin = path.join(home, 'bin'); fs.mkdirSync(bin)
+        fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/bash
+if [ "$1 $2 $3" = "plugin marketplace remove" ]; then
+  /usr/bin/python3 - "$CLAUDE_CONFIG_DIR/settings.json" <<'PYX'
+import json,sys
+p=sys.argv[1]; s=json.load(open(p)); s.get('extraKnownMarketplaces',{}).pop('trina-ax',None); json.dump(s,open(p,'w'),indent=2)
+PYX
+fi
+if [ "$1 $2" = "auth status" ]; then echo '{"loggedIn": true}'; fi
+exit 0
+`, { mode: 0o755 })
+        const env = { HOME: home, CLAUDE_CONFIG_DIR: path.join(home, '.claude'), PATH: `${bin}:/usr/bin:/bin`, TMPDIR: os.tmpdir(), TRINA_SKIP_CLAUDE_INSTALL: '1' }
+        const run = async (args: string[]) => { const p = Bun.spawn(['/bin/bash', script, ...args], { env, stdout: 'pipe', stderr: 'pipe' }); await p.exited; return p.exitCode }
+        expect(await run([code])).toBe(0)
+        const s = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))
+        const token = (s.extraKnownMarketplaces['trina-ax'].source.headers.Authorization as string).slice(7)
+        expect(verifyToken(h.ctx.db, token)).not.toBeNull()
+        expect(await run(['--uninstall'])).toBe(0)
+        expect(verifyToken(h.ctx.db, token)).toBeNull()
+        fs.rmSync(home, { recursive: true, force: true })
+      } finally { await h.stop() }
+    })
+  }
+})

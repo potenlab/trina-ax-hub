@@ -462,3 +462,21 @@ trina-ax restart && trina-ax doctor      # claude ✓ 와 버전 확인, 휴대�
 | `trina-ax pricing [show\|check\|set\|reset]` | 모델 가격표 |
 | `trina-ax ping [--wait 30]` | 이 Mac에서 허브 응답 확인 |
 | `bash deploy/macos/install-hub.sh [--uninstall]` | 설치·업데이트·제거 |
+
+## 부록: Claude 사용 방식 두 가지와 Claude 앱 커넥터
+
+| | 각자 Claude 구독 (기본) | 회사 API 키 |
+|---|---|---|
+| 직원이 할 일 | PC 연결 후 `claude` → `/login` 으로 본인 구독 로그인 | PC 연결만 |
+| 요금 | 각자 구독 (Team 좌석 등) | 회사 Anthropic 계정 |
+| 허브가 보는 것 | 사용량(어림 비용), 파일·스킬 사용 | 사용량(실제 비용), 파일·스킬 사용 |
+| 예산 | 표시만 | 막기·표시 |
+| 휴대폰 | 본인 Claude 앱 + 회사 커넥터 | 허브 채팅(/app) 또는 Claude 앱 커넥터 |
+
+- 회사 기본값: 관리 › 설정 › Claude 사용 방식. 사람별: 관리 › 사람 › (이름) › Claude 사용 방식.
+- 방식을 바꾼 사람은 '내 PC'에서 PC를 다시 연결해야 적용돼요(설치 명령을 한 번 더 실행).
+- **Claude 앱 커넥터**: 공개 주소가 있어야 해요. 커넥터 주소는 `https://<공개 주소>/mcp`.
+  - Claude Team: Claude 조직 설정 › 커넥터 › 추가 › 커스텀에 소유자가 한 번 넣어요. 직원은 Claude 앱 › 설정 › 커넥터에서 '연결' → 허브 아이디로 로그인 → 허용.
+  - Pro·Max 개인: 각자 설정 › 커넥터 › 커스텀 커넥터 추가.
+  - Cloudflare: `/mcp`, `/oauth/*`, `/.well-known/*` 에 Access·봇 차단·WAF 챌린지를 두지 마세요. Claude는 Anthropic 서버(160.79.104.0/21)에서 접속해요.
+- 휴대폰 채팅(/app)과 예약 작업은 허브에서 회사 키로 실행돼요. 회사 키가 없으면 꺼지고, 직원에게 Claude 앱 커넥터를 안내해요.

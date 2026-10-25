@@ -178,6 +178,14 @@ function Merge-Uninstall($S, $State, [string]$Hub) {
   $revoke = ''; $changed = $false
   if ($old.Token -ne '' -and $old.Url.StartsWith("$Hub/")) { $revoke = $old.Token }
   $e = Get-Prop $S 'env'
+  # `claude plugin marketplace remove` runs first and drops the marketplace entry: also find the token where the
+  # modes put it (the relay token, or the telemetry header), only when its address is this hub
+  if ($revoke -eq '' -and (Is-Obj $e)) {
+    $tok = Get-Prop $e 'ANTHROPIC_AUTH_TOKEN'; $base = Get-Prop $e 'ANTHROPIC_BASE_URL'
+    if (($tok -is [string]) -and $tok.StartsWith($TokenPrefix) -and $base -eq $Hub) { $revoke = $tok }
+    $oh = Get-Prop $e 'OTEL_EXPORTER_OTLP_HEADERS'; $oep = Get-Prop $e 'OTEL_EXPORTER_OTLP_LOGS_ENDPOINT'
+    if ($revoke -eq '' -and ($oh -is [string]) -and ($oh -match '^Authorization=Bearer (\S+)$') -and $Matches[1].StartsWith($TokenPrefix) -and ($oep -is [string]) -and $oep.StartsWith("$Hub/")) { $revoke = $Matches[1] }
+  }
   if (Is-Obj $e) {
     if ($savedKeys -is [array]) {
       foreach ($k in $savedKeys) {

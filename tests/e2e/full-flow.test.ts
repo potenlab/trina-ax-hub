@@ -165,8 +165,8 @@ describe.skipIf(!HAVE)('full flow: installer → PC Claude (relay + MCP + skills
     expect(mine.length).toBeGreaterThan(0)
     // the company key went upstream, the device token never did
     for (const s of mine) { expect(s.apiKey).toBe(COMPANY_KEY); expect(s.auth).toBeNull() }
-    const main = mine.find((s) => userText(s.body).includes(PC_MARK))!
-    const all = JSON.stringify(main.body)
+    // MCP servers connect in the background, so the instructions may only arrive from the second request of the run
+    const all = mine.map((s) => JSON.stringify(s.body)).join('\n')
     expect(all).toContain('RULE-PHRASE')       // MCP instructions (company rules)
     expect(all).toContain('quote-draft')       // the installed company plugin's skill
     expect(all).toContain('pitch-deck')        // group skill

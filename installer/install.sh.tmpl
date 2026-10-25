@@ -162,6 +162,19 @@ function ourMarketplace(s, name, prefix) {
 
 function restore(o, k, previous) { if (has(previous, k)) o[k] = previous[k]; else delete o[k]; }
 
+/** This hub's device token from settings.env: ANTHROPIC_AUTH_TOKEN (company-key mode) or the OTLP header
+ *  (subscription mode), only when the matching address is this hub. '' when none. */
+function envToken(s, hub, prefix) {
+  var e = isObj(s.env) ? s.env : null;
+  if (!e) return '';
+  var tok = e.ANTHROPIC_AUTH_TOKEN;
+  if (typeof tok === 'string' && tok.indexOf(prefix) === 0 && e.ANTHROPIC_BASE_URL === hub) return tok;
+  var h = e.OTEL_EXPORTER_OTLP_HEADERS, ep = e.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT;
+  var m = typeof h === 'string' ? /^Authorization=Bearer (\S+)$/.exec(h) : null;
+  if (m && m[1].indexOf(prefix) === 0 && typeof ep === 'string' && ep.indexOf(hub + '/') === 0) return m[1];
+  return '';
+}
+
 function install() {
   var s = parseDoc(readText(env('TRINA_SETTINGS')), 'SETTINGS');
   var state = readState();
@@ -223,6 +236,9 @@ function uninstall() {
   var created = state && Array.isArray(state.created) ? state.created : [];
   var old = ourMarketplace(s, name, prefix);
   var revoke = old.token !== '' && old.url.indexOf(hub + '/') === 0 ? old.token : '';
+  // `claude plugin marketplace remove` runs before this and drops the marketplace entry, so also find the token
+  // where the modes put it: the relay token, or the telemetry header
+  if (revoke === '') revoke = envToken(s, hub, prefix);
   var changed = false, i, k;
   if (isObj(s.env)) {
     if (state && Array.isArray(state.setKeys)) {
@@ -429,6 +445,20 @@ def install():
     }))
     return revoke
 
+def env_token(s, hub, prefix):
+    e = s.get('env') if is_obj(s.get('env')) else None
+    if not e:
+        return ''
+    tok = e.get('ANTHROPIC_AUTH_TOKEN')
+    if isinstance(tok, str) and tok.startswith(prefix) and e.get('ANTHROPIC_BASE_URL') == hub:
+        return tok
+    h, ep = e.get('OTEL_EXPORTER_OTLP_HEADERS'), e.get('OTEL_EXPORTER_OTLP_LOGS_ENDPOINT')
+    if isinstance(h, str) and h.startswith('Authorization=Bearer ') and ' ' not in h[len('Authorization=Bearer '):]:
+        t = h[len('Authorization=Bearer '):]
+        if t.startswith(prefix) and isinstance(ep, str) and ep.startswith(hub + '/'):
+            return t
+    return ''
+
 def uninstall():
     s = parse_doc(read_text(env('TRINA_SETTINGS')), 'SETTINGS')
     state = read_state()
@@ -439,6 +469,10 @@ def uninstall():
     created = state['created'] if state and isinstance(state.get('created'), list) else []
     old_token, old_url = our_marketplace(s, name, prefix)
     revoke = old_token if old_token != '' and old_url.startswith(hub + '/') else ''
+    # `claude plugin marketplace remove` runs before this and drops the marketplace entry, so also find the token
+    # where the modes put it: the relay token, or the telemetry header
+    if revoke == '':
+        revoke = env_token(s, hub, prefix)
     changed = False
     if is_obj(s.get('env')):
         if state and isinstance(state.get('setKeys'), list):
