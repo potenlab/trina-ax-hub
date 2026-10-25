@@ -77,7 +77,9 @@ describe('large files do not stall the hub', () => {
     const kept = fs.statSync(W.abs(v[0].stored_as))
     expect(kept.size).toBe(2 * 1024 ** 3)
     expect(kept.nlink).toBe(1) // the team file is a new file now; the version is the old one's only name
-    expect(fs.readFileSync(W.abs(v[0].stored_as)).subarray(0, 5).toString()).toBe('head\n')
+    // only the first bytes: reading the whole 2 GB back took longer than the test's limit on a CI runner
+    const fd = fs.openSync(W.abs(v[0].stored_as), 'r'); const head = Buffer.alloc(5); fs.readSync(fd, head, 0, 5, 0); fs.closeSync(fd)
+    expect(head.toString()).toBe('head\n')
     expect(W.read('shared/big.log')).toBe('short')
     expect(fs.statSync(W.abs('shared/big.log')).nlink).toBe(1)
   })
