@@ -100,15 +100,17 @@ export function ensureUsageRollup(db: Database): { added: number; rebuilt: boole
 
 /** One usage row as the relay records it. */
 export interface UsageInsert {
-  id: string; userId: string; tokenId: string | null; source: 'pc' | 'hub'; jobId: string | null; model: string
+  id: string; userId: string; tokenId: string | null; source: 'pc' | 'hub' | 'sub'; jobId: string | null; model: string
+  /** telemetry event id: a batch sent twice is counted once */
+  extId?: string | null
   input: number; output: number; cacheRead: number; cacheWrite: number; costUsd: number; status: number; startedAt: string; durationMs: number
 }
 
 /** Writes a usage row and adds it to the rollup, in one transaction. */
 export function insertUsage(db: Database, u: UsageInsert) {
   db.transaction(() => {
-    db.query(`INSERT INTO usage (id, user_id, token_id, source, job_id, model, input_tokens, output_tokens, cache_read, cache_write, cost_usd, status, started_at, duration_ms)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(u.id, u.userId, u.tokenId, u.source, u.jobId, u.model, u.input, u.output, u.cacheRead, u.cacheWrite, u.costUsd, u.status, u.startedAt, u.durationMs)
+    db.query(`INSERT INTO usage (id, user_id, token_id, source, job_id, model, input_tokens, output_tokens, cache_read, cache_write, cost_usd, status, started_at, duration_ms, ext_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (ext_id) DO NOTHING`).run(u.id, u.userId, u.tokenId, u.source, u.jobId, u.model, u.input, u.output, u.cacheRead, u.cacheWrite, u.costUsd, u.status, u.startedAt, u.durationMs, u.extId ?? null)
     syncUsageRollup(db)
   }).immediate()
 }

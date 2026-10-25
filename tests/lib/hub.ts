@@ -13,6 +13,7 @@ import { createUser, createGroup, setUserGroups, type Role, type User } from '..
 import { issueToken } from '../../src/auth/tokens'
 import { createSession } from '../../src/auth/sessions'
 import { PRODUCT } from '../../src/product'
+import { setDefaultModelAccess } from '../../src/auth/access-mode'
 
 export interface TestHub {
   ctx: Ctx
@@ -28,7 +29,9 @@ export interface TestHub {
   stop(): Promise<void>
 }
 
-export async function testHub(o: { upstream?: string; apiKey?: string | null; config?: Partial<Config>; background?: boolean; verbose?: boolean } = {}): Promise<TestHub> {
+/** `access`: the company default for how people reach Claude. Tests written for the relay use 'company_key' (the
+ *  default here); the product default is 'subscription'. */
+export async function testHub(o: { upstream?: string; apiKey?: string | null; config?: Partial<Config>; background?: boolean; verbose?: boolean; access?: 'subscription' | 'company_key' } = {}): Promise<TestHub> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'trina-ax-test-')))
   const config: Config = {
     ...loadConfig({ TRINA_AX_HOME: dir }),
@@ -43,6 +46,7 @@ export async function testHub(o: { upstream?: string; apiKey?: string | null; co
   const db = openDb(path.join(config.dataDir, 'hub.db'))
   const ctx = makeCtx({ config, db, secrets: memorySecrets(o.apiKey === undefined ? 'sk-ant-test-key' : o.apiKey), log: o.verbose ? consoleLog() : silentLog })
   initTeamFolder(db, ctx.fx.root)
+  setDefaultModelAccess(db, o.access ?? 'company_key')
   const owner = await createUser(db, { username: 'owner', name: '대표', role: 'owner', password: 'password123' })
   const running = serve(ctx, { background: o.background ?? false })
   return {
