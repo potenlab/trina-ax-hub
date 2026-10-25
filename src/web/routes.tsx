@@ -6,6 +6,7 @@
 //   GET  /login  POST /login    failures limited per (username + address) and per address; POST /logout
 //   GET  /me/password  POST     change password (forced when must_change_password)
 //   /me                         my PCs (enroll code + install commands, approve one an admin set up, revoke), my usage, budgets, skills
+//   /files                      회사 파일: the company's files in the browser (upload, download, folders, rename, move, delete)
 //   /admin, /admin/users, /admin/groups, /admin/folders, /admin/budgets, /admin/usage (+ /admin/usage.csv),
 //   /admin/skills, /admin/settings, /admin/audit
 //
@@ -27,6 +28,7 @@ import { mountSkills } from './admin/skills'
 import { mountSettings } from './admin/settings'
 import { mountAudit } from './admin/audit'
 import { mountVersions } from './admin/versions'
+import { mountFiles } from './files'
 
 export { effectiveUrls, companyName, hubConcurrency, applySavedSettings, installCommands } from './settings'
 
@@ -55,4 +57,5 @@ export const register: Register = (app, ctx) => {
   mountSettings(app, web)
   mountAudit(app, web)
   mountVersions(app, web)
+  mountFiles(app, web)
 }

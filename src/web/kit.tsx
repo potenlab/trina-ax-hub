@@ -202,6 +202,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: '사람' },
   { href: '/admin/groups', label: '그룹' },
   { href: '/admin/folders', label: '폴더 권한' },
+  { href: '/files', label: '회사 파일' },
   { href: '/admin/versions', label: '되살리기' },
   { href: '/admin/budgets', label: '예산' },
   { href: '/admin/usage', label: '사용량' },
@@ -209,11 +210,11 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/settings', label: '설정' },
   { href: '/admin/audit', label: '기록' },
 ]
-const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '채팅' }]
+const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/files', label: '회사 파일' }, { href: '/app', label: '채팅' }]
 
 export function navFor(role: string | undefined): NavItem[] {
   if (!role) return []
-  return isAdminRole(role) ? [...ADMIN_NAV, ...PERSONAL_NAV] : PERSONAL_NAV
+  return isAdminRole(role) ? [...ADMIN_NAV, ...PERSONAL_NAV.filter((n) => n.href !== '/files')] : PERSONAL_NAV
 }
 
 /** Extra styles for these pages (on top of the shared CSS); same tokens, same look. */

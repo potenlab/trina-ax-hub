@@ -102,14 +102,24 @@ function FoldersPage(p: { web: Web; c: C; flashes: Flash[] }) {
         </ul>
       </div>
 
-      <div class="sec"><h2>팀 폴더</h2><span class="muted small">위 두 단계까지 보여요</span></div>
+      <div class="sec"><h2>팀 폴더</h2><span class="muted small">위 두 단계까지 보여요 · <a href="/files">회사 파일 열기</a></span></div>
+      <form method="post" action="/files/folder" class="card" style="padding:12px 16px">
+        <Csrf token={s.csrf} />
+        <input type="hidden" name="dir" value="" />
+        <input type="hidden" name="next" value="/admin/folders" />
+        <div class="row">
+          <div class="field" style="margin:0;max-width:380px"><label for="newfolder">새 폴더 (맨 위에 만들어요)</label>
+            <input id="newfolder" name="name" placeholder="예: 영업, 재무, 공지" required maxlength={80} autocomplete="off" /></div>
+          <div><button class="btn" type="submit">새 폴더</button></div>
+        </div>
+      </form>
       {tree.length ? (
         <div class="card"><ul class="tree">
           {byPath.has('') ? <li><span class="name">(팀 폴더 전체)</span><RuleChips rules={byPath.get('')!} /></li> : null}
           {tree.map((n) => (
             <li>
               <span class="name">📁 {n.name}</span>
-              {n.name === 'users' ? <span class="muted small"> · 개인 폴더 (본인만)</span> : <RuleChips rules={byPath.get(n.path) ?? []} />}
+              {n.name === 'users' ? <span class="muted small"> · 개인 폴더 (본인만)</span> : <><RuleChips rules={byPath.get(n.path) ?? []} /> <a class="small" style="margin-left:8px" href={`/files?path=${encodeURIComponent(n.path)}`}>파일 보기</a></>}
               {n.children.length ? (
                 <ul>{n.children.map((ch) => <li><span class="name">{ch.name}</span><RuleChips rules={byPath.get(ch.path) ?? []} /></li>)}
                   {n.more ? <li class="muted small">…외 {n.more}개</li> : null}</ul>
@@ -117,7 +127,7 @@ function FoldersPage(p: { web: Web; c: C; flashes: Flash[] }) {
             </li>
           ))}
         </ul></div>
-      ) : <Empty title="팀 폴더가 비어 있어요">허브 컴퓨터의 팀 폴더에 폴더를 만들면 여기에 보여요.</Empty>}
+      ) : <Empty title="팀 폴더가 비어 있어요">위에서 새 폴더를 만들거나, <a href="/files">회사 파일</a>에서 파일을 올려 보세요. 폴더가 생기면 여기에 보여요.</Empty>}
 
       <div class="sec"><h2>규칙</h2><span class="muted small">{rules.length}개</span></div>
       {rules.length ? (

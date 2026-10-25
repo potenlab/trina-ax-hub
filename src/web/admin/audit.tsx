@@ -46,6 +46,10 @@ export const ACTION_LABEL: Record<string, string> = {
   'file.restore': '파일 되살림',
   'file.version.restore': '파일 되살림',
   'file.trash.restore': '휴지통에서 되살림',
+  'file.upload': '파일 올림',
+  'file.delete': '파일 지움',
+  'file.move': '파일 이름·위치 바꿈',
+  'folder.create': '폴더 만듦',
   'backup': '백업',
   'settings.pricing': '모델 가격표 변경',
   'settings.access': 'Claude 사용 방식 기본값 변경',
@@ -58,7 +62,7 @@ const KEY_LABEL: Record<string, string> = {
   name: '이름', username: '아이디', email: '이메일', role: '역할', status: '상태', groups: '그룹', group: '그룹', user: '사람',
   device: 'PC', os: 'OS', ip: 'IP', subject: '대상', access: '권한', period: '기간', limitUsd: '달러 한도', limitTokens: '토큰 한도',
   action: '넘으면', companyName: '회사 이름', hubConcurrency: '동시 실행', publicUrl: '공개 주소', lanUrl: '사내 주소', krwPerUsd: '원화 환산',
-  replaced: '교체', ok: '성공', status_code: '응답', from: '시작', to: '끝', first: '첫 변경', apiKey: 'API 키', path: '경로', version: '버전',
+  replaced: '교체', files: '파일 수', bytes: '용량(바이트)', via: '경로', paths: '파일', ok: '성공', status_code: '응답', from: '시작', to: '끝', first: '첫 변경', apiKey: 'API 키', path: '경로', version: '버전',
 }
 
 const VALUE_LABEL: Record<string, Record<string, string>> = {

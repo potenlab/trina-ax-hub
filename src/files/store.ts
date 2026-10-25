@@ -61,6 +61,49 @@ export function readRegular(abs: string, maxBytes: number, tooLarge = 'the file 
   } finally { fs.closeSync(fd) }
 }
 
+/** Size and sha256 of a regular, singly linked file, read in chunks (never the whole file in memory). */
+export function hashRegular(abs: string): { size: number; sha256: string } {
+  const { fd, st } = openChecked(abs)
+  try {
+    const h = crypto.createHash('sha256')
+    const buf = Buffer.allocUnsafe(CHUNK)
+    for (let pos = 0; ; ) {
+      const n = fs.readSync(fd, buf, 0, buf.length, pos)
+      if (n <= 0) break
+      h.update(buf.subarray(0, n))
+      pos += n
+    }
+    return { size: st.size, sha256: h.digest('hex') }
+  } finally { fs.closeSync(fd) }
+}
+
+/**
+ * The first `size` bytes of an open file as a web stream (for a download). Reads on demand, so a slow client holds back
+ * the disk instead of filling memory; closes `fd` when the stream ends, fails or is cancelled. A plain web stream (not
+ * a Node stream turned into one) lets the server send a Content-Length. If the file got shorter while it was sent the
+ * stream errors, so the client sees a broken download instead of a short file that looks complete.
+ */
+export function fdStream(fd: number, size: number, chunk = 256 * 1024): ReadableStream<Uint8Array> {
+  let pos = 0
+  let closed = false
+  const close = () => { if (!closed) { closed = true; try { fs.closeSync(fd) } catch { /* already gone */ } } }
+  return new ReadableStream<Uint8Array>({
+    pull(ctrl) {
+      if (pos >= size) { close(); ctrl.close(); return }
+      const buf = Buffer.allocUnsafe(Math.min(chunk, size - pos))
+      return new Promise<void>((resolve) => {
+        fs.read(fd, buf, 0, buf.length, pos, (err, n) => {
+          if (err || n <= 0) { close(); ctrl.error(err ?? new Error('the file got shorter while it was downloaded')); return resolve() }
+          pos += n
+          ctrl.enqueue(new Uint8Array(buf.buffer, buf.byteOffset, n))
+          resolve()
+        })
+      })
+    },
+    cancel() { close() },
+  })
+}
+
 export const sha256 = (b: Uint8Array | string) => crypto.createHash('sha256').update(b).digest('hex')
 
 /** Create the missing parent folders of `segs` (names already checked by authorize) and lstat the chain again. */
@@ -112,6 +155,30 @@ export function atomicCopy(root: string, segs: readonly string[], src: string, k
     const fd = fs.openSync(tmp, C.O_RDONLY | C.O_NOFOLLOW)
     try { fs.fsyncSync(fd) } finally { fs.closeSync(fd) }
   }, keep)
+}
+
+/**
+ * Move the server-side file `src` (a finished upload staged under .trina/uploads, a regular file this process made)
+ * to team path `segs` atomically: the folder chain is checked again, an existing target is kept as a version (keep)
+ * and `src` is renamed over it, so nobody ever sees half a file. Where `src` lies on another disk (EXDEV) it is copied
+ * in next to the target first. Returns the id of the version that was kept.
+ */
+export function placeFile(root: string, segs: readonly string[], src: string, keep?: KeepVersion): string | null {
+  const sst = fs.lstatSync(src)
+  if (!sst.isFile() || sst.nlink > 1) throw new ToolError('the received file is not a regular file')
+  ensureParents(root, segs)
+  verifyChain(root, [...segs], true)
+  const target = path.join(root, ...segs)
+  assertReplaceable(target)
+  const kept = keep && fs.existsSync(target) ? keepVersion(root, segs, keep) : null
+  try {
+    fs.renameSync(src, target)
+  } catch (e: any) {
+    kept?.undo()
+    if (e?.code === 'EXDEV') return atomicCopy(root, segs, src, keep)
+    throw e
+  }
+  return kept?.id ?? null
 }
 
 /** fill(tmp) creates the temp file; then verifyChain, the target check, the version (keep) and the rename. */
