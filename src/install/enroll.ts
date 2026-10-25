@@ -7,14 +7,20 @@
 //                 hub can show usage per person.
 //   company_key   ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN point at the hub's relay (the company API key).
 //
+//   POST /api/enroll/check { code }               →  200 { ok: true } | 400 invalid_code | 429 rate_limited
+//                                                    (does not use the code up; the installer asks before it installs anything)
 //   POST /api/enroll   { code, deviceName?, os? }  →  200 EnrollResponse | 400 invalid_code | 429 rate_limited
 //   POST /api/unenroll (Bearer device token)      →  200 { ok: true }   (the uninstaller and re-installs call it)
+import type { Database } from 'bun:sqlite'
 import { z } from 'zod'
 import type { Ctx } from '../context'
 import { audit } from '../audit'
 import { modelAccessFor, type ModelAccess } from '../auth/access-mode'
 import { redeemEnrollCode } from '../auth/enroll'
 import { getUser } from '../auth/users'
+import { nowIso } from '../db'
+import { sha256 } from '../ids'
+import { loadPrincipal } from '../policy/access'
 import { PRODUCT } from '../product'
 import { PLUGIN_ID, companyName, marketplaceUrl, skillsUnavailableReason } from '../skills/marketplace'
 
@@ -30,7 +36,12 @@ export const ENV_OWNED: readonly string[] = [
   'OTEL_EXPORTER_OTLP_HEADERS',
 ]
 
-export const LOGIN_HINT = '터미널에서 claude 를 실행하고 /login 으로 본인 Claude 구독에 로그인해 주세요.'
+/** Shown at the end of an install in subscription mode when nobody is signed in to Claude Code on that PC yet. */
+export const LOGIN_HINT = '터미널에서 claude 를 실행하면 브라우저에서 Claude 로그인이 열려요. 회사 Claude 계정으로 로그인해 주세요.'
+
+/** company_key mode and the hub has no company API key: the PC is connected, but Claude cannot answer yet. The installer
+ *  ends with this as a warning (exit code 0) instead of "✓ 연결을 마쳤어요". */
+export const NO_API_KEY_NOTICE = '연결은 됐지만 회사 API 키가 아직 없어서 Claude가 답하지 못해요. 관리자에게 알려 주세요.'
 
 /** The exact `settings.json` env keys to set for `mode` (a subset of ENV_OWNED). */
 export function installEnv(mode: ModelAccess, hub: string, token: string): Record<string, string> {
@@ -71,6 +82,9 @@ export interface EnrollResponse {
   envOwned: string[]
   /** subscription mode: what the person must still do to sign in; null in company_key mode */
   loginHint: string | null
+  /** why Claude cannot answer on this PC yet although the connection is valid (company_key mode and no company API key);
+   *  null when nothing is wrong. The installer then ends with this line as a warning, not with "✓ 연결을 마쳤어요". */
+  modelNotice: string | null
 }
 
 export const EnrollBody = z.object({
@@ -132,5 +146,24 @@ export function enroll(ctx: Ctx, input: { code: string; deviceName?: string; os?
     env: installEnv(mode, hub, r.token),
     envOwned: [...ENV_OWNED],
     loginHint: mode === 'subscription' ? LOGIN_HINT : null,
+    modelNotice: mode === 'company_key' && !ctx.secrets.getApiKey() ? NO_API_KEY_NOTICE : null,
   }
+}
+
+export type CodeState = 'ok' | 'expired' | 'used' | 'unknown'
+
+/**
+ * Whether `code` could be redeemed right now, without using it up (the installer asks before it installs anything).
+ * It must say 'ok' exactly when `redeemEnrollCode` would succeed: the same lookup and the same rules (a code whose
+ * account is off is 'unknown', as the redeemer answers it the same way). The reason is for the hub's log only; the
+ * API answers every refusal alike, so this tells a guesser nothing that redeeming would not.
+ */
+export function checkEnrollCode(db: Database, code: string): CodeState {
+  const row = db.query('SELECT user_id, expires_at, used_at FROM enroll_codes WHERE code_hash = ?').get(sha256(normalizeCode(code))) as
+    { user_id: string; expires_at: string; used_at: string | null } | null
+  if (!row) return 'unknown'
+  if (row.used_at) return 'used'
+  if (row.expires_at < nowIso()) return 'expired'
+  if (!loadPrincipal(db, row.user_id)) return 'unknown'
+  return 'ok'
 }

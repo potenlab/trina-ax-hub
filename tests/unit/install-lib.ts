@@ -24,8 +24,17 @@ export function findPwsh(): string | null {
 // must never let that reach the terminal.
 // FAKE_CLAUDE_AUTH decides what `auth status --json` says: in (default), out (loggedIn false, exit 1), out0 (loggedIn
 // false, exit 0), broken (no such command, exit 2). FAKE_CLAUDE_PLUGIN_FAIL=1 makes `plugin install` fail.
+// The plugin sync (`claude -p /cost`) is instant unless FAKE_CLAUDE_SYNC_SLEEP=<seconds> makes it take that long
+// (then it ends normally) or FAKE_CLAUDE_SYNC_HANG=1 makes it run until it is killed. It writes the timeout it was given
+// (CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS) to $FAKE_CLAUDE_STATE/sync-timeout-ms.
 const FAKE_CLAUDE = `#!/bin/bash
 { printf '%s\\x1f' "$@"; printf 'SYNC=%s\\n' "\${CLAUDE_CODE_SYNC_PLUGIN_INSTALL:-}"; } >> "$FAKE_CLAUDE_LOG"
+if [ "$1" = "-p" ]; then
+  echo $$ > "$FAKE_CLAUDE_STATE/sync-pid"
+  printf '%s' "\${CLAUDE_CODE_SYNC_PLUGIN_INSTALL_TIMEOUT_MS:-}" > "$FAKE_CLAUDE_STATE/sync-timeout-ms"
+  [ -z "\${FAKE_CLAUDE_SYNC_HANG:-}" ] || exec sleep 600
+  [ -z "\${FAKE_CLAUDE_SYNC_SLEEP:-}" ] || sleep "$FAKE_CLAUDE_SYNC_SLEEP"
+fi
 case "$1 \${2:-}" in
   "mcp add") echo "Added HTTP MCP server: $*" ;;
   "plugin install")
@@ -44,6 +53,32 @@ esac
 exit 0
 `
 
+// The fake curl stands in for the network on the one address that must never be reached from a test: Claude Code's
+// official installer. A request for https://claude.ai/install.sh is answered with a tiny script that puts the fake claude in
+// $HOME/.local/bin; any other claude.ai / anthropic.com address is refused. Everything else (the test hub on 127.0.0.1)
+// goes to the real curl. Every address asked for is logged in $FAKE_CURL_LOG, in order.
+const FAKE_CURL = `#!/bin/bash
+for a in "$@"; do
+  case "$a" in http://*|https://*) echo "$a" >> "$FAKE_CURL_LOG" ;; esac
+done
+for a in "$@"; do
+  case "$a" in
+    *claude.ai*|*anthropic.com*)
+      if [ "$a" = "https://claude.ai/install.sh" ]; then
+        cat <<'EOS'
+mkdir -p "$HOME/.local/bin"
+cp "$FAKE_CLAUDE_PAYLOAD" "$HOME/.local/bin/claude"
+chmod +x "$HOME/.local/bin/claude"
+EOS
+        exit 0
+      fi
+      echo "fake curl: refused $a" >&2
+      exit 22 ;;
+  esac
+done
+exec /usr/bin/curl "$@"
+`
+
 export interface Sandbox {
   home: string
   bin: string
@@ -52,22 +87,36 @@ export interface Sandbox {
   state: string
   /** calls made to the fake claude: args + the CLAUDE_CODE_SYNC_PLUGIN_INSTALL value */
   calls(): { args: string[]; sync: string }[]
+  /** every address the installer asked curl for, in order (the hub's API, and claude.ai when it "downloads" Claude Code) */
+  requests(): string[]
+  /** the part of requests() that went to claude.ai / anthropic.com (answered by the fake curl, never the network) */
+  downloads(): string[]
+  /** where the fake claude lands when the fake curl "installs" it (only with `claude: false`) */
+  installedClaude: string
   readSettings(): any
   writeSettings(v: unknown): void
   env(extra?: Record<string, string>): Record<string, string>
   cleanup(): void
 }
 
-export function sandbox(o: { configDir?: string } = {}): Sandbox {
+/** `claude: false` = Claude Code is not installed on this PC: `claude` is not on PATH, and the installer's download (the fake
+ *  curl) puts it in $HOME/.local/bin. */
+export function sandbox(o: { configDir?: string; claude?: boolean } = {}): Sandbox {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'trina-install-home-')))
   const bin = path.join(home, 'fakebin')
   fs.mkdirSync(bin)
-  fs.writeFileSync(path.join(bin, 'claude'), FAKE_CLAUDE, { mode: 0o755 })
+  const payload = path.join(home, 'claude-payload')
+  fs.writeFileSync(o.claude === false ? payload : path.join(bin, 'claude'), FAKE_CLAUDE, { mode: 0o755 })
+  fs.writeFileSync(path.join(bin, 'curl'), FAKE_CURL, { mode: 0o755 })
   const configDir = o.configDir ? path.join(home, o.configDir) : path.join(home, '.claude')
   const log = path.join(home, 'claude-calls.log')
+  const curlLog = path.join(home, 'curl-claude.log')
   const nodeDir = which('node') ? path.dirname(which('node')!) : null
   return {
     home, bin, configDir,
+    installedClaude: path.join(home, '.local', 'bin', 'claude'),
+    requests() { return fs.existsSync(curlLog) ? fs.readFileSync(curlLog, 'utf8').split('\n').filter(Boolean) : [] },
+    downloads() { return this.requests().filter((u) => /claude\.ai|anthropic\.com/.test(u)) },
     settings: path.join(configDir, 'settings.json'),
     state: path.join(configDir, 'trina-ax.json'),
     calls() {
@@ -90,6 +139,8 @@ export function sandbox(o: { configDir?: string } = {}): Sandbox {
         LANG: 'en_US.UTF-8',
         FAKE_CLAUDE_LOG: log,
         FAKE_CLAUDE_STATE: home,
+        FAKE_CLAUDE_PAYLOAD: payload,
+        FAKE_CURL_LOG: curlLog,
         ...(o.configDir ? { CLAUDE_CONFIG_DIR: configDir } : {}),
         ...extra,
       }
