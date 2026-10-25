@@ -13,6 +13,8 @@ import { sweepSessions } from './auth/sessions'
 import { sweepTokens } from './auth/tokens'
 import { sweepEnrollCodes } from './auth/enroll'
 import { pruneVersions } from './files/versions'
+import { UPLOAD_BODY_MAX } from './files/upload'
+import { bodyGuard } from './http/body-limit'
 
 export const MODULES: Register[] = [relay, mcp, oauth, skills, install, telemetry, hub, web]
 
@@ -20,13 +22,18 @@ export interface Running { url: string; port: number; stop(): Promise<void> }
 
 export function serve(ctx: Ctx, o: { background?: boolean } = {}): Running {
   const app = createApp(ctx, MODULES)
+  // 64 MB for every route; the file upload streams its body to disk and takes up to 200 MB (src/files/upload.ts)
+  const guard = bodyGuard({ default: 64 * 1024 * 1024, routes: { '/files/upload': UPLOAD_BODY_MAX } })
   const server = Bun.serve({
     hostname: ctx.config.host,
     port: ctx.config.port,
     // model answers stream for minutes; Bun's 10 s default would cut a quiet stream
     idleTimeout: 0,
-    maxRequestBodySize: 64 * 1024 * 1024,
-    fetch: (req, srv) => app.fetch(req, { ip: srv.requestIP(req)?.address ?? '' }),
+    maxRequestBodySize: guard.max,
+    fetch: (req, srv) => {
+      const r = guard.apply(req)
+      return r instanceof Response ? r : app.fetch(r, { ip: srv.requestIP(req)?.address ?? '' })
+    },
   })
   // port 0 = pick a free one; write back the real port so URLs built from the config are right
   if (!ctx.config.port) ctx.config.port = server.port!

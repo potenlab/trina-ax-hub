@@ -8,6 +8,7 @@
 //   GET  /me/password  POST     change password (forced when must_change_password)
 //   /me                         first-run page: the next step for this person (Claude app connector or PC), my PCs, connected Claude apps,
 //                               usage / budgets / skills once there is something; /me/status.json (polled), POST /me/enroll
+//   /files                      회사 파일: the company's files in the browser (upload, download, folders, rename, move, delete)
 //   /admin, /admin/users, /admin/groups, /admin/folders, /admin/budgets, /admin/usage (+ /admin/usage.csv),
 //   /admin/skills, /admin/settings, /admin/claude (Claude 조직 설정), /admin/audit
 //
@@ -31,6 +32,7 @@ import { mountSettings } from './admin/settings'
 import { mountClaudeOrg } from './admin/claude'
 import { mountAudit } from './admin/audit'
 import { mountVersions } from './admin/versions'
+import { mountFiles } from './files'
 
 export { effectiveUrls, companyName, hubConcurrency, applySavedSettings, installCommands } from './settings'
 
@@ -63,4 +65,5 @@ export const register: Register = (app, ctx) => {
   mountClaudeOrg(app, web)
   mountAudit(app, web)
   mountVersions(app, web)
+  mountFiles(app, web)
 }

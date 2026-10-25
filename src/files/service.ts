@@ -16,7 +16,8 @@ import { verifyChain } from '../policy/resolve'
 import { skillFiles, skillsFor, type Skill } from '../skills/catalog'
 import { BINARY_EXT, decodeText, ext, extractText, IMAGE_MAX_BYTES, imageMime, isImageName, isOffice, looksBinary, utf16, type Converters, type TextEncoding } from './extract'
 import { OfficeCache, searchContent, searchNames, type SearchDeps } from './search'
-import { atomicWrite, MAX_WRITE_BYTES, moveToTrash, readRegular, renameChecked, sha256 } from './store'
+import { atomicWrite, hashRegular, MAX_WRITE_BYTES, moveToTrash, openChecked, placeFile, readRegular, renameChecked, sha256 } from './store'
+import { dropChange, moveChange, recordChange, type ChangeSource } from './changes'
 
 /** read_file: lines and characters returned per call. Claude Code keeps an MCP text result inline only up to about
  * 50,000 characters (above that it saves the result to a file on the PC and shows the model a 2 KB preview, which a
@@ -29,7 +30,7 @@ const OFFICE_FILE_MAX = 50 * 1024 * 1024
 const LIST_MAX_ENTRIES = 500
 const SKILL_MD_MAX = 256 * 1024
 
-export interface ListEntry { path: string; name: string; type: 'file' | 'folder'; size?: number; mtime: string; readOnly: boolean }
+export interface ListEntry { path: string; name: string; type: 'file' | 'folder'; size?: number; mtime: string; mtimeMs: number; readOnly: boolean }
 export interface ListResult { path: string; readOnly: boolean; entries: ListEntry[]; truncated: boolean }
 
 export type ReadResult =
@@ -57,6 +58,19 @@ export function officeCache(ctx: Ctx): OfficeCache {
 }
 export const converters = (ctx: Ctx): Converters => ({ pandoc: ctx.config.pandocBin, pdftotext: ctx.config.pdftotextBin, denyRead: [ctx.fx.root, ctx.config.dataDir] })
 
+/** Text extraction of uploaded documents, one at a time in the background (search finds them without waiting). */
+const indexing = new WeakMap<Ctx, Promise<void>>()
+/** A document was created or replaced at `rel`: forget its old text and, for Office/PDF/HWP, extract the new one. */
+export function indexFile(ctx: Ctx, rel: string) {
+  const cache = officeCache(ctx)
+  cache.forget(rel)
+  if (!isOffice(rel)) return
+  const prev = indexing.get(ctx) ?? Promise.resolve()
+  indexing.set(ctx, prev.then(() => cache.update(rel)).catch(() => {}))
+}
+/** Resolves when the documents queued by indexFile have been read (tests wait for it). */
+export const indexingDone = (ctx: Ctx): Promise<void> => indexing.get(ctx) ?? Promise.resolve()
+
 const hiddenMessage = (input: unknown) => `not found or no access: '${typeof input === 'string' ? input : ''}'`
 const isUnder = (base: string, p: string) => base === '' ? p !== '' : p.startsWith(base + '/')
 /** Server-local "YYYY-MM-DD HH:mm" (what people in the office read). */
@@ -67,13 +81,21 @@ export const localTime = (ms: number) => {
 }
 
 export class FileService {
-  constructor(readonly ctx: Ctx, readonly user: Principal) {}
+  /** `source`: where the calls come from ('mcp' = a person's Claude or a hub session, 'web' = the /files page); it is
+   * written next to "who changed this last" (changes.ts). */
+  constructor(readonly ctx: Ctx, readonly user: Principal, readonly source: ChangeSource = 'mcp') {}
 
   /** The service for a person as they are now; refuses a disabled or deleted account. */
-  static forUser(ctx: Ctx, userId: string): FileService {
+  static forUser(ctx: Ctx, userId: string, source: ChangeSource = 'mcp'): FileService {
     const user = loadPrincipal(ctx.db, userId)
     if (!user) throw new Denied('this account is disabled')
-    return new FileService(ctx, user)
+    return new FileService(ctx, user, source)
+  }
+
+  /** Bookkeeping after a file was created or changed: who, and the text index (a replaced document's old text goes). */
+  private changed(rel: string, index = false) {
+    recordChange(this.ctx.db, rel, this.user.id, this.source)
+    if (index) indexFile(this.ctx, rel)
   }
 
   private get fx() { return this.ctx.fx }
@@ -134,10 +156,10 @@ export class FileService {
     const readOnly = !atLeast(rules.access(this.user, segs), 'write')
     if (st.isDirectory()) {
       if (!rules.canList(this.user, segs)) return null
-      return { path: segs.join('/'), name, type: 'folder', mtime: localTime(st.mtimeMs), readOnly }
+      return { path: segs.join('/'), name, type: 'folder', mtime: localTime(st.mtimeMs), mtimeMs: st.mtimeMs, readOnly }
     }
     if (!st.isFile() || st.nlink > 1 || !atLeast(rules.access(this.user, segs), 'read')) return null
-    return { path: segs.join('/'), name, type: 'file', size: st.size, mtime: localTime(st.mtimeMs), readOnly }
+    return { path: segs.join('/'), name, type: 'file', size: st.size, mtime: localTime(st.mtimeMs), mtimeMs: st.mtimeMs, readOnly }
   }
 
   // ---------------- read ----------------
@@ -255,6 +277,7 @@ export class FileService {
     if (BINARY_EXT.has(ext(r.rel))) throw new ToolError(`'.${ext(r.rel)}' files cannot be written as text; write a .md, .txt or .csv file instead`, 'binary')
     if (!r.exists) {
       atomicWrite(this.fx.root, r.segs, data)
+      this.changed(r.rel)
       return { path: r.rel, created: true, changed: true, size: data.length, versionId: null }
     }
     if (r.st!.isDirectory()) throw new ToolError(`'${r.rel}' is a folder`, 'is_folder')
@@ -266,6 +289,7 @@ export class FileService {
       return { path: r.rel, created: false, changed: false, size: data.length, versionId: null }
     }
     const versionId = atomicWrite(this.fx.root, r.segs, data, { db: this.ctx.db, userId: this.user.id, reason: 'overwrite' })
+    this.changed(r.rel)
     return { path: r.rel, created: false, changed: true, size: data.length, versionId }
   }
 
@@ -294,6 +318,7 @@ export class FileService {
     const data = Buffer.from(next, 'utf8')
     if (data.length > MAX_WRITE_BYTES) throw new ToolError(`the result would be too large (over ${MAX_WRITE_BYTES / 1048576} MB)`, 'too_large')
     const versionId = atomicWrite(this.fx.root, r.segs, data, { db: this.ctx.db, userId: this.user.id, reason: 'overwrite', bytes: current })
+    this.changed(r.rel)
     return { path: r.rel, replacements: replaceAll ? n : 1, size: data.length, versionId: versionId! }
   }
 
@@ -338,6 +363,7 @@ export class FileService {
       const target = [...fr.segs.slice(0, -1), typed]
       verifyChain(this.fx.root, fr.segs)
       fs.renameSync(fr.abs, path.join(this.fx.root, ...target))
+      this.moved(fr.rel, target.join('/'))
       return { from: fr.rel, to: target.join('/'), type: isDir ? 'folder' : 'file', replacedVersionId: null }
     }
     if (isDir && isUnder(fr.rel, tr.rel)) throw new ToolError(`a folder cannot be moved into itself ('${tr.rel}')`, 'invalid')
@@ -350,6 +376,7 @@ export class FileService {
       if (!o.overwrite) throw new ToolError(`'${tr.rel}' already exists. Pick another name, or pass overwrite: true to replace it (the replaced file is kept on the hub)`, 'exists')
     }
     const replacedVersionId = renameChecked(this.fx.root, fr.segs, tr.segs, tr.exists, tr.exists ? { db: this.ctx.db, userId: this.user.id, reason: 'move' } : undefined)
+    this.moved(fr.rel, tr.rel)
     return { from: fr.rel, to: tr.rel, type: isDir ? 'folder' : 'file', replacedVersionId }
   }
 
@@ -360,6 +387,8 @@ export class FileService {
     this.assertNotProtected(r.segs, 'deleted')
     if (!r.st!.isDirectory()) {
       const t = moveToTrash(this.ctx.db, this.fx.root, r.segs, this.user.id)
+      dropChange(this.ctx.db, r.rel)
+      officeCache(this.ctx).forget(r.rel)
       return { path: r.rel, type: 'file', versionId: t.id, storedAs: t.storedAs }
     }
     // emptiness first: a folder holding something the person cannot see answers just "not empty"
@@ -371,7 +400,98 @@ export class FileService {
     verifyChain(this.fx.root, r.segs)
     fs.rmSync(path.join(r.abs, '.DS_Store'), { force: true })
     fs.rmdirSync(r.abs)
+    officeCache(this.ctx).forget(r.rel)
     return { path: r.rel, type: 'folder', versionId: null, storedAs: null }
+  }
+
+  /** A file or folder was renamed or moved: its "who changed it" rows and its cached text go along. */
+  private moved(from: string, to: string) {
+    moveChange(this.ctx.db, from, to)
+    officeCache(this.ctx).move(from, to)
+  }
+
+  // ---------------- upload (the /files page; src/files/upload.ts receives the bytes) ----------------
+  /**
+   * First look at an upload target, before any byte is received: the person must be able to write there, the name must
+   * be one the store accepts, and an existing file is replaced only with `overwrite`. A hidden folder answers like a
+   * missing one. Missing folders on the way are created when the file is placed.
+   */
+  planUpload(input: string, overwrite: boolean): { rel: string; exists: boolean } {
+    const r = this.uploadTarget(input, overwrite)
+    return { rel: r.rel, exists: r.exists }
+  }
+
+  private uploadTarget(input: string, overwrite: boolean): Authorized {
+    const r = authorize(this.fx, this.rules(), this.user, input, 'write', { createDirs: true })
+    if (r.segs.length === 0) throw new ToolError('a file needs a name', 'invalid')
+    this.assertNotProtected(r.segs, 'replaced')
+    if (r.exists) {
+      if (r.st!.isDirectory()) throw new ToolError(`'${r.rel}' is a folder`, 'is_folder')
+      if (!overwrite) throw new ToolError(`'${r.rel}' already exists`, 'exists')
+    }
+    return r
+  }
+
+  /**
+   * Put a received file (staged on the hub's disk, `sha256` of its bytes) at `input`. Everything is checked again
+   * here (the rules may have changed while the bytes came in). A file already there is kept as an earlier version
+   * (90 days, like an overwrite through write_file); the same content again changes nothing.
+   */
+  commitUpload(input: string, staged: { abs: string; size: number; sha256: string }, o: { overwrite: boolean }): WriteResult {
+    const r = this.uploadTarget(input, o.overwrite)
+    if (r.exists && r.st!.size === staged.size && hashRegular(r.abs).sha256 === staged.sha256) {
+      return { path: r.rel, created: false, changed: false, size: staged.size, versionId: null }
+    }
+    const versionId = placeFile(this.fx.root, r.segs, staged.abs, r.exists ? { db: this.ctx.db, userId: this.user.id, reason: 'overwrite' } : undefined)
+    this.changed(r.rel, true)
+    return { path: r.rel, created: !r.exists, changed: true, size: staged.size, versionId }
+  }
+
+  // ---------------- download ----------------
+  /** Open a file for download: a regular, singly linked file, never a link. The caller closes `fd`. */
+  openDownload(input: string): { rel: string; name: string; fd: number; size: number; mtimeMs: number } {
+    const r = authorize(this.fx, this.rules(), this.user, input, 'read')
+    if (r.st!.isDirectory()) throw new ToolError(`'${r.rel}' is a folder`, 'is_folder')
+    const { fd, st } = openChecked(r.abs)
+    return { rel: r.rel, name: r.segs[r.segs.length - 1]!, fd, size: st.size, mtimeMs: st.mtimeMs }
+  }
+
+  /** One entry the person can see (file or folder), for the manage page; null when it is not visible. */
+  entry(input: string): ListEntry | null {
+    const rules = this.rules()
+    let r: Authorized
+    try { r = authorize(this.fx, rules, this.user, input, 'list') } catch { return null }
+    if (r.segs.length === 0) return null
+    return this.visibleEntry(rules, r.segs, { isSymbolicLink: () => false } as fs.Dirent)
+  }
+
+  /**
+   * Folders the person may write in (where something can be moved to), as team-folder paths ('' = the top level, for
+   * admins), by a bounded walk from the top: shallow first, at most `limit` of them.
+   */
+  writableFolders(limit = 300, maxDepth = 4): string[] {
+    const rules = this.rules()
+    const out: string[] = []
+    if (atLeast(rules.access(this.user, []), 'write')) out.push('')
+    let level: string[][] = [[]]
+    for (let depth = 1; depth <= maxDepth && level.length && out.length < limit; depth++) {
+      const next: string[][] = []
+      for (const parent of level) {
+        let names: fs.Dirent[]
+        try { names = fs.readdirSync(path.join(this.fx.root, ...parent), { withFileTypes: true }) } catch { continue }
+        names.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+        for (const e of names) {
+          if (out.length >= limit) return out
+          const child = [...parent, e.name]
+          const entry = this.visibleEntry(rules, child, e)
+          if (!entry || entry.type !== 'folder') continue
+          if (!entry.readOnly) out.push(entry.path)
+          next.push(child)
+        }
+      }
+      level = next
+    }
+    return out
   }
 
   // ---------------- skills ----------------

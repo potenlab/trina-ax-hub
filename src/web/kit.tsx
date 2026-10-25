@@ -212,6 +212,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: '사람' },
   { href: '/admin/groups', label: '그룹' },
   { href: '/admin/folders', label: '폴더 권한' },
+  { href: '/files', label: '회사 파일' },
   { href: '/admin/versions', label: '되살리기' },
   { href: '/admin/budgets', label: '예산' },
   { href: '/admin/usage', label: '사용량' },
@@ -220,7 +221,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/claude', label: 'Claude 조직 설정' },
   { href: '/admin/audit', label: '기록' },
 ]
-const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '채팅' }]
+const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/files', label: '회사 파일' }, { href: '/app', label: '채팅' }]
 
 /** Whether hub chat works, for the pages of the request being answered (set once per request by the web module). */
 const CHAT_READY = new WeakMap<Request, boolean>()
@@ -230,7 +231,8 @@ export function navFor(role: string | undefined, o: { chat?: boolean } = {}): Na
   if (!role) return []
   // "채팅" only where hub chat can run (company API key + Claude Code on the hub); otherwise it leads to a dead composer
   const personal = o.chat === false ? PERSONAL_NAV.filter((n) => n.href !== '/app') : PERSONAL_NAV
-  return isAdminRole(role) ? [...ADMIN_NAV, ...personal] : personal
+  // admins already have 회사 파일 in the admin nav
+  return isAdminRole(role) ? [...ADMIN_NAV, ...personal.filter((n) => n.href !== '/files')] : personal
 }
 
 /** Extra styles for these pages (on top of the shared CSS); same tokens, same look. */

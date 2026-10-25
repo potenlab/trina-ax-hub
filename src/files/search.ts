@@ -98,6 +98,26 @@ export class OfficeCache {
   fresh(rel: string, st: fs.Stats) {
     try { return Math.floor(fs.statSync(this.cachePath(rel)).mtimeMs) === Math.floor(st.mtimeMs) } catch { return false }
   }
+  /** Drop the cached text of a file, or of everything below a folder (it was deleted, replaced or moved away). */
+  forget(rel: string) {
+    if (!rel || rel.startsWith('/') || rel.split('/').some((x) => x === '..' || x === '')) return
+    try { fs.rmSync(this.cachePath(rel), { force: true }) } catch { /* only a cache */ }
+    try { fs.rmSync(path.join(this.dir, rel), { recursive: true, force: true }) } catch { /* only a cache */ }
+  }
+  /**
+   * A file or folder was renamed or moved: take its cached text along (a rename keeps the modified time, so what was
+   * fresh stays fresh and nothing is extracted again). Without a cached copy there is nothing to do.
+   */
+  move(from: string, to: string) {
+    this.forget(to)
+    for (const [a, b] of [[this.cachePath(from), this.cachePath(to)], [path.join(this.dir, from), path.join(this.dir, to)]] as const) {
+      try {
+        if (!fs.existsSync(a)) continue
+        fs.mkdirSync(path.dirname(b), { recursive: true, mode: 0o700 })
+        fs.renameSync(a, b)
+      } catch { /* only a cache: it is extracted again when needed */ }
+    }
+  }
   /** (re)extract one file; the content is read through the checked descriptor */
   update(rel: string): Promise<void> {
     const running = this.inflight.get(rel)
