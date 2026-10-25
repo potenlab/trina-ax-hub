@@ -34,6 +34,7 @@ describe('scripts parse', () => {
 })
 
 describe.skipIf(!mac)('install-hub.sh as a LaunchDaemon', async () => {
+  if (!mac) return // bun still runs a skipped describe's body: don't set up a fake macOS on Linux
   const box = macBox({ fileVault: true })
   boxes.push(box)
   const home = path.join(box.home, 'TrinaAX')
@@ -213,6 +214,7 @@ describe.skipIf(!mac)('install-hub.sh as a LaunchDaemon', async () => {
 })
 
 describe.skipIf(!mac)('install-hub.sh --agent (no sudo)', async () => {
+  if (!mac) return // bun still runs a skipped describe's body: don't set up a fake macOS on Linux
   const box = macBox({ firewall: false })
   boxes.push(box)
   const home = path.join(box.home, 'TrinaAX')
@@ -267,6 +269,7 @@ describe.skipIf(!mac)('install-hub.sh --agent (no sudo)', async () => {
 })
 
 describe.skipIf(!mac)('upgrading an old LaunchAgent install', async () => {
+  if (!mac) return // bun still runs a skipped describe's body: don't set up a fake macOS on Linux
   const box = macBox({ firewall: false })
   boxes.push(box)
   const uid = process.getuid!()
