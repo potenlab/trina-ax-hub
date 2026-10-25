@@ -6,8 +6,11 @@ import { nowIso } from '../db'
 import { PRODUCT } from '../product'
 import { loadPrincipal, type Principal } from '../policy/access'
 
+/** device = a PC (installer), hub = one hub job, connector = a Claude app connector the person approved (OAuth) */
+export type TokenKind = 'device' | 'hub' | 'connector'
+
 export interface TokenRow {
-  id: string; user_id: string; kind: 'device' | 'hub'; name: string; prefix: string
+  id: string; user_id: string; kind: TokenKind; name: string; prefix: string
   created_at: string; expires_at: string | null; last_used_at: string | null; revoked_at: string | null
   /** who made the enroll code (null = CLI on the hub, or a hub token) */
   created_by: string | null
@@ -26,13 +29,13 @@ export interface IssueOpts {
   hubUrl?: string | null
 }
 
-export function issueToken(db: Database, userId: string, kind: 'device' | 'hub', name: string, o: IssueOpts | number = {}): { id: string; token: string } {
+export function issueToken(db: Database, userId: string, kind: TokenKind, name: string, o: IssueOpts | number = {}): { id: string; token: string } {
   const opts: IssueOpts = typeof o === 'number' ? { ttlMs: o } : o
   const token = PRODUCT.tokenPrefix + secret(32)
   const id = newId()
   const now = nowIso()
   // hub tokens are made by the hub for the person's own job; a device is approved when the person made the code
-  const approved = kind === 'hub' || opts.createdBy === userId ? now : null
+  const approved = kind !== 'device' || opts.createdBy === userId ? now : null
   db.query(`INSERT INTO tokens (id, user_id, kind, name, token_hash, prefix, created_at, expires_at, created_by, approved_at, hub_url) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, userId, kind, name.slice(0, 80) || kind, sha256(token), token.slice(0, PRODUCT.tokenPrefix.length + 6), now,
       opts.ttlMs ? new Date(Date.now() + opts.ttlMs).toISOString() : null, opts.createdBy ?? null, approved, opts.hubUrl ?? null)

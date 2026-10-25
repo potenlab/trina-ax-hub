@@ -3,7 +3,10 @@
 // `Authorization: Bearer`. The person is loaded again for every tool call, so a changed group, role or a disabled
 // account applies from the next call.
 import type { Register } from '../http/app'
-import { requireToken } from '../http/app'
+import type { MiddlewareHandler } from 'hono'
+import type { AppEnv } from '../http/app'
+import { verifyToken, tokenFromHeaders } from '../auth/tokens'
+import { originOf } from '../oauth/routes'
 import type { Ctx } from '../context'
 import type { TokenAuth } from '../auth/tokens'
 import { loadPrincipal } from '../policy/access'
@@ -32,7 +35,20 @@ export const register: Register = (app, ctx) => {
   app.get(MCP_PATH, () => new Response(null, { status: 405, headers: { allow: 'POST, DELETE' } }))
   // no sessions to end
   app.delete(MCP_PATH, () => new Response(null, { status: 200 }))
-  app.post(MCP_PATH, requireToken(ctx, 'json'), async (c) => {
+  // no or bad token: 401 with the protected-resource metadata, which is how Claude app connectors find the OAuth login
+  // (src/oauth/routes.tsx). PCs set up by the installer send their device token and never see this.
+  const mcpAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
+    const auth = verifyToken(ctx.db, tokenFromHeaders(c.req.raw.headers))
+    if (!auth) {
+      return new Response(JSON.stringify({ error: { code: 'unauthorized', message: '로그인이 필요해요.' } }), {
+        status: 401,
+        headers: { 'content-type': 'application/json', 'www-authenticate': `Bearer resource_metadata="${originOf(c, ctx)}/.well-known/oauth-protected-resource"` },
+      })
+    }
+    c.set('tokenAuth', auth)
+    await next()
+  }
+  app.post(MCP_PATH, mcpAuth, async (c) => {
     const auth = c.get('tokenAuth')!
     const declared = Number(c.req.header('content-length') ?? 0)
     if (declared > MAX_BODY_BYTES) return json(fail(null, -32600, 'request too large'), 413)

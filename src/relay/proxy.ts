@@ -16,6 +16,7 @@ export type MessagesPath = '/v1/messages' | '/v1/messages/count_tokens'
 
 /** What people see (Claude Code shows the message). */
 export const MSG = {
+  connector: 'Trina AX: Claude 앱 커넥터 연결로는 모델을 부를 수 없어요.',
   subscription: 'Trina AX: 이 PC는 본인 Claude 구독으로 쓰도록 설정돼 있어요. 터미널에서 claude 를 실행하고 /login 으로 본인 구독에 로그인해 주세요. 회사 키로 써야 하면 관리자에게 말해 주세요.',
   noKey: 'Trina AX: 회사 Anthropic API 키가 아직 등록되지 않았어요. 관리자에게 등록해 달라고 말해 주세요.',
   badBody: 'Trina AX: 요청 본문이 JSON 객체가 아니에요.',
@@ -125,6 +126,8 @@ const isEventStream = (h: Headers) => (h.get('content-type') ?? '').toLowerCase(
 /** POST /v1/messages and /v1/messages/count_tokens (token already checked by requireToken). */
 export async function relayMessages(ctx: Ctx, c: C, path: MessagesPath): Promise<Response> {
   const auth = c.get('tokenAuth')!
+  // Claude app connectors (OAuth) are for files and skills only, never for spending the company key
+  if (auth.token.kind === 'connector') return apiError(403, 'permission_error', MSG.connector, NO_RETRY)
   // a person set to use their own subscription never spends the company key from their PC (hub sessions may)
   if (auth.token.kind === 'device' && modelAccessFor(ctx.db, auth.user.id) === 'subscription') return apiError(403, 'permission_error', MSG.subscription, NO_RETRY)
   const apiKey = ctx.secrets.getApiKey()
