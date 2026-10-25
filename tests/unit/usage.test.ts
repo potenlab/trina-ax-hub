@@ -218,7 +218,7 @@ describe('reports', () => {
     expect(lines[0]).toBe('시각,이름,아이디,그룹,사용처,모델,입력 토큰,출력 토큰,캐시 읽기 토큰,캐시 쓰기 토큰,비용(USD),응답 코드')
     expect(lines[1]).toBe('2026-10-25 09:05,김민수,minsu,"개발팀, 영업",PC (회사 키),claude-sonnet-5-5,1200,300,5000,7,1.250000,200')
     expect(lines[2]).toBe("2026-10-25 10:00,'=cmd|calc,u3,,허브(휴대폰·예약),claude-sonnet-5-5,100,10,0,0,0.000000,200")
-    expect(lines[3]).toBe('2026-10-25 11:00,(삭제된 사람),gone,,PC,claude-sonnet-5-5,100,10,0,0,0.010000,200')
+    expect(lines[3]).toBe('2026-10-25 11:00,(삭제된 사람),gone,,PC (회사 키),claude-sonnet-5-5,100,10,0,0,0.010000,200')
     expect(lines).toHaveLength(4)
     expect(localDateTime(new Date(2026, 0, 2, 3, 4))).toBe('2026-01-02 03:04')
   })
