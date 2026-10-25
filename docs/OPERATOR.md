@@ -75,7 +75,7 @@
 | **기본:** TreeSoop 계정 + `<회사>.trina.app` (예: `acme.trina.app`) | 명령 하나로 끝나요 (4장). 고객은 아무것도 준비하지 않아도 돼요 | 계약이 끝나면 주소가 사라져요. 13장 순서를 꼭 지키기 |
 | 고객 계정 + 고객 도메인 (예: `ax.acme.co.kr`) | 계약이 끝나도 고객 것 | 고객이 원할 때만. 도메인의 네임서버가 Cloudflare에 있어야 해요 (서브도메인만 쓰려면 그 영역 전체) |
 
-`<회사>` 는 영문 소문자·숫자·하이픈 2~40자예요 (예: `jdr`, `acme-korea`). `acme.ax.trina.app` 처럼 두 단계로 만들지 않아요.
+`<회사>` 는 영문 소문자·숫자·하이픈 2~40자예요 (예: `acme`, `acme-korea`). `acme.ax.trina.app` 처럼 두 단계로 만들지 않아요.
 Cloudflare 무료 인증서(Universal SSL)가 `*.trina.app` 한 단계만 덮어서, 두 단계 이름은 https가 안 돼요.
 
 ---

@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest something Trina AX should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What your team is trying to do with Claude and the company's files, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: How it could work. Commands, screens, or a rough sketch are all welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions and audit
+      description: |
+        Trina AX's promise is that each person's Claude opens only the folders that person may open, and every file
+        action is recorded. Does your idea touch who can see or change what? How should it be recorded?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now instead

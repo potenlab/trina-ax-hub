@@ -112,7 +112,7 @@ describe('urls', () => {
     expect(skillsUnavailableReason(cfg({ publicUrl: 'https://localhost' }))).not.toBeNull()
     expect(skillsUnavailableReason(cfg({ publicUrl: 'https://169.254.169.254' }))).not.toBeNull()
     expect(skillsUnavailableReason(cfg({ publicUrl: 'https://[::1]' }))).not.toBeNull()
-    expect(skillsUnavailableReason(cfg({ publicUrl: 'https://acme.ax.trina.app' }))).toBeNull()
+    expect(skillsUnavailableReason(cfg({ publicUrl: 'https://acme.trina.app' }))).toBeNull()
   })
   test('archive names', () => {
     expect(archiveSha12('company-0123456789ab.zip')).toBe('0123456789ab')
@@ -271,11 +271,11 @@ describe('marketplace over HTTP', async () => {
   })
 
   test('the public URL is used for archive URLs when set', async () => {
-    hub.ctx.config.publicUrl = 'https://acme.ax.trina.app'
+    hub.ctx.config.publicUrl = 'https://acme.trina.app'
     try {
       const m = await market(parkToken)
-      expect(m.plugins[0].source.url).toStartWith('https://acme.ax.trina.app/plugins/company-')
-      const { json } = marketplaceFor(hub.ctx, principal(park.id), 'https://acme.ax.trina.app')
+      expect(m.plugins[0].source.url).toStartWith('https://acme.trina.app/plugins/company-')
+      const { json } = marketplaceFor(hub.ctx, principal(park.id), 'https://acme.trina.app')
       expect(json.plugins[0]!.source.url).toBe(m.plugins[0].source.url)
     } finally { hub.ctx.config.publicUrl = null }
   })

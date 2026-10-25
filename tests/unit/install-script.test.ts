@@ -369,7 +369,7 @@ describe('install.sh', async () => {
   })
 
   test('with an https public URL the plugin is installed through a local-only session', async () => {
-    hub.ctx.config.publicUrl = 'https://acme.ax.trina.app'
+    hub.ctx.config.publicUrl = 'https://acme.trina.app'
     const file = path.join(hub.dir, 'install-public.sh')
     fs.writeFileSync(file, renderScript('sh', hub.url)) // enroll against this test hub; URLs in settings are public
     try {
@@ -381,8 +381,8 @@ describe('install.sh', async () => {
         noToken(r)
         expect(r.stdout).toContain('회사 스킬')
         const s = b.readSettings()
-        expect(s.env).toEqual(modeEnv(mode, 'https://acme.ax.trina.app', tokenOf(b)))
-        expect(s.extraKnownMarketplaces['trina-ax'].source.url).toBe('https://acme.ax.trina.app/plugins/marketplace.json')
+        expect(s.env).toEqual(modeEnv(mode, 'https://acme.trina.app', tokenOf(b)))
+        expect(s.extraKnownMarketplaces['trina-ax'].source.url).toBe('https://acme.trina.app/plugins/marketplace.json')
         const calls = b.calls()
         // [mcp remove, mcp add, (auth status,) -p /cost, plugin install, plugin list]
         expect(calls.slice(mode === 'subscription' ? 3 : 2)).toEqual([
@@ -429,7 +429,7 @@ describe('install.sh', async () => {
   })
 
   test('subscription: company skills that cannot be installed before the first login do not fail the installer', async () => {
-    hub.ctx.config.publicUrl = 'https://acme.ax.trina.app'
+    hub.ctx.config.publicUrl = 'https://acme.trina.app'
     const file = path.join(hub.dir, 'install-public-login.sh')
     fs.writeFileSync(file, renderScript('sh', hub.url))
     try {

@@ -187,15 +187,15 @@ describe('enrollment API', async () => {
   })
 
   test('skillsReady follows the public URL', async () => {
-    hub.ctx.config.publicUrl = 'https://acme.ax.trina.app'
+    hub.ctx.config.publicUrl = 'https://acme.trina.app'
     try {
       const j = await (await enroll({ code: code() }, '100.64.0.3')).json() as any
       expect(j.skillsReady).toBe(true)
       expect(j.notices).toEqual([])
-      expect(j.hubUrl).toBe('https://acme.ax.trina.app')
-      expect(j.env.ANTHROPIC_BASE_URL).toBe('https://acme.ax.trina.app')
-      expect(j.marketplaceUrl).toBe('https://acme.ax.trina.app/plugins/marketplace.json')
-      expect(j.mcpUrl).toBe('https://acme.ax.trina.app/mcp')
+      expect(j.hubUrl).toBe('https://acme.trina.app')
+      expect(j.env.ANTHROPIC_BASE_URL).toBe('https://acme.trina.app')
+      expect(j.marketplaceUrl).toBe('https://acme.trina.app/plugins/marketplace.json')
+      expect(j.mcpUrl).toBe('https://acme.trina.app/mcp')
     } finally { hub.ctx.config.publicUrl = null }
   })
 })
@@ -216,7 +216,7 @@ describe('helpers', () => {
     expect(l.blocked('b', 20)).toBe(false)
   })
   test('only plain URLs are baked into scripts', () => {
-    expect(bakeableUrl('https://acme.ax.trina.app')).toBe(true)
+    expect(bakeableUrl('https://acme.trina.app')).toBe(true)
     expect(bakeableUrl('http://192.168.1.17:47900')).toBe(true)
     expect(bakeableUrl('http://[::1]:47900')).toBe(true)
     for (const u of ["https://x.com/'; rm -rf ~", 'https://x.com/$(id)', 'https://x.com/`id`', 'https://u:p@x.com', 'https://x.com/?a=1', 'ftp://x.com', 'https://x.com/"', 'javascript:alert(1)']) {
@@ -225,9 +225,9 @@ describe('helpers', () => {
     expect(() => renderScript('sh', "https://x.com/'")).toThrow()
   })
   test('the commands the personal page shows', () => {
-    const c = installCommands('https://acme.ax.trina.app', 'ABCD-EFGH-JKLM')
-    expect(c.mac).toBe('curl -fsSL https://acme.ax.trina.app/install.sh | bash -s -- ABCD-EFGH-JKLM')
-    expect(c.windows).toBe('& ([scriptblock]::Create((irm https://acme.ax.trina.app/install.ps1))) ABCD-EFGH-JKLM')
+    const c = installCommands('https://acme.trina.app', 'ABCD-EFGH-JKLM')
+    expect(c.mac).toBe('curl -fsSL https://acme.trina.app/install.sh | bash -s -- ABCD-EFGH-JKLM')
+    expect(c.windows).toBe('& ([scriptblock]::Create((irm https://acme.trina.app/install.ps1))) ABCD-EFGH-JKLM')
   })
 })
 
@@ -252,10 +252,10 @@ describe('installer scripts', async () => {
   }
 
   test('a public URL is baked in when set', async () => {
-    hub.ctx.config.publicUrl = 'https://acme.ax.trina.app'
+    hub.ctx.config.publicUrl = 'https://acme.trina.app'
     try {
       const text = await (await fetch(hub.url + '/install.sh')).text()
-      expect(text).toContain("HUB_URL='https://acme.ax.trina.app'")
+      expect(text).toContain("HUB_URL='https://acme.trina.app'")
     } finally { hub.ctx.config.publicUrl = null }
   })
 
@@ -272,7 +272,7 @@ describe('installer scripts', async () => {
 
   test('install.sh passes bash -n', async () => {
     const f = path.join(work, 'install.sh')
-    fs.writeFileSync(f, renderScript('sh', 'https://acme.ax.trina.app'))
+    fs.writeFileSync(f, renderScript('sh', 'https://acme.trina.app'))
     const p = Bun.spawn(['bash', '-n', f], { stderr: 'pipe' })
     const err = await new Response(p.stderr).text()
     expect(await p.exited).toBe(0)
@@ -282,7 +282,7 @@ describe('installer scripts', async () => {
   const pwsh = findPwsh()
   test.skipIf(!pwsh)('install.ps1 parses in PowerShell', async () => {
     const f = path.join(work, 'install.ps1')
-    fs.writeFileSync(f, renderScript('ps1', 'https://acme.ax.trina.app'))
+    fs.writeFileSync(f, renderScript('ps1', 'https://acme.trina.app'))
     const cmd = `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${f}', [ref]$null, [ref]$e); if ($e) { $e | ForEach-Object { $_.ToString() }; exit 1 }`
     const p = Bun.spawn([pwsh!, '-NoProfile', '-NonInteractive', '-Command', cmd], { stdout: 'pipe', stderr: 'pipe' })
     const out = await new Response(p.stdout).text()

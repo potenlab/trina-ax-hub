@@ -8,8 +8,8 @@ const hub = await testHub({ access: 'subscription' })
 afterAll(async () => { await hub.stop() })
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback'
 // requests as they arrive through the Cloudflare tunnel
-const PUBLIC = { host: 'acme.ax.trina.app', 'x-forwarded-proto': 'https', 'cf-ray': 'test', 'cf-connecting-ip': '160.79.104.10' }
-const ORIGIN = 'https://acme.ax.trina.app'
+const PUBLIC = { host: 'acme.trina.app', 'x-forwarded-proto': 'https', 'cf-ray': 'test', 'cf-connecting-ip': '160.79.104.10' }
+const ORIGIN = 'https://acme.trina.app'
 
 const mcp = (token: string | null, body: unknown) => fetch(hub.url + '/mcp', {
   method: 'POST', headers: { ...PUBLIC, 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(token ? { authorization: 'Bearer ' + token } : {}) },
@@ -63,7 +63,7 @@ describe('registration', () => {
     expect(redirectAllowed('http://evil.com/callback')).toBe(false)
     expect(redirectMatches(['http://localhost:1111/callback'], 'http://localhost:2222/callback')).toBe(true)
     expect(redirectMatches([CALLBACK], 'https://claude.ai/api/mcp/auth_callback?x')).toBe(false)
-    expect(canonicalResource('HTTPS://Acme.AX.trina.app:443/mcp/')).toBe('https://acme.ax.trina.app/mcp')
+    expect(canonicalResource('HTTPS://Acme.Trina.app:443/mcp/')).toBe('https://acme.trina.app/mcp')
   })
 })
 

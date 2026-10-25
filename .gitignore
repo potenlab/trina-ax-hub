@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 tests/.work/
 dist/
+# Cloudflare tunnel tokens written by deploy/cloudflare/customer-address.ts
+*-tunnel-token.txt
+tunnel-token*.txt

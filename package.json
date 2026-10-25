@@ -4,6 +4,15 @@
   "private": true,
   "type": "module",
   "description": "Trina AX hub: company files, skills, model relay and usage for Claude running on each employee's PC",
+  "license": "Apache-2.0",
+  "homepage": "https://ax.trina.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/potenlab/trina-ax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/potenlab/trina-ax/issues"
+  },
   "scripts": {
     "dev": "bun --watch src/main.ts",
     "start": "bun src/main.ts",

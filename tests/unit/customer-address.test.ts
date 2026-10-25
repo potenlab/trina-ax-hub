@@ -90,8 +90,8 @@ const envFor = (fake: FakeCloudflare): { env: Env; lines: string[] } => {
 
 describe('customer names', () => {
   test('a company name becomes a lowercase one-level name', () => {
-    expect(checkSlug('jdr')).toBe('jdr')
-    expect(checkSlug(' JDR ')).toBe('jdr')
+    expect(checkSlug('globex')).toBe('globex')
+    expect(checkSlug(' GLOBEX ')).toBe('globex')
     expect(checkSlug('acme-korea')).toBe('acme-korea')
     expect(checkSlug('lg')).toBe('lg')
     expect(checkSlug('3m')).toBe('3m')
@@ -117,24 +117,24 @@ describe('new', () => {
   test('creates the tunnel, its route, a proxied CNAME and a 0600 token file, and never prints a secret', async () => {
     const fake = new FakeCloudflare()
     const out = tmp()
-    const r = await run(fake, ['new', 'JDR', '--out', out])
+    const r = await run(fake, ['new', 'GLOBEX', '--out', out])
     expect(r.code).toBe(0)
     expect(fake.writes()).toEqual([
       'POST /accounts/a1/cfd_tunnel',
       'PUT /accounts/a1/cfd_tunnel/tun1/configurations',
       'POST /zones/z1/dns_records',
     ])
-    expect(fake.tunnels.map((t) => t.name)).toEqual(['trina-ax-jdr'])
-    expect(fake.configs.get('tun1')).toEqual({ ingress: [{ hostname: 'jdr.trina.app', service: 'http://127.0.0.1:47900' }, { service: 'http_status:404' }] })
-    const rec = fake.dns.find((d) => d.name === 'jdr.trina.app')!
+    expect(fake.tunnels.map((t) => t.name)).toEqual(['trina-ax-globex'])
+    expect(fake.configs.get('tun1')).toEqual({ ingress: [{ hostname: 'globex.trina.app', service: 'http://127.0.0.1:47900' }, { service: 'http_status:404' }] })
+    const rec = fake.dns.find((d) => d.name === 'globex.trina.app')!
     expect(rec).toMatchObject({ type: 'CNAME', content: 'tun1.cfargotunnel.com', proxied: true })
 
-    const file = path.join(out, 'jdr-tunnel-token.txt')
+    const file = path.join(out, 'globex-tunnel-token.txt')
     expect(fs.readFileSync(file, 'utf8').trim()).toBe(TUNNEL_TOKEN('tun1'))
     expect(fs.statSync(file).mode & 0o777).toBe(0o600)
 
-    expect(r.out).toContain('고객 주소: https://jdr.trina.app')
-    expect(r.out).toContain('--tunnel-token-file ~/tunnel-token.txt --public-url https://jdr.trina.app')
+    expect(r.out).toContain('고객 주소: https://globex.trina.app')
+    expect(r.out).toContain('--tunnel-token-file ~/tunnel-token.txt --public-url https://globex.trina.app')
     expect(r.out + r.err).not.toContain('TUNNEL-SECRET')
     expect(r.out + r.err).not.toContain(CF_API_TOKEN)
   })
@@ -203,14 +203,14 @@ describe('list, check, token', () => {
   test('list shows each customer address with its tunnel state', async () => {
     const fake = new FakeCloudflare()
     await run(fake, ['new', 'acme', '--out', tmp()])
-    await run(fake, ['new', 'jdr', '--out', tmp()])
-    fake.tunnels.find((t) => t.name === 'trina-ax-jdr')!.status = 'healthy'
-    fake.tunnels.find((t) => t.name === 'trina-ax-jdr')!.connections = [{}, {}, {}, {}]
+    await run(fake, ['new', 'globex', '--out', tmp()])
+    fake.tunnels.find((t) => t.name === 'trina-ax-globex')!.status = 'healthy'
+    fake.tunnels.find((t) => t.name === 'trina-ax-globex')!.connections = [{}, {}, {}, {}]
     fake.tunnels.push({ id: 'x', name: 'someone-else', status: 'healthy', connections: [] })
     const r = await run(fake, ['list'])
     expect(r.code).toBe(0)
     expect(r.out).toMatch(/https:\/\/acme\.trina\.app\s+trina-ax-acme {2}아직 연결 전/)
-    expect(r.out).toMatch(/https:\/\/jdr\.trina\.app\s+trina-ax-jdr {2}켜짐 · 연결 4/)
+    expect(r.out).toMatch(/https:\/\/globex\.trina\.app\s+trina-ax-globex {2}켜짐 · 연결 4/)
     expect(r.out).not.toContain('someone-else')
   })
 

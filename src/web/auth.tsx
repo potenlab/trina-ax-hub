@@ -58,7 +58,7 @@ function SetupPage(p: { csrf: string; token?: string; values?: SetupValues; erro
         <Csrf token={p.csrf} />
         {p.token ? <input type="hidden" name="setup" value={p.token} /> : null}
         <div class="field"><label for="companyName">회사 이름</label>
-          <input id="companyName" name="companyName" value={v.companyName} required maxlength={60} placeholder="예: 트리나치과" autocomplete="organization" /></div>
+          <input id="companyName" name="companyName" value={v.companyName} required maxlength={60} placeholder="예: 트리나상사" autocomplete="organization" /></div>
         <h3>소유자 계정</h3>
         <div class="row">
           <div class="field"><label for="name">이름</label><input id="name" name="name" value={v.name} required maxlength={40} autocomplete="name" /></div>

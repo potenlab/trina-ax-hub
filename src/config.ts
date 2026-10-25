@@ -10,7 +10,7 @@ export interface Config {
   dataDir: string
   /** the company's files; every tool path is relative to this folder */
   teamRoot: string
-  /** how PCs reach the hub from anywhere (Cloudflare tunnel), e.g. https://acme.ax.trina.app. Null = local only. */
+  /** how PCs reach the hub from anywhere (Cloudflare tunnel), e.g. https://acme.trina.app. Null = local only. */
   publicUrl: string | null
   /** how PCs in the office reach the hub directly, e.g. http://192.168.1.17:47900 */
   lanUrl: string | null

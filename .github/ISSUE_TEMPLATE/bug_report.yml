@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the hub, the installer or the connector does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security problem, do **not** open an issue: see SECURITY.md (contact@trina.app).
+        Please remove tokens, API keys, passwords, enrollment codes and file names you cannot share.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Commands, or steps in the web pages.
+      placeholder: |
+        1. bun run dev
+        2. open http://127.0.0.1:47900/setup …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The commit you run (`git rev-parse --short HEAD`) and `claude --version` on the PC, if it matters
+  - type: dropdown
+    id: hub
+    attributes:
+      label: Where the hub runs
+      options:
+        - macOS (LaunchDaemon from install-hub.sh)
+        - Linux (systemd)
+        - bun run dev
+        - Hosted by Trina
+        - Other
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      multiple: true
+      options:
+        - Claude Code (macOS)
+        - Claude Code (Windows)
+        - Claude Code (Linux)
+        - Claude desktop app (connector)
+        - claude.ai web (connector)
+        - Claude mobile app (connector)
+        - Hub web pages
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`trina-ax logs -n 200`, `trina-ax doctor` output or the error text. Redact secrets."
+      render: text

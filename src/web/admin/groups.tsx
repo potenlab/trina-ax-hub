@@ -37,7 +37,7 @@ function GroupsPage(p: { web: Web; c: C; flashes: Flash[] }) {
             )
           })}</tbody>
         </table></div>
-      ) : <Empty title="아직 그룹이 없어요">예: 진료팀, 상담실, 영업팀. 아래에서 만들어 보세요.</Empty>}
+      ) : <Empty title="아직 그룹이 없어요">예: 영업팀, 재무팀, 디자인팀. 아래에서 만들어 보세요.</Empty>}
 
       <form method="post" action="/admin/groups" class="card" id="add">
         <h2>그룹 만들기</h2>

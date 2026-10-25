@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// 새 고객 허브의 공개 주소 <회사>.trina.app 을 만들고 관리해요. TreeSoop 운영자 컴퓨터에서 실행해요 (고객 Mac 아님).
+// 새 고객 허브의 공개 주소 <회사>.trina.app 을 만들고 관리해요. 트리나 운영자 컴퓨터에서 실행해요 (고객 Mac 아님).
 //
 //   bun deploy/cloudflare/customer-address.ts new <회사> [--port 47900] [--out DIR]
 //   bun deploy/cloudflare/customer-address.ts list
@@ -31,7 +31,7 @@ const API = 'https://api.cloudflare.com/client/v4'
 
 /** Names a customer can't take: ours today (DNS of trina.app on 2026-10-25), ours likely tomorrow, and mail/infra names. */
 export const RESERVED = new Set([
-  // in use on trina.app
+  // already used on trina.app
   'www', 'console', 'drive', 'local', 'staging', 'send', 'cloud', 'ax-demo',
   // products and pages
   'ax', 'geo', 'marketing', 'hub', 'app', 'apps', 'api', 'admin', 'dashboard', 'demo', 'docs', 'doc', 'help', 'support',
@@ -53,7 +53,7 @@ export class AddressError extends Error {}
 /** Lowercases and checks a customer name; returns it or throws AddressError with what to do instead. */
 export function checkSlug(raw: string): string {
   const s = (raw ?? '').trim().toLowerCase()
-  const example = '영문 소문자·숫자·하이픈으로 2~40자 적어 주세요 (예: jdr, acme-korea).'
+  const example = '영문 소문자·숫자·하이픈으로 2~40자 적어 주세요 (예: acme, acme-korea).'
   if (!s) throw new AddressError(`회사 이름이 비었어요. ${example}`)
   if (!/^[a-z0-9-]+$/.test(s)) throw new AddressError(`"${raw}" 은 주소로 쓸 수 없어요. ${example}`)
   if (s.length < 2 || s.length > 40) throw new AddressError(`"${s}" 은 길이가 맞지 않아요. ${example}`)
@@ -351,7 +351,7 @@ export async function main(argv: string[], io: { log: (s: string) => void; err: 
   const known = new Set(['domain', 'cf-token-file', 'port', 'out', 'yes', 'help'])
   const unknown = Object.keys(opt).filter((k) => !known.has(k))
   if (unknown.length) { io.err(`모르는 옵션이에요: --${unknown[0]}\n${USAGE}`); return 2 }
-  if (cmd !== 'list' && !slug) { io.err(`${cmd} 다음에 회사 이름을 적어 주세요 (예: ${cmd} jdr).`); return 2 }
+  if (cmd !== 'list' && !slug) { io.err(`${cmd} 다음에 회사 이름을 적어 주세요 (예: ${cmd} acme).`); return 2 }
 
   try {
     let port: number | undefined

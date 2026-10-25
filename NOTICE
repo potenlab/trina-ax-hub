@@ -1,0 +1,32 @@
+Trina AX
+Copyright 2026 Trina Inc. (주식회사 트리나)
+
+This product includes software developed at Trina Inc. (https://trina.app).
+Licensed under the Apache License, Version 2.0; see the LICENSE file.
+
+--------------------------------------------------------------------------------
+Third-party material in this repository
+--------------------------------------------------------------------------------
+
+This repository contains no third-party source code, fonts or images. A few
+modules were adapted from Team AX, an earlier product of the same owner
+(Trina Inc.), and are licensed here under Apache-2.0 by that owner:
+src/policy/, src/files/ (extract, hwp, isolate, search, store),
+src/usage/budgets.ts and parts of src/hub/. The list is in docs/THIRD-PARTY.md.
+
+npm packages are not copied into this repository; `bun install` fetches them
+and each keeps its own license (croner, fflate, hono and zod are MIT; SheetJS
+Community Edition `xlsx` is Apache-2.0, Copyright (C) 2012-present SheetJS LLC,
+and is installed from https://cdn.sheetjs.com). The list is in
+docs/THIRD-PARTY.md.
+
+Trina AX runs these programs as separate processes. They are not part of this
+repository and are not distributed with it: Bun (MIT), ripgrep (MIT or
+Unlicense), pandoc (GPL-2.0-or-later), poppler's pdftotext (GPL-2.0 or
+GPL-3.0), bubblewrap on Linux (LGPL-2.0-or-later) and cloudflared (Apache-2.0).
+Claude Code is proprietary software of Anthropic, PBC; it is installed
+separately from Anthropic's own installer and is governed by Anthropic's terms.
+
+"Trina" and "Trina AX" are trademarks of Trina Inc. and are not licensed by the
+Apache License. Claude and Claude Code are trademarks of Anthropic, PBC. Trina AX
+is not affiliated with or endorsed by Anthropic.

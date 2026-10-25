@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/potenlab/trina-ax/blob/main/SECURITY.md
+    about: Please do not open a public issue. Email contact@trina.app.
+  - name: Managed hosting, setup and pricing
+    url: https://ax.trina.app/#pricing
+    about: Questions about hosting by Trina, setup and monthly operation (contact@trina.app).
