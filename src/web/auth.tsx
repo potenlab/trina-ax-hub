@@ -203,20 +203,21 @@ export function mountAuth(app: App, web: Web) {
     const again = (error: string, status: 400 | 403 | 429) =>
       render(c, <LoginPage csrf={preCsrfToken(c)} company={companyName(ctx)} username={username} next={next} error={error} />, status)
     if (!ok) return again('페이지가 오래됐어요. 다시 로그인해 주세요.', 403)
-    const ipKey = 'ip:' + clientIp(c)
-    const userKey = 'user:' + username.toLowerCase()
-    if (web.login.ip.blocked(ipKey) || web.login.user.blocked(userKey)) {
+    const ip = clientIp(c)
+    const ipKey = 'ip:' + ip
+    const pairKey = `${username.toLowerCase()}\n${ip}`
+    if (web.login.ip.blocked(ipKey) || web.login.pair.blocked(pairKey)) {
       return again(`로그인 시도가 너무 많아요. ${Math.round(LOGIN_WINDOW_MS / 60_000)}분 뒤에 다시 해 주세요.`, 429)
     }
     const u = username ? getUserByUsername(db, username) : null
     const good = u ? await verifyPassword(u.passwordHash, password) : (await Bun.password.verify(password || 'x', await dummy()), false)
     if (!u || !good || u.status !== 'active') {
       web.login.ip.fail(ipKey)
-      web.login.user.fail(userKey)
+      web.login.pair.fail(pairKey)
       if (u) audit(db, { actor: null, action: 'login.fail', target: u.id, detail: { ip: clientIp(c) } })
       return again('아이디 또는 비밀번호가 맞지 않아요.', 400)
     }
-    web.login.user.clear(userKey)
+    web.login.pair.clear(pairKey)
     startSession(web, c, u.id)
     audit(db, { actor: u.id, action: 'login', target: u.id, detail: { ip: clientIp(c) } })
     return c.redirect(u.mustChangePassword ? '/me/password' : next ?? homeFor(u.role), 303)

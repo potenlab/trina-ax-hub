@@ -94,7 +94,8 @@ describe('web: personal page', async () => {
     expect(body).toContain('$1.50') // only my own rows
     expect(body).not.toContain('$99')
     expect(body).toContain('내게 적용되는 예산')
-    expect(body).toContain('$1.50 / $10.0')
+    expect(body).toContain('$1.50 / $10.00')
+    expect(body).toContain('약 2,100원') // 1.50 × 1,400
     expect(body).toContain('견적서 초안을 만들어요')
   })
 })

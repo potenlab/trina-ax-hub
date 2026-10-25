@@ -3,7 +3,8 @@
 import type { App, C } from '../../http/app'
 import { usageReport, skillReport, toolReport, usageCsv, type GroupBy } from '../../usage/report'
 import { audit } from '../../audit'
-import { fmtNum, fmtTokens, fmtUsd, monthStart, dayStart } from '../../ui/format'
+import { fmtKrw, fmtNum, fmtTokens, fmtUsd, monthStart, dayStart } from '../../ui/format'
+import { krwPerUsd } from '../settings'
 import { type Web, type Flash, Shell, Stat, Empty, render, takeFlashes } from '../kit'
 import { dayLabel, nextMonthStart } from '../me'
 
@@ -81,7 +82,7 @@ function UsagePage(p: { web: Web; c: C; flashes: Flash[] }) {
       </form>
 
       <div class="grid">
-        <Stat label="비용" value={fmtUsd(t.costUsd)} />
+        <Stat label="비용" value={fmtUsd(t.costUsd)} hint={t.costUsd > 0 ? fmtKrw(t.costUsd, krwPerUsd(p.web.ctx)) : undefined} />
         <Stat label="요청" value={fmtNum(t.requests)} />
         <Stat label="입력 · 출력 토큰" value={`${fmtTokens(t.inputTokens)} · ${fmtTokens(t.outputTokens)}`} />
         <Stat label="캐시 토큰" value={fmtTokens(t.cacheTokens)} />

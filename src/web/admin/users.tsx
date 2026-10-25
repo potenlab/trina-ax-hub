@@ -8,14 +8,14 @@ import { listTokens, revokeToken } from '../../auth/tokens'
 import { makeEnrollCode } from '../../auth/enroll'
 import { audit } from '../../audit'
 import { usageReport } from '../../usage/report'
-import { fmtNum, fmtUsd, monthStart } from '../../ui/format'
+import { fmtKrw, fmtNum, fmtUsd, monthStart } from '../../ui/format'
 import { Csrf } from '../../ui/layout'
 import {
   type Web, type Flash, type Form, Shell, Stat, Empty, ButtonForm, EnrollResult, render, takeFlashes, act, say, fail, field, fields,
   roleBadge, requestOrigin, ROLE_LABEL,
 } from '../kit'
-import { DeviceTable, activeDevices, nextMonthStart } from '../me'
-import { effectiveUrls } from '../settings'
+import { DeviceTable, activeDevices, nextMonthStart, peopleNames, unapproved, type DeviceView } from '../me'
+import { configuredHubUrl, effectiveUrls, krwPerUsd } from '../settings'
 
 const TEMP_ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789'
 
@@ -119,6 +119,9 @@ function UserPage(p: { web: Web; c: C; flashes: Flash[]; user: User }) {
   const pw = p.flashes.find((f): f is Extract<Flash, { kind: 'password' }> => f.kind === 'password' && f.userId === u.id)
   const enroll = p.flashes.find((f): f is Extract<Flash, { kind: 'enroll' }> => f.kind === 'enroll' && f.userId === u.id)
   const base = `/admin/users/${u.id}`
+  const view: DeviceView = { personId: u.id, names: peopleNames(ctx.db), currentHub: configuredHubUrl(effectiveUrls(ctx)) }
+  const waiting = active.filter(unapproved).length
+  const rate = krwPerUsd(ctx)
   return (
     <Shell c={p.c} title={u.name} active="/admin/users" flashes={p.flashes}>
       <p class="small"><a href="/admin/users">← 사람 목록</a></p>
@@ -127,11 +130,11 @@ function UserPage(p: { web: Web; c: C; flashes: Flash[]; user: User }) {
           <p class="lead">아이디 {u.username}{u.mustChangePassword ? ' · 아직 첫 로그인 전이에요' : ''}</p></div>
       </div>
       {pw ? <PasswordOnce c={p.c} web={p.web} f={pw} /> : null}
-      {enroll ? <EnrollResult c={p.c} ctx={ctx} code={enroll.code} expiresAt={enroll.expiresAt} who={u.name} /> : null}
+      {enroll ? <EnrollResult c={p.c} ctx={ctx} code={enroll.code} expiresAt={enroll.expiresAt} who={u.name} forOther={u.id !== s.user.id} /> : null}
       {!manageable ? <div class="notice warn">소유자 계정은 소유자만 바꿀 수 있어요.</div> : null}
 
       <div class="grid">
-        <Stat label="이번 달 비용" value={fmtUsd(usage.totals.costUsd)} />
+        <Stat label="이번 달 비용" value={fmtUsd(usage.totals.costUsd)} hint={usage.totals.costUsd > 0 ? fmtKrw(usage.totals.costUsd, rate) : undefined} />
         <Stat label="이번 달 요청" value={fmtNum(usage.totals.requests)} />
         <Stat label="연결된 PC" value={`${active.length}대`} />
       </div>
@@ -165,8 +168,9 @@ function UserPage(p: { web: Web; c: C; flashes: Flash[]; user: User }) {
       <div class="sec"><h2>PC</h2>
         {manageable && u.status === 'active' ? <ButtonForm action={`${base}/enroll`} csrf={s.csrf} label="PC 연결 코드 만들기" small={false} /> : null}
       </div>
+      {waiting ? <p class="small muted">관리자가 연결한 PC는 {u.name}님이 '내 PC' 페이지에서 승인해야 그 PC로 개인 폴더를 열 수 있어요.</p> : null}
       {devices.length
-        ? <DeviceTable devices={devices} csrf={s.csrf} revokeBase={`${base}/devices`} />
+        ? <DeviceTable devices={devices} csrf={s.csrf} revokeBase={`${base}/devices`} view={view} />
         : <Empty title="연결된 PC가 없어요">'PC 연결 코드 만들기'로 코드를 만들어 그 사람 PC에서 명령을 실행하면 돼요.</Empty>}
 
       {manageable && !self ? (

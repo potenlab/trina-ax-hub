@@ -111,9 +111,11 @@ describe('web: budgets', () => {
     ]))
     db.query("INSERT INTO usage (id, user_id, source, model, input_tokens, output_tokens, cost_usd, status, started_at) VALUES ('b1', ?, 'pc', 'claude-sonnet-5-5', 900000, 0, 45, 200, ?)").run(kim.id, new Date().toISOString())
     const page = await (await get(hub, '/admin/budgets', owner)).text()
-    expect(page).toContain('$45.0 / $50.0')
+    expect(page).toContain('$45.00 / $50.00')
     expect(page).toContain('80% 넘음')
-    expect(page).toContain('알림만')
+    expect(page).toContain('표시만')
+    expect(page).not.toContain('알림만')
+    expect(page).toContain('캐시에서 다시 읽은 토큰은 세지 않아요')
 
     r = await post(hub, '/admin/budgets', owner, { subject: 'team', period: 'month', usd: '', tokens: '', action: 'block' })
     expect((await follow(hub, r, owner)).text).toContain('하나는 정해 주세요')
@@ -149,7 +151,8 @@ describe('web: usage', () => {
     expect(body).toContain('lee')
     expect(body).toContain('company:quote')
     expect(body).toContain('read_file')
-    expect(body).toContain('$47.5') // 45 (budgets test) + 2.5 + 0.01, this month
+    expect(body).toContain('$47.51') // 45 (budgets test) + 2.5 + 0.01, this month
+    expect(body).toContain('약 66,500원') // at the default 1,400원 per dollar, to 100원
     body = await (await get(hub, '/admin/usage?range=month&by=model', owner)).text()
     expect(body).toContain('claude-opus-5-5')
     expect(body).toContain('claude-haiku-5-5')

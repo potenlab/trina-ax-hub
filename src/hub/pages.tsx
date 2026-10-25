@@ -7,12 +7,22 @@ import { Csrf, Page, type NavItem } from '../ui/layout'
 import { fmtAgo, fmtDateTime } from '../ui/format'
 import { renderMarkdown } from './markdown'
 import type { Chat, ChatSummary, Message } from './chats'
-import { describeCron, PRESETS, type Schedule, type ScheduleRun } from './schedules'
+import { describeCron, MY_FOLDER, PRESETS, toMyFolder, type Schedule, type ScheduleRun } from './schedules'
 
 export const NAV: NavItem[] = [
   { href: '/app', label: '채팅' },
   { href: '/app/schedules', label: '예약 작업' },
 ]
+
+/** The phone pages' navigation, with a way back to the personal page (and the admin pages for admins). */
+export function hubNav(user: Principal | null | undefined): NavItem[] {
+  if (!user) return NAV
+  const admin = user.role === 'owner' || user.role === 'admin'
+  return [...NAV, { href: '/me', label: '내 PC' }, ...(admin ? [{ href: '/admin', label: '관리' }] : [])]
+}
+
+/** Download link for a team-folder file the person may read (GET /app/files checks it again). */
+export const fileHref = (rel: string) => `/app/files?path=${encodeURIComponent(rel)}`
 
 const HUB_CSS = `
 .hub{max-width:720px;margin:0 auto}.hub input,.hub textarea,.hub select{font-size:16px}
@@ -106,7 +116,7 @@ export interface HubStats { running: number; queued: number; limit: number; done
 
 export function HomePage(p: { user: Principal; chats: ChatSummary[]; notice?: string | null; claudeReady: boolean; stats?: HubStats | null }) {
   return (
-    <Page title="채팅" user={p.user} nav={NAV} active="/app" head={head}>
+    <Page title="채팅" user={p.user} nav={hubNav(p.user)} active="/app" head={head}>
       <div class="hub">
         <Notice code={p.notice} />
         {p.claudeReady ? null : <NoClaude />}
@@ -163,7 +173,7 @@ const Composer = (p: { action: string; csrf: string; disabled: boolean; placehol
 
 export function NewChatPage(p: { user: Principal; csrf: string; claudeReady: boolean; error?: string | null; text?: string }) {
   return (
-    <Page title="새 대화" user={p.user} nav={NAV} active="/app" head={head}>
+    <Page title="새 대화" user={p.user} nav={hubNav(p.user)} active="/app" head={head}>
       <div class="hub">
         <div class="hub-head"><a class="back" href="/app" aria-label="대화 목록">‹</a><h1>새 대화</h1></div>
         {p.claudeReady ? null : <NoClaude />}
@@ -185,7 +195,7 @@ export interface LiveJob { id: string; state: 'queued' | 'running'; status: stri
 export function ChatPage(p: { user: Principal; csrf: string; chat: Chat; messages: Message[]; live: LiveJob | null; notice?: string | null; error?: string | null; claudeReady: boolean }) {
   const busy = !!p.live
   return (
-    <Page title={p.chat.title} user={p.user} nav={NAV} active="/app" head={head}>
+    <Page title={p.chat.title} user={p.user} nav={hubNav(p.user)} active="/app" head={head}>
       <div class="hub">
         <div class="hub-head">
           <a class="back" href="/app" aria-label="대화 목록">‹</a>
@@ -230,10 +240,10 @@ export function SchedulesPage(p: { user: Principal; csrf: string; schedules: Sch
   const f = p.form
   const when = f.when ?? PRESETS[1].key
   return (
-    <Page title="예약 작업" user={p.user} nav={NAV} active="/app/schedules" head={head}>
+    <Page title="예약 작업" user={p.user} nav={hubNav(p.user)} active="/app/schedules" head={head}>
       <div class="hub">
         <div class="hub-head"><h1>예약 작업</h1></div>
-        <p class="lead">정해진 시간에 Claude가 일을 하고, 결과를 Markdown 파일로 팀 폴더에 저장해요.</p>
+        <p class="lead">정해진 시간에 Claude가 일을 하고, 결과를 문서 파일(.md)로 팀 폴더에 저장해요.</p>
         <Notice code={p.notice} />
         {p.claudeReady ? null : <NoClaude />}
         {p.schedules.map((s) => {
@@ -247,11 +257,11 @@ export function SchedulesPage(p: { user: Principal; csrf: string; schedules: Sch
               </div>
               <div class="meta">
                 <div>{describeCron(s.cron)}{s.enabled ? <> · 다음 실행 {fmtDateTime(s.next_run_at)}</> : null}</div>
-                <div>저장 폴더: {s.output_dir}</div>
+                <div>저장 폴더: {s.output_dir ? toMyFolder(p.user.id, s.output_dir) : '—'}</div>
                 <div>
                   마지막 실행: {s.last ? <>
                     {st ? <span class={`badge ${st.cls}`}>{st.label}</span> : null} {fmtDateTime(s.last.started_at ?? s.last.created_at)}
-                    {s.last.output_path ? <> · <span title={s.last.output_path}>{s.last.output_path.split('/').pop()}</span></> : null}
+                    {s.last.output_path ? <> · <a href={fileHref(s.last.output_path)} download title={toMyFolder(p.user.id, s.last.output_path)}>{s.last.output_path.split('/').pop()}</a></> : null}
                     {s.last.status !== 'done' && s.last.error ? <> · {s.last.error}</> : null}
                   </> : '아직 없어요'}
                 </div>
@@ -290,8 +300,8 @@ export function SchedulesPage(p: { user: Principal; csrf: string; schedules: Sch
           <div class="field"><label for="s-prompt">할 일</label><textarea id="s-prompt" name="prompt" required maxlength={8000} placeholder="예: shared/영업 폴더에서 이번 주에 바뀐 파일을 읽고 주간 보고를 써 줘.">{f.prompt ?? ''}</textarea></div>
           <div class="field">
             <label for="s-dir">결과를 저장할 폴더</label>
-            <input id="s-dir" name="outputDir" required value={f.outputDir ?? `users/${p.user.id}/예약 작업`} autocomplete="off" />
-            <span class="hint">팀 폴더 기준 경로예요. 내가 쓸 수 있는 폴더만 고를 수 있어요. 내 폴더: users/{p.user.id}</span>
+            <input id="s-dir" name="outputDir" required value={f.outputDir ?? `${MY_FOLDER}/예약 작업`} autocomplete="off" />
+            <span class="hint">'{MY_FOLDER}'는 나만 보는 개인 폴더예요. 다른 곳은 팀 폴더 기준 경로로 적어요 (예: shared/영업). 내가 쓸 수 있는 폴더만 고를 수 있어요.</span>
           </div>
           <button class="btn primary" type="submit">만들기</button>
         </form>
@@ -303,7 +313,7 @@ export function SchedulesPage(p: { user: Principal; csrf: string; schedules: Sch
 
 export function MessagePage(p: { user: Principal | null; title: string; message: string; back?: string }) {
   return (
-    <Page title={p.title} user={p.user} nav={NAV} head={head} narrow>
+    <Page title={p.title} user={p.user} nav={hubNav(p.user)} head={head} narrow>
       <div class="card">
         <h1>{p.title}</h1>
         <p>{p.message}</p>

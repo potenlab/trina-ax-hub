@@ -12,8 +12,13 @@
 //   POST /app/schedules/:id/run      run now
 //   POST /app/schedules/:id/toggle   enable / disable
 //   POST /app/schedules/:id/delete   delete
+//   GET  /app/files?path=…           download a team-folder file the person may read (a schedule's saved result)
 // Everything is personal: a chat or schedule is only found for the person who made it (404 for anyone else).
 import { streamSSE } from 'hono/streaming'
+import { authorize } from '../policy/authorize'
+import { Denied, ToolError } from '../policy/errors'
+import { verifyChain } from '../policy/resolve'
+import { readRegular } from '../files/store'
 import type { Context } from 'hono'
 import type { AppEnv, C, Register } from '../http/app'
 import { requireSession, sessionMiddleware } from '../http/app'
@@ -31,6 +36,17 @@ import {
   activeRun, createSchedule, deleteSchedule, getSchedule, lastRun, listSchedules, runSchedule, setEnabled,
 } from './schedules'
 import { ChatPage, HomePage, MessagePage, NewChatPage, SchedulesPage, type LiveJob, type ScheduleForm, type ScheduleView } from './pages'
+
+/** largest file /app/files hands out */
+export const DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024
+/** sent as plain UTF-8 text (a phone shows or saves it; Markdown has no viewer there) */
+const TEXT_FILE = /\.(md|markdown|txt|csv|tsv|log|json)$/i
+
+/** `attachment` with an ASCII fallback name and the real (Korean) name in filename*. */
+export function attachment(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]|["\\%;]/g, '_')
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`
+}
 
 /** queued + running jobs one person may have from chat and run-now (the hub runs only 2–3 at once) */
 export const PER_PERSON_ACTIVE = 3
@@ -209,6 +225,40 @@ export const register: Register = (app, ctx) => {
         ctx.events.off('job', forward)
       }
     })
+  })
+
+  // files -------------------------------------------------------------------------------------------------------------
+  // A download of one file the person may read (the same permission check as their Claude's file tools). Missing and
+  // not allowed answer the same 404.
+
+  const noFile = (c: C) => page(c, MessagePage({ user: sessionOf(c).user, title: '파일을 찾을 수 없어요', message: '지워졌거나 옮겨졌거나, 볼 권한이 없는 파일이에요.', back: '/app/schedules' }), 404)
+
+  app.get('/app/files', (c) => {
+    const s = sessionOf(c)
+    const input = c.req.query('path') ?? ''
+    let f
+    try {
+      f = authorize(ctx.fx, ctx.rules(), s.user, input, 'read')
+      if (!f.exists || !f.st?.isFile()) return noFile(c)
+      if (f.st.size > DOWNLOAD_MAX_BYTES) {
+        return page(c, MessagePage({ user: s.user, title: '파일이 너무 커요', message: `휴대폰으로는 ${DOWNLOAD_MAX_BYTES / 1024 / 1024}MB까지 받을 수 있어요. PC의 Claude에게 열어 달라고 해 주세요.`, back: '/app/schedules' }), 413)
+      }
+      verifyChain(ctx.fx.root, f.segs)
+      const { bytes } = readRegular(f.abs, DOWNLOAD_MAX_BYTES)
+      const name = f.segs[f.segs.length - 1]!
+      return new Response(new Blob([new Uint8Array(bytes)]), {
+        headers: {
+          'content-type': TEXT_FILE.test(name) ? 'text/plain; charset=utf-8' : 'application/octet-stream',
+          'content-disposition': attachment(name),
+          'content-length': String(bytes.length),
+          'cache-control': 'private, no-store',
+          'x-content-type-options': 'nosniff',
+        },
+      })
+    } catch (e) {
+      if (e instanceof Denied || e instanceof ToolError) return noFile(c)
+      throw e
+    }
   })
 
   // schedules ---------------------------------------------------------------------------------------------------------

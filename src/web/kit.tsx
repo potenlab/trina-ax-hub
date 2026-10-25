@@ -49,18 +49,23 @@ export { FailureLimiter }
 export interface Web {
   ctx: Ctx
   flash: FlashStore
-  login: { ip: FailureLimiter; user: FailureLimiter }
+  /** failed logins: per (username + address), and per address with a higher cap. Never per username alone: the whole
+   *  office shares one address through the tunnel, and anyone could otherwise lock the owner out by guessing. */
+  login: { pair: FailureLimiter; ip: FailureLimiter }
   /** true while /setup is creating the owner (two posts at once must not make two owners) */
   settingUp: boolean
 }
 
+/** wrong passwords for one username from one address */
 export const LOGIN_MAX_FAILURES = 10
+/** wrong passwords from one address, any username (an office shares an address, so this is higher) */
+export const LOGIN_IP_MAX_FAILURES = 50
 export const LOGIN_WINDOW_MS = 15 * 60_000
 
 export function makeWeb(ctx: Ctx): Web {
   return {
     ctx, flash: new FlashStore(), settingUp: false,
-    login: { ip: new FailureLimiter(LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS), user: new FailureLimiter(LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS) },
+    login: { pair: new FailureLimiter(LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS), ip: new FailureLimiter(LOGIN_IP_MAX_FAILURES, LOGIN_WINDOW_MS) },
   }
 }
 
@@ -197,13 +202,14 @@ const ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: '사람' },
   { href: '/admin/groups', label: '그룹' },
   { href: '/admin/folders', label: '폴더 권한' },
+  { href: '/admin/versions', label: '되살리기' },
   { href: '/admin/budgets', label: '예산' },
   { href: '/admin/usage', label: '사용량' },
   { href: '/admin/skills', label: '스킬' },
   { href: '/admin/settings', label: '설정' },
   { href: '/admin/audit', label: '기록' },
 ]
-const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '휴대폰' }]
+const PERSONAL_NAV: NavItem[] = [{ href: '/me', label: '내 PC' }, { href: '/app', label: '채팅' }]
 
 export function navFor(role: string | undefined): NavItem[] {
   if (!role) return []
@@ -212,7 +218,6 @@ export function navFor(role: string | undefined): NavItem[] {
 
 /** Extra styles for these pages (on top of the shared CSS); same tokens, same look. */
 export const WEB_CSS = `
-.who span{max-width:10em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}.head .lead{margin:0}
 .sec{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:28px 0 10px}.sec h2{margin:0}
 .card h2:first-child,.card h3:first-child{margin-top:0}.card h3{font-size:15px;margin:16px 0 8px}
@@ -224,6 +229,15 @@ export const WEB_CSS = `
 ol.steps{margin:6px 0 12px;padding-left:22px}ol.steps li{margin:4px 0}
 .cmdlabel{font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 0}
 .copy pre.cmd{padding-right:64px}
+.notice ul{margin:0;padding-left:18px}.notice li+li{margin-top:4px}.notice.small{font-size:13px}
+.notice .actions{margin-top:10px}.notice.card{border:0}
+.devname{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.devnote{color:var(--muted);font-size:12px;margin-top:2px}
+.health{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0 0 16px}
+.health .card{margin:0}.health h3{margin:0 0 6px;font-size:14px;color:var(--muted);font-weight:600}.health p{margin:4px 0}
+.alert{border-color:var(--bad);background:var(--bad-soft)}.alert h2{color:var(--bad)}.alert.warnish{border-color:var(--warn);background:var(--warn-soft)}.alert.warnish h2{color:var(--warn)}
+.alert .kv{margin-top:10px}.alert .kv dd{word-break:break-word}
+.names{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 0}
+td.nowrap,th.nowrap{white-space:nowrap}
 .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .checks{display:flex;gap:6px 16px;flex-wrap:wrap;padding:4px 0}.checks label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink);font-weight:400}
@@ -248,10 +262,7 @@ td .btn.small,td form.inline{white-space:nowrap}
 .range{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.range a.on{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:600}
 pre.preview{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;margin:0}
 @media (max-width:640px){
-  header.top{gap:8px 12px}header.top nav{order:3;flex:1 0 100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -14px;padding:0 10px}
-  header.top nav::-webkit-scrollbar{display:none}header.top nav a{white-space:nowrap;flex:0 0 auto}header.top .who{margin-left:auto}
   h1{font-size:20px}.secret{font-size:20px}.kv{grid-template-columns:1fr}.kv dt{margin-top:6px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat b{font-size:19px}
   .hide-sm{display:none}.show-sm{display:block}
 }
 `
@@ -299,25 +310,36 @@ export const ButtonForm = (p: { action: string; csrf: string; label: string; dan
   </form>
 )
 
-/** The enroll code and the install commands, shown once right after the code was made. */
-export function EnrollResult(p: { c: C; ctx: Ctx; code: string; expiresAt: string; who?: string }) {
+/** The installers' last line on success (installer/install.sh.tmpl and install.ps1.tmpl print exactly this). */
+export const INSTALL_DONE_LINE = '✓ 연결을 마쳤어요'
+
+/**
+ * The enroll code and the install commands, shown once right after the code was made. Steps and commands come first
+ * (on a phone the warnings would otherwise push them off the screen); the address warnings follow as one note.
+ * `forOther` = an admin made the code for someone else: that PC waits for the person's approval.
+ */
+export function EnrollResult(p: { c: C; ctx: Ctx; code: string; expiresAt: string; who?: string; forOther?: boolean }) {
   const urls = effectiveUrls(p.ctx, requestOrigin(p.c))
   const cmd = installCommands(urls.hubUrl, p.code)
+  const warnings = urlWarnings(urls)
   return (
     <div class="card oneshot">
       <h2>{p.who ? `${p.who}님 PC 연결 코드` : 'PC 연결 코드'}</h2>
       <p><span class="secret">{p.code}</span></p>
       <p class="muted small">한 번만 쓸 수 있고 {fmtDateTime(p.expiresAt)}까지 유효해요. 이 화면을 벗어나면 다시 볼 수 없어요.</p>
-      {urlWarnings(urls).map((w) => <div class="notice warn">{w}</div>)}
       <ol class="steps">
         <li>연결할 PC에서 <b>터미널</b>을 열어요. (맥: 응용 프로그램 › 유틸리티 › 터미널 / 윈도우: 시작 메뉴에서 <b>PowerShell</b>)</li>
         <li>아래 명령 중 PC에 맞는 것을 <b>복사</b>해서 붙여 넣고 Enter를 눌러요.</li>
-        <li>"연결됐어요"가 나오면 Claude Code(또는 Claude 데스크톱 앱의 Code 탭)를 다시 열어요.</li>
+        <li>'{INSTALL_DONE_LINE}'가 나오면 터미널을 새로 열고 <code>claude</code>를 입력해 보세요. 데스크톱 앱을 쓰면 앱을 다시 열어 주세요.</li>
       </ol>
       <p class="cmdlabel">맥 · 리눅스 (터미널)</p>
       <CopyBlock id="cmd-mac" text={cmd.mac} />
       <p class="cmdlabel">윈도우 (PowerShell)</p>
       <CopyBlock id="cmd-win" text={cmd.windows} />
+      {p.forOther ? <p class="small" style="margin-top:12px">이 코드로 연결한 PC는 {p.who ?? '본인'}님이 '내 PC' 페이지에서 승인해야 개인 폴더를 열 수 있어요. 회사 파일과 AI는 바로 돼요.</p> : null}
+      {warnings.length ? (
+        <div class="notice warn small" style="margin:12px 0 0">{warnings.length === 1 ? warnings[0] : <ul>{warnings.map((w) => <li>{w}</li>)}</ul>}</div>
+      ) : null}
     </div>
   )
 }
@@ -328,6 +350,11 @@ export const ROLE_LABEL: Record<string, string> = { owner: '소유자', admin: '
 export const ACCESS_LABEL: Record<string, string> = { none: '볼 수 없음', read: '읽기', write: '읽기·쓰기' }
 export const PERIOD_LABEL: Record<string, string> = { day: '하루', month: '한 달' }
 export const SOURCE_LABEL: Record<string, string> = { pc: 'PC', hub: '휴대폰·예약' }
+/** budget action when the limit is reached */
+export const BUDGET_ACTION_LABEL: Record<string, string> = { block: '막기', warn: '표시만' }
+
+/** "김대표님이" — 님 ends in a consonant, so the particle is always 이 whatever the name is. */
+export const byName = (name: string) => `${name}님이`
 
 export const roleBadge = (role: string) => <span class={'badge' + (role === 'member' ? '' : ' good')}>{ROLE_LABEL[role] ?? role}</span>
 

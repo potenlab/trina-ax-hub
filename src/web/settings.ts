@@ -4,6 +4,7 @@
 //   publicUrl       string|null   https address that works from anywhere (Cloudflare tunnel); null = use config
 //   lanUrl          string|null   office address (http://192.168.x.y:47900); null = use config
 //   hubConcurrency  number|null   hub sessions at once; null = use config
+//   krwPerUsd       number|null   fixed won-per-dollar rate for the rough 원 amounts next to dollar totals (default 1400)
 //
 // Other modules: call `effectiveUrls(ctx)` / `companyName(ctx)` / `hubConcurrency(ctx)` instead of reading
 // ctx.config directly. `applySavedSettings(ctx)` also copies the saved values onto ctx.config (at startup and after
@@ -66,6 +67,25 @@ export function hubConcurrency(ctx: Ctx): number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : baseOf(ctx).hubConcurrency
 }
 
+export const DEFAULT_KRW_PER_USD = 1400
+
+/** Won per dollar for the approximate 원 amounts shown next to dollar totals (Anthropic bills in dollars). */
+export function krwPerUsd(ctx: Ctx): number {
+  const v = getSetting<number | null>(ctx.db, 'krwPerUsd', null)
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : DEFAULT_KRW_PER_USD
+}
+
+/** The address PCs are set up with now when one is configured (public or LAN). Null when only the local fallback
+ *  applies: that one depends on how the browser reached the hub, so device addresses are not compared with it. */
+export const configuredHubUrl = (u: HubUrls): string | null => (u.kind === 'local' ? null : u.hubUrl)
+
+const sameOrigin = (a: string, b: string) => a.replace(/\/+$/, '').toLowerCase() === b.replace(/\/+$/, '').toLowerCase()
+
+/** A PC set up with another hub address than the one PCs get now: its Claude keeps calling the old address. */
+export function needsReconnect(deviceHubUrl: string | null | undefined, current: string | null): boolean {
+  return !!deviceHubUrl && !!current && !sameOrigin(deviceHubUrl, current)
+}
+
 /** Copy saved settings onto ctx.config so modules reading the config see them. Safe to call any time. */
 export function applySavedSettings(ctx: Ctx) {
   const u = effectiveUrls(ctx)
@@ -75,7 +95,7 @@ export function applySavedSettings(ctx: Ctx) {
 }
 
 /** Save one setting (null = back to the config value) and re-apply. */
-export function saveSetting(ctx: Ctx, key: 'companyName' | 'publicUrl' | 'lanUrl' | 'hubConcurrency', value: string | number | null) {
+export function saveSetting(ctx: Ctx, key: 'companyName' | 'publicUrl' | 'lanUrl' | 'hubConcurrency' | 'krwPerUsd', value: string | number | null) {
   baseOf(ctx) // remember the configured values before the first override
   setSetting(ctx.db, key, value)
   applySavedSettings(ctx)
@@ -95,13 +115,13 @@ const LOOPBACK = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|::1|0\.0\.0\.0)$/i
 export function urlWarnings(u: HubUrls): string[] {
   const out: string[] = []
   if (!u.publicUrl) {
-    out.push('공개 주소(https)가 아직 없어서 회사 스킬은 PC에 설치되지 않아요. 파일과 AI 사용은 바로 돼요. 관리자에게 설정 > 주소를 부탁해 주세요.')
+    out.push("공개 주소(https)가 아직 없어서 회사 스킬은 이 PC에 설치되지 않아요. 파일과 AI는 바로 쓸 수 있어요. 공개 주소는 관리자가 '설정 › 접속 주소'에서 넣어요.")
   }
   if (u.kind === 'local') {
     let host = ''
     try { host = new URL(u.hubUrl).hostname } catch {}
     out.push(LOOPBACK.test(host)
-      ? `이 주소(${u.hubUrl})는 허브 컴퓨터 안에서만 열려요. 다른 PC를 연결하려면 설정에서 사내 주소나 공개 주소를 넣어 주세요.`
+      ? `이 주소(${u.hubUrl})는 허브 컴퓨터 안에서만 열려요. 다른 PC를 연결하려면 '설정 › 접속 주소'에서 사내 주소나 공개 주소를 넣어 주세요.`
       : `연결할 PC에서 ${u.hubUrl} 이 열리는지 먼저 확인해 주세요. 같은 사무실 네트워크에 있어야 해요.`)
   } else if (u.kind === 'lan') {
     out.push('사내 주소라서 사무실 네트워크에 있는 PC만 연결돼요.')

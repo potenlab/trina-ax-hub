@@ -6,11 +6,18 @@ import type { Ctx } from '../../context'
 import { audit } from '../../audit'
 import { Csrf } from '../../ui/layout'
 import { type Web, type Flash, Shell, ButtonForm, render, takeFlashes, act, say, fail, field, isOwner } from '../kit'
-import { companyName, configuredDefaults, effectiveUrls, hubConcurrency, saveSetting } from '../settings'
+import { companyName, configuredDefaults, configuredHubUrl, effectiveUrls, hubConcurrency, krwPerUsd, needsReconnect, saveSetting } from '../settings'
+import { listTokens } from '../../auth/tokens'
 import { getSetting } from '../../db'
 import { PRODUCT } from '../../product'
 
 const KEY_CHECK_TIMEOUT_MS = 10_000
+
+/** Connected PCs set up with another hub address than the one PCs get now. */
+export function staleDevices(ctx: Ctx) {
+  const current = configuredHubUrl(effectiveUrls(ctx))
+  return listTokens(ctx.db).filter((t) => !t.revoked_at && needsReconnect(t.hub_url, current))
+}
 const API_KEY = /^[\x21-\x7e]{10,400}$/
 
 /** A hub address typed by the owner → its origin ('' → null). */
@@ -66,6 +73,7 @@ function SettingsPage(p: { web: Web; c: C; flashes: Flash[] }) {
   const savedPublic = getSetting<string | null>(ctx.db, 'publicUrl', null)
   const savedLan = getSetting<string | null>(ctx.db, 'lanUrl', null)
   const hint = ctx.secrets.apiKeyHint()
+  const stale = staleDevices(ctx)
   const fromConfig = (saved: string | null, def: string | null) => (!saved && def ? <span class="muted small">설정 파일 값: {def} · 비우면 이 값을 써요</span> : null)
   return (
     <Shell c={p.c} title="설정" active="/admin/settings" flashes={p.flashes}>
@@ -81,13 +89,16 @@ function SettingsPage(p: { web: Web; c: C; flashes: Flash[] }) {
             <select id="hubConcurrency" name="hubConcurrency">{[1, 2, 3, 4, 5, 6].map((n) => <option value={String(n)} selected={hubConcurrency(ctx) === n}>{n}개</option>)}</select></div>
         </div>
         <p class="muted small">동시 실행은 허브 컴퓨터에서 한꺼번에 돌릴 휴대폰 채팅·예약 작업 수예요. 맥 미니라면 2~3개가 알맞아요. 나머지는 차례를 기다려요.</p>
+        <div class="field" style="max-width:220px"><label for="krwPerUsd">원화 환산 (1달러당 원)</label>
+          <input id="krwPerUsd" name="krwPerUsd" inputmode="numeric" value={String(krwPerUsd(ctx))} maxlength={6} /></div>
+        <p class="muted small">사용 요금은 달러로 청구돼요. 화면의 '약 N원'은 이 고정 환율로 어림한 금액이에요.</p>
         <button class="btn primary" type="submit">저장</button>
       </form>
 
       <form method="post" action="/admin/settings/urls" class="card" id="urls">
         <h2>접속 주소</h2>
         <Csrf token={s.csrf} />
-        {urls.publicUrl ? null : <div class="notice warn">공개 주소가 없어서 회사 스킬이 PC에 설치되지 않아요. 파일과 AI 사용은 돼요.</div>}
+        {urls.publicUrl ? null : <div class="notice warn">공개 주소가 없어서 회사 스킬이 PC에 설치되지 않아요. 파일과 AI 사용은 돼요. 직원 PC를 연결하기 전에 공개 주소부터 넣어 주세요. 나중에 넣으면 그 전에 연결한 PC는 다시 연결해야 해요.</div>}
         <div class="field"><label for="publicUrl">공개 주소 (https)</label>
           <input id="publicUrl" name="publicUrl" value={savedPublic ?? ''} placeholder={defaults.publicUrl ?? 'https://acme.example.com'} disabled={!owner} inputmode="url" autocapitalize="off" spellcheck={false} />
           <span class="muted small">어디서나 열리는 주소예요(Cloudflare 터널 등). 회사 스킬 설치, 사무실 밖 PC, 휴대폰 사용에 필요해요.</span>
@@ -97,6 +108,7 @@ function SettingsPage(p: { web: Web; c: C; flashes: Flash[] }) {
           <span class="muted small">사무실 네트워크에서 허브 컴퓨터를 여는 주소예요. 공개 주소가 없을 때 PC 연결에 써요.</span>
           {fromConfig(savedLan, defaults.lanUrl)}</div>
         <p class="small">지금 PC 연결에 쓰는 주소: <code>{urls.hubUrl}</code></p>
+        {stale.length ? <div class="notice warn small">예전 주소로 연결된 PC가 {stale.length}대 있어요 ({stale.slice(0, 5).map((t) => `${t.user_name ?? ''} '${t.name}'`).join(', ')}{stale.length > 5 ? ' …' : ''}). 각자 '내 PC' 페이지의 안내대로 다시 연결해야 해요.</div> : null}
         {owner ? <button class="btn primary" type="submit">저장</button> : null}
       </form>
 
@@ -139,9 +151,13 @@ export function mountSettings(app: App, web: Web) {
     if (!name || name.length > 60) fail('회사 이름을 60자 안으로 적어 주세요.')
     const n = Number(field(f, 'hubConcurrency'))
     if (!Number.isInteger(n) || n < 1 || n > 6) fail('동시 실행은 1~6개 중에서 골라 주세요.')
+    const rateText = field(f, 'krwPerUsd').replace(/[,\s원]/g, '')
+    const rate = rateText === '' ? krwPerUsd(ctx) : Number(rateText)
+    if (!Number.isFinite(rate) || rate < 100 || rate > 10_000) fail('원화 환산은 1달러당 100~10,000원 사이 숫자로 적어 주세요. 예: 1400')
     const changed: Record<string, unknown> = {}
     if (name !== companyName(ctx)) { saveSetting(ctx, 'companyName', name); changed.companyName = name }
     if (n !== hubConcurrency(ctx)) { saveSetting(ctx, 'hubConcurrency', n); changed.hubConcurrency = n }
+    if (rate !== krwPerUsd(ctx)) { saveSetting(ctx, 'krwPerUsd', rate); changed.krwPerUsd = rate }
     if (Object.keys(changed).length) audit(db, { actor: s.user.id, action: 'settings.update', detail: changed })
     say(web, s, 'ok', '저장했어요.')
   }))
@@ -154,6 +170,8 @@ export function mountSettings(app: App, web: Web) {
     saveSetting(ctx, 'lanUrl', lanUrl)
     audit(db, { actor: s.user.id, action: 'settings.urls', detail: { publicUrl, lanUrl } })
     say(web, s, 'ok', `저장했어요. 이제 PC 연결에 ${effectiveUrls(ctx).hubUrl} 을 써요.`)
+    const stale = staleDevices(ctx).length
+    if (stale) say(web, s, 'warn', `예전 주소로 연결된 PC ${stale}대는 다시 연결해야 해요. 각자 '내 PC' 페이지에 안내가 나와요.`)
   }))
 
   app.post('/admin/settings/key', (c) => act(web, c, '/admin/settings#key', (f, s) => {

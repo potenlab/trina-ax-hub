@@ -3,9 +3,9 @@
 //
 //   GET  /                      → /setup (no users yet), /admin (owner/admin), /me (member), /login
 //   GET  /setup  POST /setup    first owner + company name (+ API key); only while there are no users
-//   GET  /login  POST /login    rate-limited per IP and per username; POST /logout
+//   GET  /login  POST /login    failures limited per (username + address) and per address; POST /logout
 //   GET  /me/password  POST     change password (forced when must_change_password)
-//   /me                         my PCs (enroll code + install commands, revoke), my usage, budgets, skills
+//   /me                         my PCs (enroll code + install commands, approve one an admin set up, revoke), my usage, budgets, skills
 //   /admin, /admin/users, /admin/groups, /admin/folders, /admin/budgets, /admin/usage (+ /admin/usage.csv),
 //   /admin/skills, /admin/settings, /admin/audit
 //

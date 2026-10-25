@@ -5,6 +5,7 @@ import { countUsers, createUser, getUserByUsername, updateUser } from '../../src
 import { getSetting } from '../../src/db'
 import { listAudit } from '../../src/audit'
 import { PRODUCT } from '../../src/product'
+import { LOGIN_IP_MAX_FAILURES } from '../../src/web/kit'
 import { get, post, follow, login, preSession, setCookies, cookieValue, type Sess } from './web-lib'
 
 const hubs: TestHub[] = []
@@ -134,22 +135,30 @@ describe('web: login', async () => {
     expect(cookieValue(r, PRODUCT.sessionCookie)).toBeNull()
   })
 
-  test('10 failures from one address block it for 15 minutes (even the right password)', async () => {
+  test('10 failures for one username from one address block that pair for 15 minutes (even the right password)', async () => {
     const ip = { 'cf-connecting-ip': '10.0.0.1' }
-    for (let i = 0; i < 10; i++) expect((await login(hub, `nobody${i}`, 'bad-password', ip)).r.status).toBe(400)
-    const blocked = await login(hub, 'owner', 'password123', ip)
+    for (let i = 0; i < 10; i++) expect((await login(hub, 'kim', 'bad-password', ip)).r.status).toBe(400)
+    const blocked = await login(hub, 'KIM', 'kim-password', ip)
     expect(blocked.r.status).toBe(429)
     expect(await blocked.r.text()).toContain('너무 많아요')
     expect(blocked.sess).toBeNull()
-    expect((await login(hub, 'owner', 'password123', { 'cf-connecting-ip': '10.0.0.2' })).r.status).toBe(303)
+    // the same person from another address, and someone else from this address, still get in
+    expect((await login(hub, 'kim', 'kim-password', { 'cf-connecting-ip': '10.0.0.2' })).r.status).toBe(303)
+    expect((await login(hub, 'owner', 'password123', ip)).r.status).toBe(303)
   })
 
-  test('10 failures for one username block that username from any address', async () => {
-    for (let i = 0; i < 10; i++) expect((await login(hub, 'kim', 'bad-password', { 'cf-connecting-ip': `10.1.0.${i}` })).r.status).toBe(400)
-    const r = await login(hub, 'KIM', 'kim-password', { 'cf-connecting-ip': '10.2.0.1' })
-    expect(r.r.status).toBe(429)
+  test('nobody can lock a username out for everyone (the office shares one address through the tunnel)', async () => {
+    // someone guessing the owner's password from many addresses
+    for (let i = 0; i < 30; i++) expect((await login(hub, 'owner', 'bad-password', { 'cf-connecting-ip': `10.1.0.${i}` })).r.status).toBe(400)
     expect((await login(hub, 'owner', 'password123', { 'cf-connecting-ip': '10.2.0.1' })).r.status).toBe(303)
-  })
+  }, 30_000)
+
+  test('one address gets a higher cap across usernames', async () => {
+    const ip = { 'cf-connecting-ip': '10.3.0.1' }
+    for (let i = 0; i < LOGIN_IP_MAX_FAILURES; i++) expect((await login(hub, `nobody${i % 7}`, 'bad-password', ip)).r.status).toBe(400)
+    expect((await login(hub, 'owner', 'password123', ip)).r.status).toBe(429)
+    expect((await login(hub, 'owner', 'password123', { 'cf-connecting-ip': '10.3.0.2' })).r.status).toBe(303)
+  }, 30_000)
 })
 
 describe('web: forced password change and logout', async () => {
