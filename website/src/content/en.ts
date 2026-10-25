@@ -12,7 +12,7 @@ const en = {
   meta: {
     title: 'Trina AX — Claude for your whole company',
     description:
-      "Open-source hub that gives every employee's Claude your company's files, skills and usage tracking, with per-person folder permissions. Self-host it free, or let Trina host it at your-company.trina.app.",
+      "Open-source hub that gives every employee's Claude your company's files, skills and usage, with per-person folder permissions. Self-host free, or let Trina host it.",
     ogImage: '/og.png',
     ogAlt: "Trina AX: your company, in every employee's Claude.",
     // One sentence for llms.txt and the SoftwareApplication JSON-LD.
@@ -116,7 +116,7 @@ const en = {
         id: 'files',
         title: "Company files, with each person's permissions",
         body:
-          "Claude finds, reads and edits documents in the company folders. Each person's Claude opens only the folders that person may open; the others don't even show up.",
+          "Claude finds and reads documents in the company folders and saves its work there. Each person's Claude opens only the folders that person may open; the others don't even show up.",
         ui: {
           head: "What Mina's Claude sees",
           tree: [
