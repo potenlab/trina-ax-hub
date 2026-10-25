@@ -4,6 +4,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import type { App, C } from '../http/app'
 import { createSession, destroySession, SESSION_TTL_MS, csrfOk } from '../auth/sessions'
 import { countUsers, createUser, getUser, getUserByUsername, setPassword, verifyPassword } from '../auth/users'
+import { getUserByLogin } from '../auth/invites'
 import { initTeamFolder } from '../policy/rules-admin'
 import { audit } from '../audit'
 import { HttpError } from '../http/errors'
@@ -20,12 +21,25 @@ import { companyName, saveSetting } from './settings'
 const MIN_PASSWORD = 8
 const API_KEY = /^[\x21-\x7e]{10,400}$/
 
-function startSession(web: Web, c: C, userId: string) {
+export function startSession(web: Web, c: C, userId: string) {
   const s = createSession(web.ctx.db, userId)
   setCookie(c, cookieName(c, PRODUCT.sessionCookie), s.id, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/', maxAge: Math.floor(SESSION_TTL_MS / 1000) })
 }
 
 const homeFor = (role: string) => (role === 'owner' || role === 'admin' ? '/admin' : '/me')
+
+// Where a person was going when they had to log in or join (the Claude app connect screen, for one). The login page
+// keeps it for 15 minutes, so a person who then opens their invite link in the same browser still lands there.
+export const NEXT_COOKIE = 'tax_next'
+const NEXT_TTL_S = 15 * 60
+
+export function rememberNext(c: C, next: string | null) {
+  if (next && next.startsWith('/oauth/continue/')) {
+    setCookie(c, cookieName(c, NEXT_COOKIE), next, { httpOnly: true, sameSite: 'Lax', secure: isHttps(c), path: '/', maxAge: NEXT_TTL_S })
+  }
+}
+export const rememberedNext = (c: C): string | null => safeNext(getCookie(c, cookieName(c, NEXT_COOKIE)))
+export const forgetNext = (c: C) => deleteCookie(c, cookieName(c, NEXT_COOKIE), { path: '/', secure: isHttps(c) })
 
 // setup ----------------------------------------------------------------------------------------------------------------
 // Until the owner exists, /setup opens only on the hub computer itself (a browser there, not through the Cloudflare
@@ -106,16 +120,17 @@ function LoginPage(p: { csrf: string; company: string; username?: string; next?:
       <p class="lead">회사 AI에 로그인해요.</p>
       {p.error ? <div class="notice bad" role="alert">{p.error}</div> : null}
       {p.info ? <div class="notice">{p.info}</div> : null}
+      {p.next?.startsWith('/oauth/continue/') ? <div class="notice small">Claude 앱 연결을 이어서 할게요. 로그인하면 바로 이어져요. 처음이라면 받은 초대 링크를 먼저 열어 비밀번호를 정해 주세요.</div> : null}
       <form method="post" action="/login" class="card">
         <Csrf token={p.csrf} />
         {p.next ? <input type="hidden" name="next" value={p.next} /> : null}
-        <div class="field"><label for="username">아이디</label>
-          <input id="username" name="username" value={p.username ?? ''} required autocapitalize="off" autocomplete="username" autofocus={!p.username} /></div>
+        <div class="field"><label for="username">이메일 또는 아이디</label>
+          <input id="username" name="username" value={p.username ?? ''} required autocapitalize="off" autocomplete="username" spellcheck={false} autofocus={!p.username} /></div>
         <div class="field"><label for="password">비밀번호</label>
           <input id="password" type="password" name="password" required autocomplete="current-password" autofocus={!!p.username} /></div>
         <button class="btn primary" type="submit" style="width:100%;justify-content:center">로그인</button>
       </form>
-      <p class="muted small">비밀번호를 잊었으면 회사 관리자에게 초기화를 부탁해 주세요.</p>
+      <p class="muted small">비밀번호를 잊었으면 회사 관리자에게 새 링크를 부탁해 주세요.</p>
     </Page>
   )
 }
@@ -126,7 +141,7 @@ const dummy = () => (dummyHash ??= Bun.password.hash('trina-ax-not-a-password'))
 
 // password change -------------------------------------------------------------------------------------------------------
 
-function PasswordPage(p: { c: C; forced: boolean; csrf: string; error?: string }) {
+function PasswordPage(p: { c: C; forced: boolean; csrf: string; next?: string | null; error?: string }) {
   return (
     <Shell c={p.c} title="비밀번호 바꾸기" active="" narrow>
       <h1>비밀번호 바꾸기</h1>
@@ -136,6 +151,7 @@ function PasswordPage(p: { c: C; forced: boolean; csrf: string; error?: string }
       {p.error ? <div class="notice bad" role="alert">{p.error}</div> : null}
       <form method="post" action="/me/password" class="card">
         <Csrf token={p.csrf} />
+        {p.next ? <input type="hidden" name="next" value={p.next} /> : null}
         {p.forced ? null : <div class="field"><label for="current">지금 비밀번호</label><input id="current" type="password" name="current" required autocomplete="current-password" /></div>}
         <div class="field"><label for="password">새 비밀번호 (8자 이상)</label><input id="password" type="password" name="password" required minlength={MIN_PASSWORD} autocomplete="new-password" /></div>
         <div class="field"><label for="password2">새 비밀번호 확인</label><input id="password2" type="password" name="password2" required minlength={MIN_PASSWORD} autocomplete="new-password" /></div>
@@ -192,6 +208,7 @@ export function mountAuth(app: App, web: Web) {
     const next = safeNext(c.req.query('next'))
     const s = c.get('session')
     if (s) return c.redirect(next ?? homeFor(s.user.role))
+    rememberNext(c, next)
     return render(c, <LoginPage csrf={preCsrfToken(c)} company={companyName(ctx)} next={next}
       info={c.req.query('bye') !== undefined ? '로그아웃했어요.' : c.req.query('changed') !== undefined ? '비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요.' : undefined} />)
   })
@@ -210,18 +227,21 @@ export function mountAuth(app: App, web: Web) {
     if (web.login.ip.blocked(ipKey) || web.login.pair.blocked(pairKey)) {
       return again(`로그인 시도가 너무 많아요. ${Math.round(LOGIN_WINDOW_MS / 60_000)}분 뒤에 다시 해 주세요.`, 429)
     }
-    const u = username ? getUserByUsername(db, username) : null
+    const u = username ? getUserByLogin(db, username) : null
     const good = u ? await verifyPassword(u.passwordHash, password) : (await Bun.password.verify(password || 'x', await dummy()), false)
     if (!u || !good || u.status !== 'active') {
       web.login.ip.fail(ipKey)
       web.login.pair.fail(pairKey)
       if (u) audit(db, { actor: null, action: 'login.fail', target: u.id, detail: { ip: clientIp(c) } })
-      return again('아이디 또는 비밀번호가 맞지 않아요.', 400)
+      return again('이메일·아이디 또는 비밀번호가 맞지 않아요.', 400)
     }
     web.login.pair.clear(pairKey)
     startSession(web, c, u.id)
     audit(db, { actor: u.id, action: 'login', target: u.id, detail: { ip: clientIp(c) } })
-    return c.redirect(u.mustChangePassword ? '/me/password' : next ?? homeFor(u.role), 303)
+    // a person who must choose a new password first keeps their destination through that screen
+    if (u.mustChangePassword) return c.redirect('/me/password' + (next ? '?next=' + encodeURIComponent(next) : ''), 303)
+    forgetNext(c)
+    return c.redirect(next ?? homeFor(u.role), 303)
   })
 
   // logout -----------------------------------------------------------------------------------------------------------
@@ -248,7 +268,7 @@ export function mountAuth(app: App, web: Web) {
   app.get('/me/password', (c) => {
     const s = c.get('session')!
     const u = getUser(db, s.user.id)!
-    return render(c, <PasswordPage c={c} forced={u.mustChangePassword} csrf={s.csrf} />)
+    return render(c, <PasswordPage c={c} forced={u.mustChangePassword} csrf={s.csrf} next={safeNext(c.req.query('next'))} />)
   })
 
   app.post('/me/password', async (c) => {
@@ -258,7 +278,8 @@ export function mountAuth(app: App, web: Web) {
     const u = getUser(db, session.user.id)!
     const withHash = getUserByUsername(db, u.username)!
     const forced = u.mustChangePassword
-    const again = (error: string) => render(c, <PasswordPage c={c} forced={forced} csrf={session.csrf} error={error} />, 400)
+    const next = safeNext(field(form, 'next'))
+    const again = (error: string) => render(c, <PasswordPage c={c} forced={forced} csrf={session.csrf} next={next} error={error} />, 400)
     const pw = rawField(form, 'password'), pw2 = rawField(form, 'password2')
     if (!forced && !(await verifyPassword(withHash.passwordHash, rawField(form, 'current')))) return again('지금 비밀번호가 맞지 않아요.')
     if (pw.length < MIN_PASSWORD) return again('새 비밀번호는 8자 이상이어야 해요.')
@@ -268,6 +289,7 @@ export function mountAuth(app: App, web: Web) {
     // other browsers logged in as this person are logged out
     db.query('DELETE FROM sessions WHERE user_id = ? AND id_hash != ?').run(u.id, session.idHash)
     audit(db, { actor: u.id, action: 'password.change', target: u.id, detail: forced ? { first: true } : undefined })
+    if (next) return c.redirect(next, 303)
     web.flash.push(session.idHash, { kind: 'ok', text: '비밀번호를 바꿨어요.' })
     return c.redirect(homeFor(u.role), 303)
   })

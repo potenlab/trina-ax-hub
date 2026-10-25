@@ -41,6 +41,9 @@ export class HubService {
   }
 }
 
+/** Can the hub run phone chats and scheduled jobs? They run `claude -p` on the hub with the company API key. */
+export const hubChatReady = (ctx: Ctx): boolean => !!ctx.config.claudeBin && !!ctx.secrets.getApiKey()
+
 const hubs = new WeakMap<Ctx, HubService>()
 
 /** The hub-session service of this Ctx (created on first use; options apply when it is created). */

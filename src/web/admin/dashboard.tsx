@@ -5,7 +5,8 @@ import type { App, C } from '../../http/app'
 import type { Ctx } from '../../context'
 import { listUsers } from '../../auth/users'
 import { listTokens } from '../../auth/tokens'
-import { usageReport, skillReport, activeDays } from '../../usage/report'
+import { defaultModelAccess, modelAccessFor } from '../../auth/access-mode'
+import { usageReport, skillReport } from '../../usage/report'
 import { listBudgets } from '../../usage/budgets'
 import { relayHealth, upstreamProblem, type UpstreamError } from '../../relay/health'
 import { hubFor } from '../../hub/service'
@@ -13,6 +14,8 @@ import { fmtAgo, fmtDateTime, fmtKrw, fmtNum, fmtUsd, monthStart } from '../../u
 import { type Web, type Flash, Shell, Stat, Empty, render, takeFlashes, PERIOD_LABEL } from '../kit'
 import { BudgetMeter, budgetRatio, nextMonthStart, activeDevices } from '../me'
 import { companyName, effectiveUrls, krwPerUsd } from '../settings'
+import { readClaudeOrg } from '../claude-org'
+import { connectionsByUser, isConnected, usersWithActivity } from '../people-status'
 
 const BILLING = /credit|balance|billing|payment|quota|plan/i
 
@@ -64,19 +67,25 @@ function Dashboard(p: { web: Web; c: C; flashes: Flash[] }) {
   const now = new Date()
   const from = monthStart(now), to = nextMonthStart(now)
   const report = usageReport(db, { from, to, groupBy: 'user' })
-  const adoption = activeDays(db, from, to)
-  const activePeople = adoption.filter((a) => a.days > 0).length
   const devices = activeDevices(listTokens(db))
-  const peopleWithPc = new Set(devices.map((d) => d.user_id))
   const skills = skillReport(db, from, to).slice(0, 5)
   const hot = listBudgets(db).filter((b) => budgetRatio(b) >= 0.8).sort((a, b) => budgetRatio(b) - budgetRatio(a))
   const keyHint = ctx.secrets.apiKeyHint()
   const urls = effectiveUrls(ctx)
   const people = listUsers(db)
   const active = people.filter((u) => u.status === 'active')
-  const noPc = active.filter((u) => !peopleWithPc.has(u.id))
-  const usedNow = new Set(adoption.filter((a) => a.days > 0).map((a) => a.userId))
-  const unused = active.filter((u) => peopleWithPc.has(u.id) && !usedNow.has(u.id))
+  // connected = a PC token or a live Claude app connection; using = usage or tool calls this month (the Claude app
+  // leaves no usage rows on the hub, only tool calls)
+  const conn = connectionsByUser(db)
+  const connected = active.filter((u) => isConnected(conn.get(u.id)))
+  const appPeople = active.filter((u) => (conn.get(u.id)?.apps ?? 0) > 0)
+  const usedNow = usersWithActivity(db, from, to)
+  const activePeople = active.filter((u) => usedNow.has(u.id))
+  const notConnected = active.filter((u) => !isConnected(conn.get(u.id)))
+  const unused = connected.filter((u) => !usedNow.has(u.id))
+  // the company key is only a to-do when somebody goes through it (the default, or a person's own choice)
+  const keyNeeded = defaultModelAccess(db) === 'company_key' || active.some((u) => modelAccessFor(db, u.id) === 'company_key')
+  const org = readClaudeOrg(db)
   const health = relayHealth(db)
   const problem = upstreamProblem(health)
   const lastUse = lastUsageAt(ctx)
@@ -84,10 +93,11 @@ function Dashboard(p: { web: Web; c: C; flashes: Flash[] }) {
   const jobs = hubFor(ctx).stats()
   const rate = krwPerUsd(ctx)
   const todo = [
-    { done: !!keyHint, label: '회사 API 키 넣기', why: '키가 있어야 직원들의 Claude가 답할 수 있어요.', href: '/admin/settings#key', go: '설정' },
-    { done: !!urls.publicUrl, label: '공개 주소 정하기', why: '직원 PC를 연결하기 전에 공개 주소부터 넣어 주세요. 회사 스킬 설치와 사무실 밖 사용에 https 주소가 필요해요.', href: '/admin/settings#urls', go: '설정' },
-    { done: people.length > 1, label: '직원 추가하기', why: '직원마다 계정을 만들어 주세요.', href: '/admin/users', go: '사람' },
-    { done: devices.length > 0, label: '첫 PC 연결하기', why: '내 PC부터 연결해 보세요.', href: '/me', go: '내 PC' },
+    ...(keyNeeded ? [{ done: !!keyHint, label: '회사 API 키 넣기', why: "'회사 API 키' 방식인 직원의 Claude가 답하려면 키가 있어야 해요.", href: '/admin/settings#key', go: '설정' }] : []),
+    { done: !!urls.publicUrl, label: '공개 주소 정하기', why: '직원이 연결하기 전에 공개 주소부터 넣어 주세요. Claude 앱 연결, 회사 스킬 설치, 사무실 밖 사용에 https 주소가 필요해요.', href: '/admin/settings#urls', go: '설정' },
+    { done: !!org.managedSettingsAt, label: 'Claude 조직 설정', why: '회사 Claude 계정에 커넥터와 Claude Code 설정을 한 번 넣어 두면 직원이 할 일이 줄어요.', href: '/admin/claude', go: '설정하기' },
+    { done: people.length > 1, label: '직원 초대하기', why: '이름과 이메일로 추가하면 초대 링크가 만들어져요.', href: '/admin/users', go: '사람' },
+    { done: connected.length > 0, label: '첫 연결 해 보기', why: 'Claude 앱이나 PC 한 곳을 직접 연결해 보세요.', href: '/me', go: '내 페이지' },
   ]
   const month = `${now.getMonth() + 1}월`
   return (
@@ -115,18 +125,18 @@ function Dashboard(p: { web: Web; c: C; flashes: Flash[] }) {
       <div class="grid">
         <Stat label={`${month} 비용`} value={fmtUsd(report.totals.costUsd)} hint={report.totals.costUsd > 0 ? fmtKrw(report.totals.costUsd, rate) : undefined} />
         <Stat label={`${month} 요청`} value={fmtNum(report.totals.requests)} />
-        <Stat label="이번 달 쓴 사람" value={`${activePeople} / ${adoption.length}명`} />
-        <Stat label="연결된 PC" value={`${devices.length}대`} hint={`${peopleWithPc.size}명`} />
+        <Stat label="이번 달 쓴 사람" value={`${activePeople.length} / ${active.length}명`} />
+        <Stat label="연결된 사람" value={`${connected.length} / ${active.length}명`} hint={`PC ${devices.length}대 · Claude 앱 ${appPeople.length}명`} />
       </div>
 
       <div class="health">
         <div class="card">
           <h3>회사 AI 연결</h3>
-          <p>{keyHint ? <span class="badge good">API 키 있음</span> : <span class="badge bad">API 키 없음</span>}{' '}
+          <p>{keyHint ? <span class="badge good">API 키 있음</span> : keyNeeded ? <span class="badge bad">API 키 없음</span> : <span class="badge">API 키 필요 없음</span>}{' '}
             {problem ? <span class="badge bad">문제 있음</span> : health.lastOkAt ? <span class="badge good">잘 되고 있어요</span> : null}</p>
           <p class="small">{lastUse ? <>마지막 사용 <b>{fmtAgo(lastUse)}</b></> : <span class="muted">아직 아무도 쓰지 않았어요</span>}</p>
           <p class="small muted">공개 주소: {urls.publicUrl ?? '없음 (스킬 설치에 필요해요)'}</p>
-          {keyHint ? null : <a class="btn small" href="/admin/settings#key">키 넣으러 가기</a>}
+          {keyHint || !keyNeeded ? null : <a class="btn small" href="/admin/settings#key">키 넣으러 가기</a>}
         </div>
         <div class="card">
           <h3>휴대폰 채팅·예약 작업</h3>
@@ -141,10 +151,10 @@ function Dashboard(p: { web: Web; c: C; flashes: Flash[] }) {
         </div>
         <div class="card">
           <h3>아직 안 쓰는 사람</h3>
-          {noPc.length || unused.length ? (<>
-            {noPc.length ? <><p class="small">PC를 연결하지 않았어요 ({noPc.length}명)</p><NameList people={noPc} /></> : null}
-            {unused.length ? <><p class="small" style="margin-top:10px">PC는 있지만 이번 달에 안 썼어요 ({unused.length}명)</p><NameList people={unused} /></> : null}
-          </>) : <p class="small muted">모두 PC를 연결하고 이번 달에 썼어요.</p>}
+          {notConnected.length || unused.length ? (<>
+            {notConnected.length ? <><p class="small">아직 연결하지 않았어요 ({notConnected.length}명)</p><NameList people={notConnected} /></> : null}
+            {unused.length ? <><p class="small" style="margin-top:10px">연결은 했지만 이번 달에 안 썼어요 ({unused.length}명)</p><NameList people={unused} /></> : null}
+          </>) : <p class="small muted">모두 연결하고 이번 달에 썼어요.</p>}
         </div>
       </div>
 

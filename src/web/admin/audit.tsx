@@ -21,6 +21,8 @@ export const ACTION_LABEL: Record<string, string> = {
   'user.create': '사람 추가',
   'user.update': '사람 정보 변경',
   'user.password_reset': '비밀번호 초기화',
+  'invite.create': '초대·초기화 링크 만듦',
+  'invite.join': '링크로 비밀번호를 정함',
   'enroll.create': 'PC 연결 코드 만듦',
   'enroll.redeem': 'PC 연결됨',
   'device.enroll': 'PC 연결됨',
@@ -58,11 +60,13 @@ const KEY_LABEL: Record<string, string> = {
   name: '이름', username: '아이디', email: '이메일', role: '역할', status: '상태', groups: '그룹', group: '그룹', user: '사람',
   device: 'PC', os: 'OS', ip: 'IP', subject: '대상', access: '권한', period: '기간', limitUsd: '달러 한도', limitTokens: '토큰 한도',
   action: '넘으면', companyName: '회사 이름', hubConcurrency: '동시 실행', publicUrl: '공개 주소', lanUrl: '사내 주소', krwPerUsd: '원화 환산',
+  kind: '종류', temp: '임시 비밀번호', invite: '초대 링크', bulk: '한꺼번에', link: '링크', reissue: '다시 만듦',
   replaced: '교체', ok: '성공', status_code: '응답', from: '시작', to: '끝', first: '첫 변경', apiKey: 'API 키', path: '경로', version: '버전',
 }
 
 const VALUE_LABEL: Record<string, Record<string, string>> = {
   role: ROLE_LABEL, access: ACCESS_LABEL, period: PERIOD_LABEL, action: BUDGET_ACTION_LABEL,
+  kind: { invite: '초대', reset: '비밀번호 초기화' },
   status: { active: '사용 중', disabled: '꺼짐' }, os: { macos: '맥', windows: '윈도우', linux: '리눅스', other: '기타' },
 }
 
