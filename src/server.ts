@@ -10,6 +10,7 @@ import { register as web } from './web/routes'
 import { sweepSessions } from './auth/sessions'
 import { sweepTokens } from './auth/tokens'
 import { sweepEnrollCodes } from './auth/enroll'
+import { pruneVersions } from './files/versions'
 
 export const MODULES: Register[] = [relay, mcp, skills, install, hub, web]
 
@@ -30,7 +31,11 @@ export function serve(ctx: Ctx, o: { background?: boolean } = {}): Running {
   const timers: Timer[] = []
   let stopHub: (() => Promise<void>) | null = null
   if (o.background !== false) {
-    const sweep = () => { try { sweepSessions(ctx.db); sweepTokens(ctx.db); sweepEnrollCodes(ctx.db) } catch (e) { ctx.log.warn('sweep failed', { err: String(e) }) } }
+    const sweep = () => {
+      try { sweepSessions(ctx.db); sweepTokens(ctx.db); sweepEnrollCodes(ctx.db) } catch (e) { ctx.log.warn('sweep failed', { err: String(e) }) }
+      // old file versions and trash: 90 days (the restore page shows what is kept)
+      try { const n = pruneVersions(ctx, 90); if (n) ctx.log.info('old file versions removed', { count: n }) } catch (e) { ctx.log.warn('version prune failed', { err: String(e) }) }
+    }
     sweep()
     timers.push(setInterval(sweep, 3600_000))
     stopHub = startHub(ctx, `http://127.0.0.1:${server.port}`)

@@ -26,6 +26,7 @@ import { mountUsage } from './admin/usage'
 import { mountSkills } from './admin/skills'
 import { mountSettings } from './admin/settings'
 import { mountAudit } from './admin/audit'
+import { mountVersions } from './admin/versions'
 
 export { effectiveUrls, companyName, hubConcurrency, applySavedSettings, installCommands } from './settings'
 
@@ -53,4 +54,5 @@ export const register: Register = (app, ctx) => {
   mountSkills(app, web)
   mountSettings(app, web)
   mountAudit(app, web)
+  mountVersions(app, web)
 }
