@@ -63,3 +63,16 @@ uv run --with 'fonttools[woff]' python -I scripts/build-pretendard.py /path/to/P
 
 No prices or money figures anywhere, no customer names or quotes, no "YC", no star counter, no product other than Trina AX, no
 inline scripts or style attributes (the CSP allows none), no external requests at runtime. `test/site.test.ts` checks these.
+
+## Images (Higgsfield, 2026-10-26)
+
+Generated with Higgsfield (`higgsfield generate create nano_banana_pro`, 2k), converted to WebP with `cwebp`, in
+`public/img/`. No text, logos or people in any of them.
+
+| Files | Where | Prompt gist |
+|---|---|---|
+| `hero-light-{1200,2400}.webp`, `hero-dark-{1200,2400}.webp` (21:9) | hero background (`.hero-bg::before`, by theme), social cards | frosted glass folders glowing orange at the bottom centre; thin orange light threads out to a dozen glass orbs (every employee's AI connected to one company hub); warm off-white / near-black |
+| `vault-{560,1120}.webp` (4:3) | security section | frosted glass folder with a brushed-metal keyhole, orange rim light, near-black |
+| `streaks-{1000,2000}.webp` (21:9) | final call to action | long-exposure orange light ribbons on near-black |
+
+The hero keeps a soft wash of the page colour over the middle so the headline stays readable on top of the threads.

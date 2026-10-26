@@ -23,6 +23,21 @@ html[lang="ko"] .section-head h2, html[lang="ko"] .h2 { line-height: 1.28; lette
   -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
 }
+.hero-bg::before {
+  /* the key visual: threads from the company folder (behind the product stage) out to everyone's AI. A soft wash of the
+     page colour sits over the middle so the headline and subline stay readable; the threads stay visible at the sides. */
+  --hero-wash: radial-gradient(ellipse 36% 46% at 50% 40%, color-mix(in srgb, var(--bg) 94%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 48%, transparent 78%);
+  content: ""; position: absolute; inset: 0;
+  background-image: var(--hero-wash), url(/img/hero-light-2400.webp);
+  background-repeat: no-repeat; background-position: 0 0, 50% 100%; background-size: 100% 100%, auto 92%;
+}
+:root[data-theme="dark"] .hero-bg::before { background-image: var(--hero-wash), url(/img/hero-dark-2400.webp); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero-bg::before { background-image: var(--hero-wash), url(/img/hero-dark-2400.webp); } }
+@media (max-width: 900px) {
+  .hero-bg::before { background-image: var(--hero-wash), url(/img/hero-light-1200.webp); background-size: 100% 100%, auto 70%; }
+  :root[data-theme="dark"] .hero-bg::before { background-image: var(--hero-wash), url(/img/hero-dark-1200.webp); }
+}
+@media (max-width: 900px) and (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero-bg::before { background-image: var(--hero-wash), url(/img/hero-dark-1200.webp); } }
 /* hairline grid, fading out from the top centre */
 .hero-bg::after {
   content: ""; position: absolute; inset: 0;
@@ -171,6 +186,8 @@ html[lang="ko"] .pay-opt h3 { font-weight: 700; }
 .sec-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 64px; align-items: start; }
 .sec-side { position: sticky; top: 104px; }
 .sec-side .section-head { margin-bottom: 0; }
+.sec-vault { display: block; width: 100%; max-width: 420px; height: auto; margin-top: 36px; border-radius: 20px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, #000 55%, transparent 100%); mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, #000 55%, transparent 100%); }
 .sec-link {
   display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; font-weight: 600; color: var(--accent); text-decoration: none; font-size: 16px;
 }
@@ -320,6 +337,11 @@ html[lang="ko"] .cmp-block h3 { font-weight: 700; }
     linear-gradient(90deg, var(--grid) 1px, transparent 1px) 50% 0 / 56px 56px;
   -webkit-mask-image: radial-gradient(ellipse 80% 90% at 50% 20%, #000 20%, transparent 85%); mask-image: radial-gradient(ellipse 80% 90% at 50% 20%, #000 20%, transparent 85%);
 }
+.cta-box::after {
+  content: ""; position: absolute; z-index: -2; inset: 0;
+  background: linear-gradient(rgba(14, 12, 11, 0.55), rgba(14, 12, 11, 0.78)), url(/img/streaks-2000.webp) no-repeat 50% 50% / cover;
+}
+@media (max-width: 900px) { .cta-box::after { background-image: linear-gradient(rgba(14, 12, 11, 0.55), rgba(14, 12, 11, 0.8)), url(/img/streaks-1000.webp); } }
 .cta-logo { display: inline-block; padding: 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
 .cta-logo svg { width: 40px; height: 40px; }
 .cta-box h2 { margin: 24px auto 0; font-size: clamp(30px, 4.4vw, 54px); letter-spacing: -0.045em; line-height: 1.06; max-width: 860px; }
