@@ -84,33 +84,49 @@ People on the **company API key** connect Claude Code with one command from thei
 
 ## How it compares
 
-| | **Trina AX** | Claude Team + Google Drive connector | Google Workspace + Gemini in Drive | One Claude login, shared |
-|---|---|---|---|---|
-| Each person keeps their own Claude (desktop, web, phone, Claude Code, Cowork) | ✅ | ✅ | ❌ Gemini instead | ❌ one account; against Claude's terms |
-| Where the company files are | team folder on the hub (your server, an office Mac mini, or hosted by Trina) | Google Drive | Google Drive | pasted in by hand |
-| Reads Google Drive directly | ❌ files go into the hub (upload or copy) | ✅ | ✅ | ❌ |
-| Files in Workspace **shared drives** | n/a | ⚠️ open bug: shared drive content comes back empty ([#53442](https://github.com/anthropics/claude-code/issues/53442)) | ✅ | ❌ |
-| Korean HWP / HWPX files | ✅ read as text | ❌ not a supported format | — | ❌ |
-| AI folder permissions for people and groups, in one place | ✅ hidden folders don't appear | each person's Drive access | each person's Drive access | ❌ everyone sees everything |
-| Company skills for everyone, kept up to date | ✅ automatic, per group | owner uploads org-wide skills or syncs a GitHub repo (no groups on Team) | — | ❌ |
-| Pay per use, with a monthly limit per person | ✅ company API key | ❌ per seat | included from Business Standard | ❌ |
-| Usage per person | ✅ person, group, model, skill; CSV | analytics dashboard and spend CSV | — | ❌ one account |
-| Which file each person's AI opened | ✅ every tool call is recorded | — | — | ❌ |
-| Open source, runs on your server or ours | ✅ Apache-2.0 | ❌ | ❌ | ❌ |
-| Setup and monthly operation in Korean | Trina (optional, quoted) | self-serve | self-serve | — |
+O yes · △ partly or with conditions · X no · ? not confirmed from official documentation
 
-Based on public documentation as of 2026-10-26: Claude Help and Docs (connectors, organization skills, analytics),
-Google Workspace Updates ("Ask Gemini in Drive", generally available April 2026) and the open issue
-[anthropics/claude-code#53442](https://github.com/anthropics/claude-code/issues/53442). "—" means we did not compare it.
-Something out of date? [Open an issue](https://github.com/potenlab/trina-ax/issues).
+| | **Trina AX** | Claude Team (+ Google Drive connector) | ChatGPT Business | Microsoft 365 Copilot | Google Gemini (Workspace) | Glean | One Claude login, shared |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| Each person keeps the Claude they use (apps, web, phone, Claude Code) | **O** | O | X | △ ¹ | X | O ² | X ³ |
+| Google Drive, including shared drives | △ ⁴ | △ ⁵ | △ ⁶ | O ⁷ | O | O ⁷ | X |
+| Korean HWP / HWPX files | **O** | X | X | X | ? | ? | X |
+| Each person sees only the files they may | **O** | O | O | △ ⁸ | O | O | X |
+| Company skills or agents for everyone, per group | **O** | △ ⁹ | △ ⁹ | O | △ ¹⁰ | O | X |
+| Usage per person | **O** | O | O | O | O | O | X |
+| Pay per use without a seat, with a monthly limit per person | **O** ¹¹ | X | △ ¹² | △ ¹² | X | △ ¹² | X |
+| Record of which file each person's AI opened | **O** | ? | X ¹³ | O | X | △ | X |
+| Open source, runs on your server | **O** | X | X | X | X | △ ¹⁴ | X |
+| Setup and monthly operation done for you (in Korean) | **O** ¹⁵ | X | X | X | X | X | X |
+| Price (for reference, 2026-10-26) | software free, hosting quoted | per seat | $25/mo ($20 yearly), 2 seats min | ₩28,400/mo (yearly) | $14/mo (yearly) | not published | — |
+
+1. Claude is a selectable model inside Copilot; people use the Copilot app.
+2. Glean's MCP server can be connected to Claude Desktop.
+3. One subscription used by several people is against Claude's terms.
+4. Today files go into the hub (upload or copy).
+5. Open bug: shared drive content comes back empty ([anthropics/claude-code#53442](https://github.com/anthropics/claude-code/issues/53442)).
+6. Shared-drive controls are documented for Enterprise only.
+7. Needs domain-wide delegation set up by a Google Workspace admin.
+8. The Google Drive connector needs its permission mode chosen; the default shows files to all users.
+9. Organization-wide, yes; per group is Enterprise only.
+10. Gems are shared like Drive files; they become skills in 2027.
+11. People on the company API key pay only for what they use, with a monthly limit each.
+12. Seats first, then extra usage as credits.
+13. File access logs (Compliance Platform) are Enterprise only.
+14. Closed source; a single-tenant install in your cloud exists.
+15. Trina hosts, sets up and runs it every month (optional, quoted).
+
+Based on each vendor's official docs, help centers and pricing pages as of 2026-10-26 (Claude, OpenAI, Microsoft Learn,
+Google Workspace, Glean). Something out of date? [Open an issue](https://github.com/potenlab/trina-ax/issues).
 
 ### When something else fits better
 
 - **Everything already lives in Google Drive and people mainly want to search and ask about it.** Gemini in Drive
   (included from Business Standard) or Claude's Google Drive connector may be enough. Trina AX does not read Google
   Drive; files go into the hub.
+- **Already on Microsoft 365 and SharePoint.** Microsoft 365 Copilot sits closest to those files.
 - **One developer.** Claude Code on its own is simpler.
-- **Hundreds of people across many tools** (chat, tickets, CRM). Enterprise search products are built for that.
+- **Hundreds of people across many tools** (chat, tickets, CRM). Enterprise search such as Glean is built for that.
 
 ## How it works
 
