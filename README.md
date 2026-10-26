@@ -30,6 +30,22 @@ working, **without sharing one login**.
   Linux server. It holds the team folder, the company skills and the usage records.
 - Claude usage is billed by Anthropic to **your** account. Nobody shares a subscription, and Trina does not resell tokens.
 
+## Why Trina AX
+
+- **Nothing new to learn.** People keep the Claude they already use: the desktop and phone apps, claude.ai, Cowork and
+  Claude Code. On Claude Team, nothing is installed on their PCs.
+- **Company files, each person's permissions.** One set of folder rules for people and groups, enforced on every request
+  from every app. A folder someone may not open does not even show up. Korean HWP/HWPX, PDF and Office files are read as
+  text, and every change can be undone for 90 days.
+- **One way of working for everyone.** Write a skill once (a quote, a weekly report) in the team folder; every person's
+  Claude gets it, per group, and gets the new version when it changes.
+- **Pay the way that fits each person.** Heavy users on their own Claude plan, light users on one company API key with a
+  monthly limit per person. Nobody needs a seat just to ask a question once a week, and nobody shares a login.
+- **See what is actually used.** Usage per person, group, model and skill, with CSV export, plus a record of which file
+  each person's Claude opened.
+- **Open source, your server or ours.** Apache-2.0. Run it yourself for free, or let Trina host it at
+  `https://<company>.trina.app` and run the rollout. Leave any time with your files and the same software.
+
 ## What employees do
 
 On **Claude Team or Enterprise**, nothing is installed on a PC:
@@ -65,6 +81,36 @@ People on the **company API key** connect Claude Code with one command from thei
 - **Operations.** A `trina-ax` command (`status`, `doctor`, `backup`, `restore`, `users`, `logs`, ...), an always-on
   macOS LaunchDaemon installer, a Linux systemd unit, `deploy/cloudflare/customer-address.ts` for `<company>.trina.app`
   addresses, and a [Korean operator guide](docs/OPERATOR.md).
+
+## How it compares
+
+| | **Trina AX** | Claude Team + Google Drive connector | Google Workspace + Gemini in Drive | One Claude login, shared |
+|---|---|---|---|---|
+| Each person keeps their own Claude (desktop, web, phone, Claude Code, Cowork) | ✅ | ✅ | ❌ Gemini instead | ❌ one account; against Claude's terms |
+| Where the company files are | team folder on the hub (your server, an office Mac mini, or hosted by Trina) | Google Drive | Google Drive | pasted in by hand |
+| Reads Google Drive directly | ❌ files go into the hub (upload or copy) | ✅ | ✅ | ❌ |
+| Files in Workspace **shared drives** | n/a | ⚠️ open bug: shared drive content comes back empty ([#53442](https://github.com/anthropics/claude-code/issues/53442)) | ✅ | ❌ |
+| Korean HWP / HWPX files | ✅ read as text | ❌ not a supported format | — | ❌ |
+| AI folder permissions for people and groups, in one place | ✅ hidden folders don't appear | each person's Drive access | each person's Drive access | ❌ everyone sees everything |
+| Company skills for everyone, kept up to date | ✅ automatic, per group | owner uploads org-wide skills or syncs a GitHub repo (no groups on Team) | — | ❌ |
+| Pay per use, with a monthly limit per person | ✅ company API key | ❌ per seat | included from Business Standard | ❌ |
+| Usage per person | ✅ person, group, model, skill; CSV | analytics dashboard and spend CSV | — | ❌ one account |
+| Which file each person's AI opened | ✅ every tool call is recorded | — | — | ❌ |
+| Open source, runs on your server or ours | ✅ Apache-2.0 | ❌ | ❌ | ❌ |
+| Setup and monthly operation in Korean | Trina (optional, quoted) | self-serve | self-serve | — |
+
+Based on public documentation as of 2026-10-26: Claude Help and Docs (connectors, organization skills, analytics),
+Google Workspace Updates ("Ask Gemini in Drive", generally available April 2026) and the open issue
+[anthropics/claude-code#53442](https://github.com/anthropics/claude-code/issues/53442). "—" means we did not compare it.
+Something out of date? [Open an issue](https://github.com/potenlab/trina-ax/issues).
+
+### When something else fits better
+
+- **Everything already lives in Google Drive and people mainly want to search and ask about it.** Gemini in Drive
+  (included from Business Standard) or Claude's Google Drive connector may be enough. Trina AX does not read Google
+  Drive; files go into the hub.
+- **One developer.** Claude Code on its own is simpler.
+- **Hundreds of people across many tools** (chat, tickets, CRM). Enterprise search products are built for that.
 
 ## How it works
 
