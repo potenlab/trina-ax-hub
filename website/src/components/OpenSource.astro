@@ -1,33 +1,38 @@
 ---
-// Open source (A10): the licence, the repository, and the commands to copy. No star counter.
+// Open source as a buyer benefit: code you can check, free to leave, nothing held back. The repository card links to
+// GitHub and to /security, the page an owner forwards to the IT lead (which also has the commands to try it). No star
+// counter.
 import type { Copy } from '../content/en'
-import { LINKS } from '../site'
+import { LINKS, ROUTES } from '../site'
 import Lines from './Lines.astro'
 import Icon from './Icon.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const o = t.openSource
+const icons = ['eye', 'restore', 'check']
 ---
 <section class="section" id="open-source" aria-labelledby="os-title">
-  <div class="container os">
-    <div>
+  <div class="container">
+    <div class="os">
       <div class="section-head">
         <h2 id="os-title"><Lines text={o.title} /></h2>
         <p>{o.body}</p>
       </div>
-      <div class="os-ctas">
-        <a class="btn btn-secondary btn-lg" href={LINKS.github} rel="noopener"><Icon name="github" />{o.cta}</a>
+      <div class="os-repo">
+        <div class="os-repo-head">
+          <span class="os-repo-name"><Icon name="github" />{o.repo}</span>
+          <span class="os-tag">{o.license}</span>
+        </div>
+        <div class="os-repo-body">
+          <a class="btn btn-secondary" href={LINKS.github} rel="noopener"><Icon name="github" />{o.cta}</a>
+          <a class="os-it" href={ROUTES.security[t.lang]}><Icon name="mail" />{o.itCta}<Icon name="arrow" /></a>
+        </div>
       </div>
     </div>
-    <div class="os-repo">
-      <div class="os-repo-head">
-        <span class="os-repo-name"><Icon name="github" />{o.repo}</span>
-        <span class="os-tag">{o.license}</span>
-      </div>
-      <div class="os-term">
-        <pre class="os-code">{o.cmds.map((c) => <span><span class="tl-prompt" aria-hidden="true">$ </span>{c}</span>)}</pre>
-        <button class="copy-btn" type="button" data-copy={o.cmds.join('\n')} data-copied={o.copied} aria-label={o.copyLabel}>{o.copy}</button>
-      </div>
-    </div>
+    <ul class="benefits">
+      {o.benefits.map((b, i) => (
+        <li class="benefit"><span class="icon-chip"><Icon name={icons[i] ?? 'check'} /></span><h3>{b.title}</h3><p>{b.body}</p></li>
+      ))}
+    </ul>
   </div>
 </section>

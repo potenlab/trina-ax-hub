@@ -1,6 +1,7 @@
 ---
-// /security and /ko/security (A17): intro, five promises with how each is kept, known limits, where it runs, and how
-// to report a vulnerability. The promises are the same words as the home page's security section.
+// /security and /ko/security: the page an owner forwards to the IT lead. Five promises with how each is kept (facts from
+// trina-app/trina-ax docs/PERMISSIONS.md), what we don't promise, where it runs, how to try the code (dev mode, with a
+// copy button), the license, and how to report a vulnerability.
 import type { Copy } from '../content/en'
 import Base from '../layouts/Base.astro'
 import { CONTACT_EMAIL, LINKS, ROUTES } from '../site'
@@ -12,9 +13,9 @@ import Nav from './Nav.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const sp = t.secPage
-const runIcons = ['cloud', 'server', 'mac']
+const runIcons = ['cloud', 'mac', 'server']
 ---
-<Base t={t} route="security" title={sp.title} description={sp.description} ogImage={sp.ogImage} jsonLd={breadcrumbJsonLd(t)}>
+<Base t={t} route="security" title={sp.title} description={sp.description} ogImage={sp.ogImage} jsonLd={breadcrumbJsonLd(t, [{ name: sp.breadcrumb, route: 'security' }])}>
   <Nav t={t} route="security" />
   <main id="main" class="secpage">
     <section class="secpage-hero">
@@ -53,12 +54,38 @@ const runIcons = ['cloud', 'server', 'mac']
       </ul>
     </section>
 
+    <section class="container secpage-block" aria-labelledby="sp-try">
+      <h2 id="sp-try">{sp.tryTitle}</h2>
+      <p class="secpage-sub">{sp.tryBody}</p>
+      <div class="os-repo secpage-term">
+        <div class="os-repo-head">
+          <span class="os-repo-name"><Icon name="github" />{t.openSource.repo}</span>
+          <span class="os-tag">{t.openSource.license}</span>
+        </div>
+        <div class="os-term">
+          <pre class="os-code">{sp.cmds.map((c) => <span><span class="tl-prompt" aria-hidden="true">$ </span>{c}</span>)}</pre>
+          <button class="copy-btn" type="button" data-copy={sp.cmds.join('\n')} data-copied={sp.copied} aria-label={sp.copyLabel}>{sp.copy}</button>
+        </div>
+      </div>
+      <p class="secpage-links">
+        <a href={LINKS.install[t.lang]} rel="noopener"><Icon name="file" />{t.pricing.startA}</a>
+        <a href={LINKS.permissions} rel="noopener"><Icon name="lock" />{sp.permLink}</a>
+      </p>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="sp-license">
+      <h2 id="sp-license">{sp.licenseTitle}</h2>
+      <p class="secpage-sub">{sp.licenseBody}</p>
+      <p class="secpage-links">
+        <a href={LINKS.github} rel="noopener"><Icon name="github" />{sp.repoLink}</a>
+      </p>
+    </section>
+
     <section class="container secpage-block" aria-labelledby="sp-report">
       <h2 id="sp-report">{sp.reportTitle}</h2>
       <p class="secpage-sub">{sp.reportBody}</p>
       <p class="secpage-links">
         <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Security: Trina AX')}`}><Icon name="mail" />{sp.reportMail}</a>
-        <a href={LINKS.securityMd} rel="noopener"><Icon name="github" />{sp.reportLink}</a>
       </p>
       <a class="back" href={ROUTES.home[t.lang]}>← {sp.back}</a>
     </section>

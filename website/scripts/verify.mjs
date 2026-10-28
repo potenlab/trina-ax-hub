@@ -30,6 +30,10 @@ const pages = [
   { id: 'ko-home', path: '/ko/' },
   { id: 'en-security', path: '/security' },
   { id: 'ko-security', path: '/ko/security' },
+  { id: 'en-guide', path: '/guide' },
+  { id: 'ko-guide', path: '/ko/guide' },
+  { id: 'en-first-week', path: '/guide/first-week' },
+  { id: 'ko-first-week', path: '/ko/guide/first-week' },
   { id: '404', path: '/no-such-page', status: 404 },
 ]
 const viewports = [
@@ -153,13 +157,34 @@ try {
     await page.click('[data-theme-toggle]')
     if ((await bg()) !== light) note('theme', 'second click did not return to light')
 
-    // copy button
+    // the hero demo plays to the end by itself, can be paused and replayed
+    await page.goto(base + '/', { waitUntil: 'networkidle' })
+    await page.locator('[data-demo]').scrollIntoViewIfNeeded()
+    await page.waitForTimeout(1500)
+    if ((await page.getAttribute('[data-demo]', 'data-play')) !== 'playing') note('demo', 'not playing once in view')
+    await page.click('[data-demo-toggle]')
+    if ((await page.getAttribute('[data-demo]', 'data-play')) !== 'paused') note('demo', 'pause did not pause')
+    await page.click('[data-demo-toggle]')
+    await page.waitForTimeout(13000)
+    if ((await page.getAttribute('[data-demo]', 'data-play')) !== 'done') note('demo', 'did not reach the end')
+    const hidden = await page.$$eval('[data-demo] [data-t]:not([data-off])', (els) => els.filter((e) => getComputedStyle(e).display === 'none').length)
+    if (hidden) note('demo', `${hidden} parts still hidden at the end`)
+
+    // role tabs: the second tab shows its panel and hides the first
+    await page.click('#role-tab-sales')
+    const vis = await page.$$eval('[role="tabpanel"]', (els) => els.map((e) => getComputedStyle(e).display !== 'none'))
+    if (vis.join() !== 'false,true,false,false') note('tabs', `visible panels: ${vis.join()}`)
+    await page.keyboard.press('ArrowRight')
+    if ((await page.getAttribute('#role-tab-finance', 'aria-selected')) !== 'true') note('tabs', 'arrow key did not move to the next tab')
+
+    // copy button (the commands on the security page, for the IT lead)
+    await page.goto(base + '/security', { waitUntil: 'networkidle' })
     await page.click('.copy-btn')
     const clip = await page.evaluate(() => navigator.clipboard.readText())
-    if (!clip.includes('git clone https://github.com/potenlab/trina-ax') || !clip.includes('bun run dev')) note('copy', `clipboard has: ${JSON.stringify(clip)}`)
+    if (!clip.includes('git clone https://github.com/trina-app/trina-ax') || !clip.includes('bun run dev')) note('copy', `clipboard has: ${JSON.stringify(clip)}`)
 
     // language switch, both ways, on both pages
-    for (const [from, linkTo] of [['/', '/ko/'], ['/ko/', '/'], ['/security', '/ko/security'], ['/ko/security', '/security']]) {
+    for (const [from, linkTo] of [['/', '/ko/'], ['/ko/', '/'], ['/security', '/ko/security'], ['/ko/security', '/security'], ['/guide', '/ko/guide'], ['/ko/guide/first-week', '/guide/first-week']]) {
       await page.goto(base + from, { waitUntil: 'networkidle' })
       const href = await page.getAttribute('.lang-link', 'href')
       if (href !== linkTo) note('lang switch', `${from} links to ${href}, expected ${linkTo}`)
@@ -188,19 +213,23 @@ try {
     if (await mp.isVisible('.mobile-menu')) note('menu', 'Escape did not close it')
     await m.close()
 
-    // reduced motion: the hero animation is off
+    // reduced motion: the demo does not play by itself; it shows its finished screen, with nothing animating
     const rm = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' })
     const rp = await rm.newPage()
     await rp.goto(base + '/', { waitUntil: 'networkidle' })
-    const anim = await rp.$$eval('.sp', (els) => els.map((e) => getComputedStyle(e).animationName))
-    if (anim.some((a) => a !== 'none')) note('reduced motion', `hero panels still animate: ${anim.join(',')}`)
+    await rp.waitForTimeout(600)
+    if ((await rp.getAttribute('[data-demo]', 'data-play')) !== 'done') note('reduced motion', 'the demo is not showing its finished screen')
+    const rmHidden = await rp.$$eval('[data-demo] [data-t]:not([data-off])', (els) => els.filter((e) => getComputedStyle(e).display === 'none').length)
+    if (rmHidden) note('reduced motion', `${rmHidden} demo parts hidden`)
+    const anim = await rp.$$eval('[data-demo] *', (els) => els.map((e) => getComputedStyle(e).animationName).filter((a) => a !== 'none'))
+    if (anim.length) note('reduced motion', `demo still animates: ${anim.join(',')}`)
     await rm.close()
 
     // internal links
     const lk = await browser.newContext()
     const lp = await lk.newPage()
     const seen = new Set()
-    for (const p of ['/', '/ko/', '/security', '/ko/security']) {
+    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week']) {
       await lp.goto(base + p, { waitUntil: 'domcontentloaded' })
       const hrefs = await lp.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')))
       const ids = await lp.$$eval('[id]', (els) => els.map((e) => e.id))

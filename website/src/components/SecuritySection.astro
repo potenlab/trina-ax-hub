@@ -1,5 +1,9 @@
 ---
-// Security (A9): always-dark section with the five promises, what we don't promise, and a link to /security.
+// Security as the questions a buyer asks (always-dark section): where data goes (a small diagram: your team -> your
+// company's server, which keeps files, chats and records -> only what an answer needs to Anthropic), six questions
+// answered plainly, what we don't promise, and a link to /security, the page to forward to an IT lead.
+// The diagram is HTML (one image for screen readers, with a label that says it in words); it follows the theme and
+// stacks on phones. No certifications claimed.
 import type { Copy } from '../content/en'
 import { ROUTES } from '../site'
 import Lines from './Lines.astro'
@@ -7,24 +11,47 @@ import Icon from './Icon.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const s = t.security
+const f = s.flow
 ---
 <section class="section security zone-dark" id="security" aria-labelledby="security-title">
-  <div class="container sec-grid">
-    <div class="sec-side">
-      <div class="section-head">
-        <h2 id="security-title"><Lines text={s.title} /></h2>
-        <p>{s.lead}</p>
+  <div class="container">
+    <div class="section-head">
+      <h2 id="security-title"><Lines text={s.title} /></h2>
+      <p>{s.lead}</p>
+    </div>
+
+    <div class="flow" role="img" aria-label={f.label}>
+      <div class="flow-node flow-people">
+        <span class="icon-chip"><Icon name="users" /></span>
+        <p class="flow-title">{f.people.title}</p>
+        <p class="flow-sub">{f.people.body}</p>
+        <p class="flow-devices"><Icon name="globe" /><Icon name="monitor" /><Icon name="phone" /></p>
       </div>
-      <a class="sec-link" href={ROUTES.security[t.lang]}>{s.link}<Icon name="arrow" /></a>
-      <img class="sec-vault" src="/img/vault-1120.webp" srcset="/img/vault-560.webp 560w, /img/vault-1120.webp 1120w" sizes="(max-width: 900px) 90vw, 420px" width="1120" height="837" alt="" loading="lazy" decoding="async" />
+      <div class="flow-link"><span class="flow-line" aria-hidden="true"></span><span class="flow-label">{f.session}</span></div>
+      <div class="flow-node flow-server">
+        <span class="icon-chip"><Icon name="server" /></span>
+        <p class="flow-title">{f.server.title}</p>
+        <p class="flow-where"><Icon name="cloud" />{f.server.hosted}</p>
+        <p class="flow-where"><Icon name="mac" />{f.server.self}</p>
+        <ol class="flow-parts">
+          {f.server.parts.map((p, i) => <li data-keep={String(i === f.server.parts.length - 1)}>{i === 0 && <Icon name="lock" />}{i === 1 && <Icon name="spark" />}{i === 2 && <Icon name="folder" />}{p}</li>)}
+        </ol>
+        <p class="flow-stays"><Icon name="check" />{f.server.stays}</p>
+      </div>
+      <div class="flow-link flow-link-out"><span class="flow-line" aria-hidden="true"></span><span class="flow-label">{f.out}</span></div>
+      <div class="flow-node flow-model">
+        <span class="icon-chip"><Icon name="globe" /></span>
+        <p class="flow-title">{f.model.title}</p>
+        <p class="flow-sub">{f.model.body}</p>
+      </div>
     </div>
-    <div>
-      <ol class="promises">
-        {s.promises.map((p, i) => (
-          <li class="promise"><span class="step-num" aria-hidden="true">{i + 1}</span><span>{p}</span></li>
-        ))}
-      </ol>
-      <p class="limits-box"><strong>{s.limitsLabel}:</strong> {s.limits}</p>
-    </div>
+
+    <dl class="qa">
+      {s.qa.map((x) => (
+        <div class="qa-item"><dt>{x.q}</dt><dd>{x.a}</dd></div>
+      ))}
+    </dl>
+    <p class="limits-box"><strong>{s.limitsLabel}:</strong> {s.limits}</p>
+    <a class="sec-link" href={ROUTES.security[t.lang]}>{s.link}<Icon name="arrow" /></a>
   </div>
 </section>

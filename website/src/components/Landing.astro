@@ -1,22 +1,22 @@
 ---
-// The home page, one component for both languages (/ and /ko/). Sections in the order of the copy deck:
-// nav, hero + product stage, works with, problem, features, how it works, paying for Claude, security (dark),
-// open source, pricing, examples by role, service, FAQ, final call to action, footer.
+// The home page, one component for both languages (/ and /ko/). Order (plans/SITE-GUIDE-2026-10-28/PLAN.md):
+// hero with the scripted demo of the app, the screens it runs on, "same question, different answers" (permissions),
+// role tabs, features, two ways to start + the first week, paying for Claude, security as buyer questions (dark),
+// open source as a buyer benefit, pricing, FAQ, final call to action, footer.
 import type { Copy } from '../content/en'
 import Base from '../layouts/Base.astro'
 import { homeJsonLd } from '../seo'
 import Nav from './Nav.astro'
 import Hero from './Hero.astro'
 import WorksWith from './WorksWith.astro'
-import Problem from './Problem.astro'
+import SameQuestion from './SameQuestion.astro'
+import Roles from './Roles.astro'
 import Features from './Features.astro'
-import Steps from './Steps.astro'
+import Start from './Start.astro'
 import Paying from './Paying.astro'
 import SecuritySection from './SecuritySection.astro'
 import OpenSource from './OpenSource.astro'
 import Pricing from './Pricing.astro'
-import Examples from './Examples.astro'
-import Service from './Service.astro'
 import Faq from './Faq.astro'
 import FinalCta from './FinalCta.astro'
 import Footer from './Footer.astro'
@@ -29,15 +29,14 @@ const { t } = Astro.props
   <main id="main">
     <Hero t={t} />
     <WorksWith t={t} />
-    <Problem t={t} />
+    <SameQuestion t={t} />
+    <Roles t={t} />
     <Features t={t} />
-    <Steps t={t} />
+    <Start t={t} />
     <Paying t={t} />
     <SecuritySection t={t} />
     <OpenSource t={t} />
     <Pricing t={t} />
-    <Examples t={t} />
-    <Service t={t} />
     <Faq t={t} />
     <FinalCta t={t} />
   </main>

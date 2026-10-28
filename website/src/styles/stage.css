@@ -1,112 +1,21 @@
-/* Product mocks: the hero stage (three panels) and the small UIs inside the feature cards. Plain HTML and CSS, so they
+/* Product mocks: the small UIs inside the feature cards (the hero demo and the other mocks are in how.css). Plain HTML and CSS, so they
    stay crisp at any size, follow light/dark and cost no image bytes. Everything is made-up data, said on the page.
    No inline style attributes anywhere (the CSP forbids them): bar widths are classes. */
 
-/* ---------- hero stage ---------- */
-.stage { position: relative; max-width: 1280px; margin: 72px auto 0; padding: 0 var(--gutter); }
-.stage-glow {
-  position: absolute; z-index: -2; left: 50%; top: -40px; width: min(1100px, 100%); height: 520px; transform: translateX(-50%);
-  background: radial-gradient(closest-side at 35% 50%, var(--glow), transparent), radial-gradient(closest-side at 70% 50%, var(--glow-2), transparent);
-  filter: blur(40px); pointer-events: none;
-}
-.stage-grid {
-  position: relative; display: grid; grid-template-columns: minmax(0, 0.74fr) minmax(0, 1.5fr) minmax(0, 1.16fr); gap: 16px; align-items: start;
-}
-.stage-grid::before {
-  content: ""; position: absolute; z-index: -1; inset: -14px -14px -30px; border-radius: 28px; border: 1px solid var(--border);
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg-elev) 55%, transparent), color-mix(in srgb, var(--bg-elev) 10%, transparent));
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); mask-image: linear-gradient(to bottom, #000 70%, transparent);
-}
-.sp-folders { margin-top: 40px; }
-.sp-usage { margin-top: 84px; }
-.stage-caption { margin-top: 36px; text-align: center; font-size: 13.5px; color: var(--fg-faint); }
-
-/* one subtle animation: the three panels settle into place once on load */
-@keyframes stage-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: no-preference) {
-  .sp { animation: stage-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .sp-chats { animation-delay: 0.1s; }
-  .sp-folders { animation-delay: 0.3s; }
-  .sp-usage { animation-delay: 0.5s; }
-}
-
-@media (max-width: 1100px) {
-  .stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sp-chats { grid-column: 1 / -1; order: -1; }
-  .sp-folders, .sp-usage { margin-top: 0; }
-}
-@media (max-width: 700px) {
-  .stage { margin-top: 48px; }
-  .stage-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .stage-grid::before { inset: -8px -8px -20px; border-radius: 20px; }
-}
-
-/* window */
-.win {
-  border-radius: 16px; border: 1px solid var(--border-strong); background: var(--card); overflow: hidden;
-  box-shadow: var(--shadow-lg); font-size: 13px; text-align: left; min-width: 0;
-}
-.win svg { width: 15px; height: 15px; flex: none; }
-.win-bar { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
-.win-dots { display: flex; gap: 6px; }
-.win-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
-.win-title { font-weight: 600; font-size: 12.5px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* panel 1: folder access */
-.fa { padding: 6px 0 8px; }
-.fa-head, .fa-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 0 14px; }
-.fa-head { height: 32px; font-size: 11.5px; color: var(--fg-faint); font-weight: 500; }
-.fa-row { height: 46px; border-top: 1px solid var(--border); }
-.fa-row[data-selected="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
-.fa-name { display: flex; align-items: center; gap: 8px; font-weight: 560; min-width: 0; }
-.fa-name svg { color: var(--accent); fill: color-mix(in srgb, var(--accent) 18%, transparent); }
-.fa-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fa-who {
-  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 550;
-  color: var(--fg-muted); background: var(--inset); border: 1px solid var(--border); white-space: nowrap;
-}
-.fa-who svg { width: 11px; height: 11px; color: var(--fg-faint); }
-
-/* panel 2: two Claude chats side by side */
-.cx-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.cx { padding: 14px 16px 18px; min-width: 0; }
-.cx + .cx { border-left: 1px solid var(--border); }
-.cx-who { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 620; }
-.cx-who small { color: var(--fg-faint); font-weight: 500; font-size: 12px; }
-.cx-avatar { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--signal); color: var(--signal-fg); font-size: 11px; font-weight: 700; flex: none; }
-.cx[data-empty="true"] .cx-avatar { background: var(--inset); color: var(--fg-muted); border: 1px solid var(--border-strong); }
-.cx-q { margin-top: 12px; padding: 9px 13px; border-radius: 14px 14px 14px 4px; background: var(--inset); border: 1px solid var(--border); line-height: 1.5; }
-.cx-a { margin-top: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; line-height: 1.55; }
-.cx-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); }
+/* small pieces shared by the mocks: the AI mark and a file chip */
+.cx-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); flex: none; }
 .cx-mark svg { width: 13px; height: 13px; }
-.cx-a p { padding-top: 1px; }
-.cx[data-empty="true"] .cx-a p { color: var(--fg-muted); }
 .cx-file {
-  grid-column: 2; display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 550;
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 550;
   background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; justify-self: start;
 }
-.cx-file svg { width: 12px; height: 12px; }
-@media (max-width: 700px) {
-  .cx-cols { grid-template-columns: minmax(0, 1fr); }
-  .cx + .cx { border-left: 0; border-top: 1px solid var(--border); }
-}
-
-/* panel 3: usage table */
-.ut { padding: 2px 0 6px; }
-.ut-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.8fr) 66px minmax(0, 1.5fr); gap: 8px; align-items: center; padding: 0 14px; height: 42px; border-top: 1px solid var(--border); }
-.ut-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ut-head { height: 34px; border-top: 0; color: var(--fg-faint); font-size: 11.5px; font-weight: 500; }
-.ut-num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.ut-person { font-weight: 560; }
-.ut-team { color: var(--fg-muted); }
-.ut-skill { color: var(--fg-muted); }
+.cx-file svg { width: 12px; height: 12px; flex: none; }
 
 /* ---------- mini UIs in the feature cards ---------- */
 .mini { border-radius: 14px; border: 1px solid var(--border); background: var(--bg-soft); padding: 14px; font-size: 13px; text-align: left; }
 .mini svg { width: 15px; height: 15px; flex: none; }
-.mini, .win, .phone { overflow-wrap: anywhere; }
+.mini, .phone { overflow-wrap: anywhere; }
 .mini-head { font-size: 11.5px; font-weight: 600; color: var(--fg-faint); margin-bottom: 10px; }
 
 /* files */
@@ -150,29 +59,7 @@
 .mu-limit::before { content: ""; width: 18px; border-top: 1.5px dashed var(--accent); }
 .w-24 { width: 24%; } .w-37 { width: 37%; } .w-61 { width: 61%; } .w-82 { width: 82%; }
 
-/* activity log */
-.lg { display: grid; gap: 6px; }
-.lg-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 9px; background: var(--card); border: 1px solid var(--border); min-width: 0; }
-.lg-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-muted); }
-.lg-text b { color: var(--fg); font-weight: 600; }
-.lg-text code { font-size: 11.5px; }
-.lg-ico { color: var(--fg-faint); }
-.lg-row[data-did="deleted"] .lg-ico { color: var(--danger); }
-.lg-restore { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-elev); font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
-.lg-restore svg { width: 12px; height: 12px; }
-
 /* phone */
 .phone { margin: 0 auto; width: 100%; max-width: 210px; padding: 10px 10px 14px; border-radius: 26px; border: 1px solid var(--border-strong); background: var(--card); box-shadow: var(--shadow); }
 .phone-notch { width: 54px; height: 6px; margin: 0 auto 12px; border-radius: 999px; background: var(--border-strong); }
-.phone-q { margin-left: auto; width: fit-content; max-width: 90%; padding: 7px 11px; border-radius: 14px 14px 4px 14px; background: var(--inset); border: 1px solid var(--border); font-size: 12px; line-height: 1.45; }
-.phone-a { margin-top: 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 1.5; }
-.phone-a .cx-mark { width: 20px; height: 20px; }
 
-/* phones: let table cells and log lines wrap instead of cutting names off */
-@media (max-width: 520px) {
-  .ut-row { height: auto; min-height: 42px; padding-block: 8px; align-items: start; }
-  .ut-row > span { white-space: normal; overflow: visible; }
-  .ut-head { min-height: 34px; align-items: center; }
-  .lg-row { align-items: start; }
-  .lg-text { white-space: normal; overflow: visible; }
-}

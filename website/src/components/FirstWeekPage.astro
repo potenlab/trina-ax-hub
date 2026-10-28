@@ -1,0 +1,77 @@
+---
+// /guide/first-week and /ko/guide/first-week: the first written guide page. What to prepare, the first five days (what,
+// who, how long), what Trina does on a hosted plan, and a notice to send the team (copy button, src/scripts/main.ts).
+// Built from the owner's checklist in the app (AI connection, invite, folder permissions, first backup).
+import type { Copy } from '../content/en'
+import Base from '../layouts/Base.astro'
+import { ROUTES, bookCall } from '../site'
+import { breadcrumbJsonLd } from '../seo'
+import Footer from './Footer.astro'
+import Icon from './Icon.astro'
+import Nav from './Nav.astro'
+
+interface Props { t: Copy }
+const { t } = Astro.props
+const w = t.firstWeek
+const lang = t.lang
+---
+<Base t={t} route="firstWeek" title={w.title} description={w.description} ogImage={t.meta.ogImage} jsonLd={breadcrumbJsonLd(t, [{ name: t.guide.breadcrumb, route: 'guide' }, { name: w.breadcrumb, route: 'firstWeek' }])}>
+  <Nav t={t} route="firstWeek" />
+  <main id="main" class="secpage guide">
+    <section class="secpage-hero">
+      <div class="container">
+        <p class="guide-crumb"><a href={ROUTES.guide[lang]}>{t.guide.breadcrumb}</a><Icon name="chevron" /><span>{w.breadcrumb}</span></p>
+        <h1>{w.h1}</h1>
+        <p class="secpage-lead">{w.lead}</p>
+      </div>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="fw-before">
+      <h2 id="fw-before">{w.beforeTitle}</h2>
+      <ul class="fw-before">
+        {w.before.map((b) => <li><Icon name="check" />{b}</li>)}
+      </ul>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="fw-days">
+      <h2 id="fw-days">{w.daysTitle}</h2>
+      <ol class="fw-days">
+        {w.days.map((d, i) => (
+          <li class="fw-day">
+            <span class="fw-daynum">{d.day}</span>
+            <div class="fw-daybody">
+              <h3><span class="step-num" aria-hidden="true">{i + 1}</span>{d.title}</h3>
+              <p>{d.body}</p>
+              <p class="fw-meta"><span><Icon name="user" />{w.whoLabel} · {d.who}</span><span><Icon name="clock" />{w.timeLabel} · {d.time}</span></p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="fw-hosted">
+      <div class="fw-hosted">
+        <span class="icon-chip"><Icon name="cloud" /></span>
+        <div>
+          <h2 id="fw-hosted">{w.hostedTitle}</h2>
+          <p>{w.hostedBody}</p>
+        </div>
+        <a class="btn btn-primary btn-sm" href={bookCall(lang)}>{t.nav.book}<Icon name="arrow" /></a>
+      </div>
+    </section>
+
+    <section class="container secpage-block" aria-labelledby="fw-notice">
+      <h2 id="fw-notice">{w.noticeTitle}</h2>
+      <p class="secpage-sub">{w.noticeBody}</p>
+      <div class="fw-notice">
+        <pre class="fw-notice-text">{w.noticeText}</pre>
+        <button class="copy-btn fw-copy" type="button" data-copy={w.noticeText} data-copied={w.copied} aria-label={w.copyLabel}>{w.copy}</button>
+      </div>
+      <a class="back" href={ROUTES.guide[lang]}>← {w.back}</a>
+    </section>
+  </main>
+  <Footer t={t} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

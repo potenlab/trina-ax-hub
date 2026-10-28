@@ -1,4 +1,7 @@
-// Client behaviour, for every page: theme toggle, mobile menu, copy button. No dependencies; the page reads fine without it.
+// Client behaviour, for every page: theme toggle, mobile menu, copy button, the hero demo and the role tabs. No
+// dependencies; the page reads fine without it.
+import './demo'
+import './tabs'
 
 const root = document.documentElement
 

@@ -6,8 +6,10 @@ import { CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, ab
 
 /** Indexable pages. Each exists in both languages and lists the other as an alternate. 404 is left out. */
 export const PAGES: { route: RouteId; lastmod: string }[] = [
-  { route: 'home', lastmod: '2026-10-25' },
-  { route: 'security', lastmod: '2026-10-25' },
+  { route: 'home', lastmod: '2026-10-28' },
+  { route: 'security', lastmod: '2026-10-28' },
+  { route: 'guide', lastmod: '2026-10-28' },
+  { route: 'firstWeek', lastmod: '2026-10-28' },
 ]
 
 /** English-only pages (the legal texts): listed without language alternates. */
@@ -32,7 +34,7 @@ export function sitemapXml(pages = PAGES, single = SINGLE_PAGES): string {
 const ORG_ID = `${SITE_URL}/#org`
 const SITE_ID = `${SITE_URL}/#website`
 const APP_ID = `${SITE_URL}/#app`
-const LICENSE = 'https://www.apache.org/licenses/LICENSE-2.0'
+const LICENSE = 'https://www.gnu.org/licenses/agpl-3.0.html'
 
 /** A heading or title with deliberate line breaks, as one line. */
 export const oneLine = (s: string) => s.replace(/\n/g, ' ')
@@ -105,8 +107,8 @@ export function homeJsonLd(t: Copy) {
   }
 }
 
-/** Home -> page, for the security page. */
-export function breadcrumbJsonLd(t: Copy) {
+/** Home -> page (-> page), for the security and guide pages. */
+export function breadcrumbJsonLd(t: Copy, crumbs: { name: string; route: RouteId }[]) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -114,7 +116,7 @@ export function breadcrumbJsonLd(t: Copy) {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Trina AX', item: abs(ROUTES.home[t.lang]) },
-          { '@type': 'ListItem', position: 2, name: t.secPage.breadcrumb, item: abs(ROUTES.security[t.lang]) },
+          ...crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 2, name: c.name, item: abs(ROUTES[c.route][t.lang]) })),
         ],
       },
     ],
@@ -129,20 +131,29 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     '',
     `> ${en.meta.long}`,
     '',
-    "Trina AX is made by Trina Inc. (주식회사 트리나). Claude runs as it does today (the desktop and phone apps, claude.ai, Claude Code, Cowork); the hub serves the company's files to each person's Claude with that person's folder permissions. It is free to self-host (Apache-2.0). Trina hosts it at your-company.trina.app on a server of the company's own (AWS, Seoul) for a monthly plan by the number of people, setup included. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
+    "Trina AX is made by Trina Inc. (주식회사 트리나). The AI (Claude Code, and optionally Codex) runs on the company's own server: an office Mac mini or Linux server the company runs, or a server of the company's own on AWS in Seoul that Trina hosts. Employees sign in to the Trina AX app on the web, desktop or phone; every file tool checks the permissions of the person who asks. Each person can connect their own Claude plan, or the company uses one API key with monthly limits per person. The software is free and open source (AGPL-3.0-only); Trina hosting is a monthly plan by the number of people, setup included. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
     '',
     '## What it does',
     '',
     ...en.features.items.map((i) => `- ${i.title}: ${i.body}`),
     '',
-    '## How it starts',
+    '## Examples by role',
     '',
-    ...en.how.steps.map((s, i) => `${i + 1}. ${s.title}: ${s.body}`),
-    `- ${en.how.note}`,
+    ...en.roles.items.map((r) => `- ${r.role}: "${r.q}" -> ${r.doc.file}`),
     '',
-    '## Security: what we promise, and where it stops',
+    '## How to start',
     '',
-    ...en.security.promises.map((p) => `- ${p}`),
+    ...en.start.paths.flatMap((p) => [
+      `### ${p.name} (${p.price.replace('{from}', usd(PLANS[0].usd))})`,
+      '',
+      p.caption,
+      '',
+      ...p.steps.map((s, i) => `${i + 1}. ${s.title}: ${s.body}`),
+      '',
+    ]),
+    '## Security: questions buyers ask',
+    '',
+    ...en.security.qa.flatMap((x) => [`### ${x.q}`, '', x.a, '']),
     `- ${en.security.limitsLabel}: ${en.security.limits}`,
     '',
     '## Trina hosting plans',
@@ -153,10 +164,12 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     '',
     '## Pages',
     '',
-    `- [Home](${abs('/')}): product, pricing and FAQ`,
+    `- [Home](${abs('/')}): product, examples, pricing and FAQ`,
     `- [Security](${abs(ROUTES.security.en)}): ${en.secPage.description}`,
-    `- [Source code on GitHub](${LINKS.github}): Apache-2.0`,
-    `- [Security policy](${LINKS.securityMd}): how to report a vulnerability`,
+    `- [Guide](${abs(ROUTES.guide.en)}): ${en.guide.description}`,
+    `- [The first week](${abs(ROUTES.firstWeek.en)}): ${en.firstWeek.description}`,
+    `- [Source code on GitHub](${LINKS.github}): AGPL-3.0-only`,
+    `- [Permission model](${LINKS.permissions}): who sees what and how the AI is kept to it (Korean)`,
     ...Object.values(LEGAL).map((d) => `- [${d.title}](${abs(d.path)}): ${d.description}`),
     `- [한국어 (Korean)](${abs(ROUTES.home.ko)}): the same site in Korean`,
     '',

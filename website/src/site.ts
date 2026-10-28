@@ -19,13 +19,15 @@ export const COMPANY = {
 } as const
 
 export const LINKS = {
-  // The repository is the product. It must be public (and Apache-2.0) before this site goes live.
-  github: 'https://github.com/potenlab/trina-ax',
-  securityMd: 'https://github.com/potenlab/trina-ax/blob/main/SECURITY.md',
-  // English install notes are the README; the full operator guide (Mac mini install, tunnel, backups) is Korean only.
+  // The product repository (public since 2026-10-28, AGPL-3.0-only). This website's own code lives elsewhere.
+  github: 'https://github.com/trina-app/trina-ax',
+  // How permissions work (Korean) and the permission function itself.
+  permissions: 'https://github.com/trina-app/trina-ax/blob/main/docs/PERMISSIONS.md',
+  policyCode: 'https://github.com/trina-app/trina-ax/tree/main/server/src/policy',
+  // English install notes are docs/INSTALL.md; the Korean README's "실행하기" table lists the Mac, office and Linux guides.
   install: {
-    en: 'https://github.com/potenlab/trina-ax#readme',
-    ko: 'https://github.com/potenlab/trina-ax/blob/main/docs/OPERATOR.md',
+    en: 'https://github.com/trina-app/trina-ax/blob/main/docs/INSTALL.md',
+    ko: 'https://github.com/trina-app/trina-ax/blob/main/README.ko.md#%EC%8B%A4%ED%96%89%ED%95%98%EA%B8%B0',
   } satisfies Record<Lang, string>,
   company: 'https://trina.app',
 }
@@ -72,6 +74,8 @@ export const bookCall = (lang: Lang) =>
 export const ROUTES = {
   home: { en: '/', ko: '/ko/' },
   security: { en: '/security', ko: '/ko/security' },
+  guide: { en: '/guide', ko: '/ko/guide' },
+  firstWeek: { en: '/guide/first-week', ko: '/ko/guide/first-week' },
 } satisfies Record<string, Record<Lang, string>>
 export type RouteId = keyof typeof ROUTES
 

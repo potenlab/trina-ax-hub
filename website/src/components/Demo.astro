@@ -1,0 +1,107 @@
+---
+// The scripted demo under the hero: one chat in the Trina AX app, in the app's own words, with made-up data.
+// The markup is the finished screen, so it reads fine without JavaScript, under reduced motion, to search engines and
+// to AI crawlers. src/scripts/demo.ts reveals it step by step once it scrolls into view, with Pause / Replay
+// (WCAG 2.2.2). Each element says when it appears (data-t = index in the timeline), when it disappears (data-off), when
+// its step is done (data-done) and when a button is pressed (data-press). The window is one image for screen readers
+// (role="img" + a label that tells the whole story); the caption says the data is made up. No inline styles (CSP).
+import type { Copy } from '../content/en'
+import { softPath } from '../util'
+import Icon from './Icon.astro'
+import Logo from './Logo.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const d = t.demo
+const a = d.app
+// ms to wait before each timeline index: 0 question, 1 thinking, 2-5 steps, 6 safety card, 7 "Save" pressed,
+// 8 last step done, 9 answer, 10 list, 11 saved file, 12 file preview.
+const timeline = [500, 700, 900, 700, 700, 800, 900, 1800, 700, 800, 700, 600, 500]
+const navIcons = ['edit', 'search', 'folder', 'file', 'spark']
+const last = a.steps.length - 1
+---
+<figure class="demo" id="demo" data-demo data-timeline={timeline.join(',')} data-play-label={d.pause} data-resume-label={d.resume} data-replay-label={d.replay}>
+  <div class="demo-glow" aria-hidden="true"></div>
+  <div class="app" role="img" aria-label={d.label}>
+    <div class="app-side">
+      <p class="app-brand"><Logo /><span>{t.brand}</span></p>
+      <ul class="app-nav">
+        {a.nav.map((n, i) => <li data-first={String(i === 0)}><Icon name={navIcons[i] ?? 'file'} /><span>{n}</span></li>)}
+      </ul>
+      <p class="app-recents-title">{a.recentsTitle}</p>
+      <ul class="app-recents">
+        {a.recents.map((r, i) => <li data-active={String(i === 0)}>{r}</li>)}
+      </ul>
+      <p class="app-user"><span class="av">{a.user.slice(0, 1)}</span><span class="app-user-name">{a.user}<small>{a.team}</small></span></p>
+    </div>
+
+    <div class="app-main">
+      <div class="app-top"><span class="app-title">{a.chatTitle}</span><span class="app-engine"><Icon name="spark" />{a.engine}</span></div>
+      <div class="app-chat" data-scroll>
+        <div class="chat-col">
+          <p class="msg-q" data-t="0">{a.q}</p>
+          <p class="msg-thinking off" data-t="1" data-off="2"><span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>{a.thinking}</p>
+          <div class="msg-a">
+            <span class="msg-mark" data-t="2"><Icon name="spark" /></span>
+            <div class="msg-body">
+              <div class="dsteps" data-t="2">
+                <p class="dsteps-head done" data-done="8">
+                  <span class="spin" aria-hidden="true"></span><Icon name="check" />
+                  <span class="dsteps-run">{a.stepsRunning}</span><span class="dsteps-done">{a.stepsDone}</span>
+                </p>
+                <ol class="dsteps-list">
+                  {a.steps.map((s, i) => (
+                    <li class="dstep done" data-t={2 + i} data-done={i < last ? 3 + i : 8}>
+                      <span class="spin" aria-hidden="true"></span><Icon name="check" />
+                      <span class="dstep-text"><b>{s.verb}</b> · <code>{softPath(s.path)}</code></span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div class="dconfirm" data-t="6">
+                <p class="dconfirm-title"><Icon name="shield" />{a.confirm.title}</p>
+                <p class="dconfirm-body">{softPath(a.confirm.body)}</p>
+                <p class="dconfirm-btns">
+                  <span class="dbtn dbtn-allow pressed" data-press="7"><Icon name="check" />{a.confirm.allow}</span>
+                  <span class="dbtn">{a.confirm.deny}</span>
+                </p>
+              </div>
+              <p class="msg-text" data-t="9">{a.answer}</p>
+              <ul class="msg-list" data-t="10">{a.list.map((x) => <li>{x}</li>)}</ul>
+              <p class="dfile" data-t="11">
+                <span class="dfile-ico"><Icon name="sheet" /></span>
+                <span class="dfile-text"><b>{a.file}</b><small>{a.saved} · {softPath(a.filePath)}</small></span>
+                <span class="dfile-tag">{a.savedState}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="app-composer">
+        <p class="composer-box"><Icon name="clip" /><span class="composer-ph">{a.composer}</span><span class="composer-send"><Icon name="send" /></span></p>
+        <p class="composer-foot">{a.footer}</p>
+      </div>
+    </div>
+
+    <div class="app-preview">
+      <div class="app-top"><span class="app-title">{a.preview.title}</span></div>
+      <div class="pv-empty" aria-hidden="true"><Icon name="sheet" /></div>
+      <div class="pv" data-t="12">
+        <p class="pv-file"><Icon name="sheet" /><span>{a.file}</span></p>
+        <table class="pv-grid">
+          <thead><tr><th></th>{a.preview.cols.map((c, i) => <th>{String.fromCharCode(65 + i)}</th>)}</tr></thead>
+          <tbody>
+            <tr class="pv-head"><td>1</td>{a.preview.cols.map((c) => <td>{c}</td>)}</tr>
+            {a.preview.rows.map((r, i) => <tr><td>{i + 2}</td>{r.map((c) => <td>{c}</td>)}</tr>)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <figcaption class="demo-bar">
+    <span class="demo-caption">{d.caption}</span>
+    <button class="demo-btn" type="button" data-demo-toggle>
+      <span class="demo-ico demo-ico-pause"><Icon name="pause" /></span><span class="demo-ico demo-ico-play"><Icon name="play" /></span><span class="demo-ico demo-ico-replay"><Icon name="restore" /></span>
+      <span class="demo-btn-label">{d.replay}</span>
+    </button>
+  </figcaption>
+</figure>

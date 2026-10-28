@@ -1,7 +1,8 @@
 ---
-// Final call to action (A15): dark in both themes.
+// Final call to action: dark in both themes. The same two choices as the hero: a call, or start free (the self-install
+// path in "Two ways to start").
 import type { Copy } from '../content/en'
-import { LINKS, bookCall } from '../site'
+import { bookCall } from '../site'
 import Lines from './Lines.astro'
 import Icon from './Icon.astro'
 import Logo from './Logo.astro'
@@ -17,7 +18,7 @@ const c = t.cta
       <p>{c.sub}</p>
       <div class="hero-ctas">
         <a class="btn btn-primary btn-lg" href={bookCall(t.lang)}>{c.primary}<Icon name="arrow" /></a>
-        <a class="btn btn-secondary btn-lg" href={LINKS.github} rel="noopener"><Icon name="github" />{c.secondary}</a>
+        <a class="btn btn-secondary btn-lg" href="#start-self">{c.secondary}</a>
       </div>
     </div>
   </div>

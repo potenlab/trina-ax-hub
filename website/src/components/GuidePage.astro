@@ -1,0 +1,77 @@
+---
+// /guide and /ko/guide: the hub. Five groups (getting started, for admins, for employees, use cases, security and
+// billing), each a list of pages; a page that is not written yet says so instead of linking. An item's `to` names its
+// target: firstWeek, install (GitHub), roles (the home page's role tabs, until each use case has its own page),
+// security, pricing; '' = coming soon. Static HTML, so people, search engines and AI crawlers all read the same thing.
+import type { Copy } from '../content/en'
+import Base from '../layouts/Base.astro'
+import { LINKS, ROUTES } from '../site'
+import { breadcrumbJsonLd } from '../seo'
+import Footer from './Footer.astro'
+import Icon from './Icon.astro'
+import Nav from './Nav.astro'
+
+interface Props { t: Copy }
+const { t } = Astro.props
+const g = t.guide
+const lang = t.lang
+const home = ROUTES.home[lang]
+const hrefOf = (to: string): string | null =>
+  ({
+    firstWeek: ROUTES.firstWeek[lang],
+    install: LINKS.install[lang],
+    roles: `${home}#roles`,
+    security: ROUTES.security[lang],
+    pricing: `${home}#pricing`,
+  } as Record<string, string>)[to] ?? null
+const icons: Record<string, string> = { start: 'arrow', admin: 'key', members: 'users', 'use-cases': 'spark', trust: 'shield' }
+---
+<Base t={t} route="guide" title={g.title} description={g.description} ogImage={t.meta.ogImage} jsonLd={breadcrumbJsonLd(t, [{ name: g.breadcrumb, route: 'guide' }])}>
+  <Nav t={t} route="guide" />
+  <main id="main" class="secpage guide">
+    <section class="secpage-hero">
+      <div class="container">
+        <h1>{g.h1}</h1>
+        <p class="secpage-lead">{g.lead}</p>
+        <p class="guide-notice"><Icon name="edit" />{g.notice}</p>
+        <nav class="guide-jump" aria-label={g.h1}>
+          {g.sections.map((s) => <a href={`#${s.id}`}>{s.title}</a>)}
+        </nav>
+      </div>
+    </section>
+
+    <div class="container guide-grid">
+      {g.sections.map((s) => (
+        <section class="guide-sec" id={s.id} aria-labelledby={`g-${s.id}`}>
+          <div class="guide-sec-head">
+            <span class="icon-chip"><Icon name={icons[s.id] ?? 'file'} /></span>
+            <h2 id={`g-${s.id}`}>{s.title}</h2>
+          </div>
+          <p class="guide-sec-body">{s.body}</p>
+          <ul class="guide-list">
+            {s.items.map((it) => {
+              const href = hrefOf(it.to)
+              const external = it.to === 'install'
+              return href ? (
+                <li><a href={href} rel={external ? 'noopener' : undefined}><span>{it.title}</span><span class="guide-state" data-ready="true">{g.ready}<Icon name="arrow" /></span></a></li>
+              ) : (
+                <li><span class="guide-soon-title">{it.title}</span><span class="guide-state">{g.soon}</span></li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
+      <aside class="guide-it">
+        <span class="icon-chip"><Icon name="mail" /></span>
+        <h2>{g.forIt.title}</h2>
+        <p>{g.forIt.body}</p>
+        <a class="btn btn-secondary btn-sm" href={ROUTES.security[lang]}>{g.forIt.cta}<Icon name="arrow" /></a>
+      </aside>
+    </div>
+    <div class="container"><a class="back" href={home}>← {g.back}</a></div>
+  </main>
+  <Footer t={t} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

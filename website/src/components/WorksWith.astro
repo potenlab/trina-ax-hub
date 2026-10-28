@@ -1,12 +1,12 @@
 ---
-// Works-with band (A3): the Claude surfaces it connects to, as plain text chips (no logos: Claude is Anthropic's
-// trademark), and the trademark / non-affiliation line.
+// The screens people use (web, desktop, phone) and where the AI runs (Claude Code on the company's server), as plain
+// text chips (no logos: Claude is Anthropic's trademark), and the trademark / non-affiliation line.
 import type { Copy } from '../content/en'
 import Icon from './Icon.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const w = t.works
-const icons = ['monitor', 'globe', 'phone', 'server', 'spark']
+const icons = ['globe', 'monitor', 'phone', 'server']
 ---
 <section class="works" aria-labelledby="works-title">
   <div class="container">

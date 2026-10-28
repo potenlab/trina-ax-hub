@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
-import { COMPANY, LEGAL, LINKS, PLANS, bookCall, usd } from '../src/site'
+import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd } from '../src/site'
 import { LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
@@ -36,6 +36,13 @@ describe('things the site must never say', () => {
     for (const [, file] of files) expect(built(file)).not.toMatch(/Trina Drive|트리나 ?Drive|drive\.trina\.app|trina-drive/i)
   })
 
+  // The product is trina-app/trina-ax under AGPL-3.0 (2026-10-28). The old hub's Apache-2.0 / potenlab/trina-ax must not
+  // come back on any page (this website's own source licence, in package.json, is a different thing).
+  test.each(everything)('%s: the product licence is AGPL-3.0 and the repository is trina-app/trina-ax', (_, text) => {
+    expect(text).not.toMatch(/Apache/i)
+    expect(text).not.toMatch(/potenlab\/trina-ax/)
+  })
+
   test('no customer names or invented numbers about adoption', () => {
     for (const [, t] of texts) {
       // (not a numbered clause like "8.2 Customers in Korea" on the legal pages)
@@ -55,6 +62,7 @@ describe('things the site must never say', () => {
 
 describe('Korean copy rules (korean-landing-copy)', () => {
   const kpages = texts.filter(([p]) => p.startsWith('/ko'))
+  const kfiles = Object.entries(PAGE_FILES).filter(([p]) => p.startsWith('/ko')).map(([, f]) => f)
   test('no machine-translation verbs or words the skill bans', () => {
     for (const [p, t] of kpages) {
       for (const bad of ['잽니다', '측정합니다', '제공합니다', '~을 통해', '를 통해', '을 통해', '하는 것이 가능합니다', '혁신적', '최적의', '스마트한', 'MCP', 'RBAC', '온프레미스']) {
@@ -63,7 +71,7 @@ describe('Korean copy rules (korean-landing-copy)', () => {
     }
   })
   test('Korean pages have no English section labels (eyebrows) and no uppercase English headings', () => {
-    for (const f of ['ko/index.html', 'ko/security.html']) {
+    for (const f of kfiles) {
       const html = built(f)
       expect(html).not.toContain('class="eyebrow"')
       for (const m of html.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/g)) {
@@ -75,7 +83,7 @@ describe('Korean copy rules (korean-landing-copy)', () => {
     }
   })
   test('Korean titles (h1/h2) end like noun phrases, not like sentences', () => {
-    for (const f of ['ko/index.html', 'ko/security.html']) {
+    for (const f of kfiles) {
       for (const m of built(f).matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/g)) {
         const text = m[1].replace(/<br\/?>/g, ' ').replace(/<[^>]+>/g, '').trim()
         expect(text, `title ends like a sentence: ${text}`).not.toMatch(/(해요|세요|예요|이에요|어요|아요|돼요|합니다|입니다)[.!?]?$/)
@@ -88,27 +96,28 @@ describe('contact and links', () => {
   test('every "book a call" button mails Trina with the right subject', () => {
     for (const [file, lang, subject] of [['index.html', 'en', 'Trina%20AX'], ['ko/index.html', 'ko', encodeURIComponent('트리나 AX 도입 문의')]] as const) {
       const hrefs = attrs(built(file), 'href').filter((h) => h.startsWith('mailto:contact@trina.app?subject='))
-      expect(hrefs.length).toBeGreaterThanOrEqual(5) // nav, mobile menu, hero, pricing, final CTA
+      expect(hrefs.length).toBeGreaterThanOrEqual(6) // nav, mobile menu, hero, "two ways to start", pricing, final CTA
       for (const h of hrefs) expect(h).toBe(bookCall(lang) as string)
       expect(bookCall(lang)).toBe(`mailto:contact@trina.app?subject=${subject}`)
     }
   })
 
-  test('the only outside addresses are the repository, trina.app and (inside JSON-LD) schema.org / apache.org', () => {
+  test('the only outside addresses are the product repository and trina.app', () => {
     // The legal pages also link the resellers' buyer terms and the Korean complaint bodies; they are checked below.
     for (const [, file] of files.filter(([, f]) => !LEGAL_FILES.includes(f))) {
       const html = built(file)
       for (const u of [...attrs(html, 'href'), ...attrs(html, 'src')]) {
         if (!/^https?:\/\//.test(u)) continue
         const ok =
-          u.startsWith('https://github.com/potenlab/trina-ax') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
+          u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
         expect(ok, `unexpected outside address ${u} in ${file}`).toBe(true)
       }
     }
   })
 
   test('GitHub, install guide, and the terms, privacy and refund links', () => {
-    expect(LINKS.github).toBe('https://github.com/potenlab/trina-ax')
+    expect(LINKS.github).toBe('https://github.com/trina-app/trina-ax')
+    for (const u of [LINKS.permissions, LINKS.policyCode, LINKS.install.en, LINKS.install.ko]) expect(u.startsWith(LINKS.github + '/')).toBe(true)
     const home = attrs(built('index.html'), 'href')
     expect(home).toContain(LINKS.github)
     expect(home).toContain(LINKS.install.en)
@@ -129,12 +138,47 @@ describe('contact and links', () => {
     }
   })
 
-  test('the open-source section has the copyable command', () => {
-    for (const f of ['index.html', 'ko/index.html']) {
+  test('the security page (the one for the IT lead) has the commands to try it, with a copy button', () => {
+    for (const f of ['security.html', 'ko/security.html']) {
       const html = built(f)
-      expect(html).toContain('data-copy="git clone https://github.com/potenlab/trina-ax\ncd trina-ax &amp;&amp; bun install &amp;&amp; bun run dev"')
+      expect(html).toContain('data-copy="git clone https://github.com/trina-app/trina-ax\ncd trina-ax &amp;&amp; bun install &amp;&amp; bun run build:native &amp;&amp; bun run dev"')
     }
   })
+
+  test('home links the guide, the first-week page and the security page in its own language', () => {
+    for (const [file, lang] of [['index.html', 'en'], ['ko/index.html', 'ko']] as const) {
+      const hrefs = attrs(built(file), 'href')
+      for (const r of [ROUTES.guide[lang], ROUTES.firstWeek[lang], ROUTES.security[lang]]) expect(hrefs, `${file} -> ${r}`).toContain(r)
+    }
+  })
+})
+
+describe('how it is used: the demo and the role tabs work without JavaScript and can be paused', () => {
+  for (const [file, t] of [['index.html', en], ['ko/index.html', ko]] as const) {
+    const html = built(file)
+    const demo = html.slice(html.indexOf('data-demo'), html.indexOf('</figure>', html.indexOf('data-demo')))
+
+    test(`${file}: the demo's finished screen is in the HTML (search engines, AI crawlers and no-JS visitors read it)`, () => {
+      const text = visibleText(demo)
+      for (const s of [t.demo.app.q, t.demo.app.confirm.title, t.demo.app.answer, t.demo.app.file, t.demo.caption]) expect(text).toContain(s)
+      expect(demo).toContain(`aria-label="${t.demo.label}"`)
+    })
+
+    test(`${file}: one wait per step of the demo, and a pause / replay button (WCAG 2.2.2)`, () => {
+      const timeline = demo.match(/data-timeline="([\d,]+)"/)![1].split(',')
+      const last = Math.max(...[...demo.matchAll(/data-t="(\d+)"/g)].map((m) => Number(m[1])))
+      expect(timeline.length).toBe(last + 1)
+      expect(demo).toMatch(/<button class="demo-btn" type="button" data-demo-toggle>/)
+      expect(t.demo.caption.length).toBeGreaterThan(10) // it says the data is made up
+    })
+
+    test(`${file}: role tabs follow the ARIA tabs pattern, one tab per panel, the first selected`, () => {
+      const tabs = [...html.matchAll(/role="tab" id="role-tab-(\w+)" aria-controls="role-(\w+)" aria-selected="(true|false)"/g)]
+      expect(tabs.length).toBe(t.roles.items.length)
+      expect(tabs.map((m) => m[3])).toEqual(t.roles.items.map((_, i) => String(i === 0)))
+      for (const m of tabs) expect(html).toContain(`id="role-${m[2]}" role="tabpanel" aria-labelledby="role-tab-${m[1]}"`)
+    })
+  }
 })
 
 describe('content security policy (the page must work with script-src and style-src self only)', () => {

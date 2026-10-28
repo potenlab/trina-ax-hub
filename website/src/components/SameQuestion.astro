@@ -1,0 +1,73 @@
+---
+// "Same question, different answers": two people ask the AI the same thing. The HR lead gets the answer from the HR
+// folder; a salesperson, who cannot open it, is told there is nothing in the folders they can open (a folder you can't
+// open is answered like one that doesn't exist). Below, the admin's audit log shows who searched and read what, never
+// the conversation. Real DOM text (it is the argument); icons are decorative.
+import type { Copy } from '../content/en'
+import { LINKS } from '../site'
+import { softPath } from '../util'
+import Lines from './Lines.astro'
+import Icon from './Icon.astro'
+interface Props { t: Copy }
+const { t } = Astro.props
+const s = t.same
+---
+<section class="section section-tint" id="permissions" aria-labelledby="same-title">
+  <div class="container">
+    <div class="section-head same-head">
+      <h2 id="same-title"><Lines text={s.title} /></h2>
+      <p>{s.body}</p>
+    </div>
+    <figure class="same">
+      <div class="same-q">
+        <p class="same-q-text"><Icon name="search" /><span>“{s.q}”</span></p>
+        <p class="same-rule"><Icon name="lock" />{s.rule}</p>
+      </div>
+      <div class="same-grid">
+        {s.people.map((p) => {
+          const ok = p.file !== ''
+          return (
+            <div class="same-card" data-ok={String(ok)}>
+              <div class="same-who">
+                <span class="av">{p.name.slice(0, 1)}</span>
+                <span class="same-name">{p.name}<small>{p.team}</small></span>
+                <span class="same-scope">{p.scope}</span>
+              </div>
+              <p class="msg-q">{s.q}</p>
+              <ol class="dsteps-list same-steps">
+                {p.steps.map((st) => (
+                  <li class="dstep done"><Icon name="check" /><span class="dstep-text"><b>{st.verb}</b> · <code>{softPath(st.path)}</code></span></li>
+                ))}
+              </ol>
+              <div class="same-a">
+                <span class="msg-mark"><Icon name="spark" /></span>
+                <div>
+                  <p>{p.a}</p>
+                  {ok ? (
+                    <span class="cx-file"><Icon name="sheet" />{p.file}</span>
+                  ) : (
+                    <span class="same-none"><Icon name="eyeoff" />{s.rule}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div class="same-log">
+        <p class="same-log-title"><Icon name="shield" />{s.record.title}</p>
+        <div class="same-log-table" role="table" aria-label={s.record.title}>
+          <div class="same-log-row same-log-head" role="row">{s.record.cols.map((c) => <span role="columnheader">{c}</span>)}</div>
+          {s.record.rows.map((r) => (
+            <div class="same-log-row" role="row">{r.map((c, i) => <span role="cell" class={i === 3 ? 'same-log-what' : undefined}>{i === 3 ? softPath(c) : c}</span>)}</div>
+          ))}
+        </div>
+        <p class="same-log-note">{s.record.note}</p>
+      </div>
+      <figcaption class="same-foot">
+        <span>{s.caption}</span>
+        <a href={t.lang === 'ko' ? LINKS.permissions : LINKS.policyCode} rel="noopener">{s.link}<Icon name="arrow" /></a>
+      </figcaption>
+    </figure>
+  </div>
+</section>

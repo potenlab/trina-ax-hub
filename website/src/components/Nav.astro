@@ -1,6 +1,6 @@
 ---
 // Top navigation: logo, section links, language switch, theme toggle, "Book a call". The same markup serves the home page
-// (in-page anchors), /security and the English-only legal pages (anchors back to the home page of the same language;
+// (in-page anchors), /security, the guide pages and the English-only legal pages (anchors back to the home page of the same language;
 // with no route, the language switch goes to the other language's home).
 import type { Copy } from '../content/en'
 import { LINKS, ROUTES, bookCall, type RouteId } from '../site'
@@ -16,10 +16,10 @@ const a = (id: string) => `${home}#${id}`
 const switchHref = ROUTES[route ?? 'home'][n.switchToLang as 'en' | 'ko']
 const book = bookCall(lang)
 const links = [
-  { href: a('features'), label: n.features, external: false },
-  { href: a('how'), label: n.how, external: false },
+  { href: a('roles'), label: n.examples, external: false },
+  { href: a('start'), label: n.start, external: false },
+  { href: ROUTES.guide[lang], label: n.guide, external: false },
   { href: ROUTES.security[lang], label: n.security, external: false },
-  { href: a('open-source'), label: n.openSource, external: false },
   { href: a('pricing'), label: n.pricing, external: false },
   { href: a('faq'), label: n.faq, external: false },
   { href: LINKS.github, label: n.github, external: true },

@@ -13,6 +13,10 @@ describe('titles and descriptions', () => {
     ['ko home', ko.meta.title, ko.meta.description],
     ['en security', en.secPage.title, en.secPage.description],
     ['ko security', ko.secPage.title, ko.secPage.description],
+    ['en guide', en.guide.title, en.guide.description],
+    ['ko guide', ko.guide.title, ko.guide.description],
+    ['en first week', en.firstWeek.title, en.firstWeek.description],
+    ['ko first week', ko.firstWeek.title, ko.firstWeek.description],
   ]
   test.each(pages)('%s: title <= 60 characters, description is a real sentence that is not absurdly long', (_, title, description) => {
     expect(title.length).toBeLessThanOrEqual(60)
@@ -20,12 +24,12 @@ describe('titles and descriptions', () => {
     expect(description.length).toBeGreaterThan(50)
     expect(description.length).toBeLessThanOrEqual(210)
   })
-  test('titles are unique across the four pages', () => {
+  test('titles are unique across the pages', () => {
     const titles = pages.map(([, t]) => t)
-    expect(new Set(titles).size).toBe(4)
+    expect(new Set(titles).size).toBe(pages.length)
   })
   test('the built pages carry them', () => {
-    expect(built('index.html')).toContain(`<title>${en.meta.title.replace(/&/g, '&amp;')}</title>`)
+    expect(decode(built('index.html'))).toContain(`<title>${en.meta.title}</title>`)
     expect(decode(built('ko/index.html'))).toContain(`<title>${ko.meta.title}</title>`)
   })
 })
@@ -34,6 +38,8 @@ describe('languages: canonical and hreflang', () => {
   const pairs: [string, string, string][] = [
     ['/', 'https://ax.trina.app/', 'https://ax.trina.app/ko/'],
     ['/security', 'https://ax.trina.app/security', 'https://ax.trina.app/ko/security'],
+    ['/guide', 'https://ax.trina.app/guide', 'https://ax.trina.app/ko/guide'],
+    ['/guide/first-week', 'https://ax.trina.app/guide/first-week', 'https://ax.trina.app/ko/guide/first-week'],
   ]
   test.each(pairs)('%s and its Korean twin point at each other, x-default is English, canonical is itself', (path, enUrl, koUrl) => {
     for (const [file, self] of [[PAGE_FILES[path], enUrl], [PAGE_FILES[koUrl.replace('https://ax.trina.app', '')], koUrl]] as const) {
@@ -55,6 +61,8 @@ describe('languages: canonical and hreflang', () => {
     expect(built('ko/index.html')).toMatch(/class="lang-link" href="\/"/)
     expect(built('security.html')).toMatch(/class="lang-link" href="\/ko\/security"/)
     expect(built('ko/security.html')).toMatch(/class="lang-link" href="\/security"/)
+    expect(built('guide.html')).toMatch(/class="lang-link" href="\/ko\/guide"/)
+    expect(built('ko/guide/first-week.html')).toMatch(/class="lang-link" href="\/guide\/first-week"/)
   })
   test('404 is noindex and has no alternates', () => {
     const html = built('404.html')
@@ -84,7 +92,9 @@ describe('structured data', () => {
       expect(g['@context']).toBe('https://schema.org')
       expect(g['@graph'].map((n: any) => n['@type'])).toEqual(['Organization', 'WebSite', 'SoftwareApplication', 'SoftwareSourceCode', 'FAQPage'])
       expect(g['@graph'][0].name).toBe('Trina Inc.')
-      expect(g['@graph'][0].sameAs).toContain('https://github.com/potenlab/trina-ax')
+      expect(g['@graph'][0].sameAs).toContain('https://github.com/trina-app/trina-ax')
+      expect(g['@graph'][2].license).toBe('https://www.gnu.org/licenses/agpl-3.0.html')
+      expect(g['@graph'][3].license).toBe('https://www.gnu.org/licenses/agpl-3.0.html')
       expect(g['@graph'][2].applicationCategory).toBe('BusinessApplication')
       expect(g['@graph'][2].inLanguage).toBe(name)
       const raw = JSON.stringify(g)
@@ -122,8 +132,11 @@ describe('crawling', () => {
     const txt = llmsTxt(en, ko)
     expect(built('llms.txt')).toBe(txt)
     expect(txt).toContain('# Trina AX')
-    expect(txt).toContain('https://github.com/potenlab/trina-ax')
+    expect(txt).toContain('https://github.com/trina-app/trina-ax')
+    expect(txt).toContain('AGPL-3.0')
+    expect(txt).not.toMatch(/Apache/)
     expect(txt).toContain('https://ax.trina.app/security')
+    expect(txt).toContain('https://ax.trina.app/guide')
     expect(txt).toContain('https://ax.trina.app/ko/')
     for (const f of en.features.items) expect(txt).toContain(f.title)
     for (const q of en.faq.items) expect(txt).toContain(q.a)
@@ -131,7 +144,7 @@ describe('crawling', () => {
   })
 
   test('every page has one og:image of 1200x630 and the files exist', () => {
-    for (const [file, img] of [['index.html', 'og.png'], ['ko/index.html', 'og-ko.png'], ['security.html', 'og.png'], ['ko/security.html', 'og-ko.png']]) {
+    for (const [file, img] of [['index.html', 'og.png'], ['ko/index.html', 'og-ko.png'], ['security.html', 'og.png'], ['ko/security.html', 'og-ko.png'], ['guide.html', 'og.png'], ['ko/guide/first-week.html', 'og-ko.png']]) {
       const html = built(file)
       expect(html).toContain(`<meta property="og:image" content="https://ax.trina.app/${img}">`)
       expect(html).toContain('og:image:width" content="1200"')
@@ -153,15 +166,18 @@ describe('copy shape', () => {
   test('Korean has exactly the keys, list lengths and types of English', () => {
     expect(shape(ko)).toEqual(shape(en))
   })
-  test('English and Korean have the same number of FAQ items, promises and cards', () => {
+  test('English and Korean have the same number of FAQ items, questions, cards, roles and paths', () => {
     expect(ko.faq.items.length).toBe(8)
     expect(en.faq.items.length).toBe(8)
-    expect(ko.security.promises.length).toBe(5)
+    expect(ko.security.qa.length).toBe(6)
+    expect(ko.secPage.promises.length).toBe(5)
     expect(ko.features.items.length).toBe(6)
-    expect(ko.how.steps.length).toBe(3)
-    expect(ko.examples.items.length).toBe(4)
+    expect(ko.roles.items.map((r) => r.id)).toEqual(['ceo', 'sales', 'finance', 'people'])
+    expect(ko.start.paths.map((p) => p.id)).toEqual(['hosted', 'self'])
+    for (const p of ko.start.paths) expect(p.steps.length).toBe(3)
+    expect(ko.same.people.length).toBe(2)
   })
   test('oneLine drops heading line breaks', () => {
-    expect(oneLine(en.problem.title)).toBe('Claude on every desk. Your company in none of them.')
+    expect(oneLine(en.same.title)).toBe('Same question, different answers')
   })
 })
