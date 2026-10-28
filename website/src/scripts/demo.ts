@@ -49,6 +49,15 @@ function setup(root: HTMLElement) {
   const pause = () => { window.clearTimeout(timer); setState('paused') }
   const replay = () => { window.clearTimeout(timer); next = 0; apply(-1); if (scroller) scroller.scrollTop = 0; play() }
 
+  // Respect a preference changed while this page is open, including during playback.
+  reduce.addEventListener('change', () => {
+    if (!reduce.matches) return
+    window.clearTimeout(timer)
+    apply(Number.MAX_SAFE_INTEGER)
+    setState('done')
+    if (scroller) scroller.scrollTop = 0
+  })
+
   btn?.addEventListener('click', () => {
     const s = root.dataset.play
     if (s === 'playing') pause()

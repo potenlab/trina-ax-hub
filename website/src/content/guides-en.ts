@@ -109,7 +109,7 @@ const articles: Translation[] = [
     steps: [
       { title: 'Open the backup list', body: 'Open Admin → System and find Backups. The list includes automatic daily backups.' },
       { title: 'Start a manual backup', body: 'Select Back up now and wait for it to finish. Manual backups include both the database and team files.' },
-      { title: 'Confirm completion', body: 'Look for Backup created. and the latest Manual entry. If a Full backup was made within the last seven days, only changed team files are included and the new backup is marked Incremental. Record the completion time in your company’s operations notes.' },
+      { title: 'Confirm completion', body: 'Look for Backup created. and the latest Manual entry. A backup marked Incremental includes only changed team files. The server normally makes a Full backup at least every seven days; it can make one sooner if the backup chain needs rebuilding. Record the completion time in your company’s operations notes.' },
     ],
     problems: [
       { title: 'The backup button is missing', body: 'Check that you are signed in as the owner. Admins can view storage, but only the owner can back up or restore the system.' },
@@ -154,7 +154,7 @@ const articles: Translation[] = [
     slug: 'team-files', group: 'members', title: 'Work with team files',
     description: 'Attach files you can access, explain what you need and choose where the result should be saved.',
     audience: 'Employees working with company documents and spreadsheets.',
-    before: ['Check in Files that you can open the source material.', 'You need write access to the destination folder. An attachment points to the current team file; it is not a separate copy.'],
+    before: ['Check in Files that you can open the source material.', 'You need write access to the destination folder. An attachment points to the current team file; it is not a separate copy. Photos and scans are read for text, not visual content. Check the extracted text against the original.'],
     steps: [
       { title: 'Attach your sources', body: 'In New chat, select Attach files → Add from team files. Use Search files by name or browse the folders, select your files and choose Attach.' },
       { title: 'Specify the result and location', body: 'For example: “Turn the attached meeting notes into a table of tasks, owners and deadlines. Leave missing deadlines undecided and save an Excel file in my folder.” Select Send.' },
@@ -228,7 +228,7 @@ const articles: Translation[] = [
     ],
     problems: [
       { title: 'There is no download button', body: 'No installer has been added to your team server yet. Ask the owner to add one and use the web app in the meantime.' },
-      { title: 'Installation or connection does not work', body: 'Ask your company contact to check the installer, supported computer and company address. The test server had no installer, so this guide does not show a completed native installation.' },
+      { title: 'Installation or connection does not work', body: 'Ask your company contact to check the installer, supported computer and company address. Use the web app while they resolve the problem.' },
     ], next: 'phone-app',
   },
   {

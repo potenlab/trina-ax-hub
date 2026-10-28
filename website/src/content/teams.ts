@@ -42,7 +42,7 @@ const ko: TeamCopy = {
           person: '김민지 · 영업 담당', request: 'B사 센서 120개 견적서 만들어 줘. 우리 단가표랑 견적 기준으로.',
           skill: '견적서 작성', sources: ['영업/2026-단가표.xlsx', '영업/지난-견적서/'],
           answer: '품목과 수량 할인 기준을 반영했어요. 수량·납기를 확인할 수 있는 엑셀로 정리했어요.',
-          preview: { kind: 'table', title: 'B사_견적서.xlsx', columns: ['품목', '수량', '납기'], rows: [['센서 S-200', '120', '11/20'], ['설치 브래킷', '120', '11/20']], foot: '값으로 정리한 새 엑셀 · 수식 없음' },
+          preview: { kind: 'table', title: 'B사_견적서.xlsx', columns: ['품목', '수량', '금액(원)'], rows: [['센서 S-200', '120', '5,760,000'], ['설치 브래킷', '120', '360,000']], foot: '합계 6,120,000원 · 납기 11/20 · 수식 없음' },
         },
         {
           person: '박지훈 · 영업 담당', request: '어제 C사 미팅 메모로 후속 메일 써 줘. 약속한 내용 빠짐없이.',
@@ -192,7 +192,7 @@ const en: TeamCopy = {
           person: 'Minji · Sales', request: 'Make a quote for 120 sensors for B Corp., using our price list and quoting rules.',
           skill: 'Quote preparation', sources: ['Sales/2026-price-list.xlsx', 'Sales/Previous-quotes/'],
           answer: 'I applied the item and volume-discount rules, with quantities and delivery dates in a new spreadsheet.',
-          preview: { kind: 'table', title: 'B-Corp-quote.xlsx', columns: ['Item', 'Qty', 'Due'], rows: [['S-200 sensor', '120', 'Nov 20'], ['Mounting bracket', '120', 'Nov 20']], foot: 'New spreadsheet with values · no formulas' },
+          preview: { kind: 'table', title: 'B-Corp-quote.xlsx', columns: ['Item', 'Qty', 'KRW'], rows: [['S-200 sensor', '120', '5,760,000'], ['Mounting bracket', '120', '360,000']], foot: 'Total KRW 6,120,000 · due Nov 20 · no formulas' },
         },
         {
           person: 'Jihoon · Sales', request: 'Draft a follow-up email from yesterday’s C Corp. meeting. Include everything we promised.',

@@ -14,8 +14,9 @@ const llms = ['llms.txt', llmsTxt(en, ko)] as const
 describe('things the site must never say', () => {
   const everything: [string, string][] = [...texts.map(([p, t]): [string, string] => [p, t]), [llms[0], built('llms.txt')]]
 
-  // Prices live in one place (PLANS in src/site.ts): any other money amount on a page is a mistake.
-  test.each(everything)('%s: money amounts come from hosting plans and the dated KRW reference', (_, text) => {
+  // Commercial prices come from PLANS. Explicitly labelled, fictional result previews may contain quote amounts.
+  test.each([...files, [llms[0], 'llms.txt']])('%s: money amounts come from hosting plans and the dated KRW reference', (_, file) => {
+    const text = visibleText(built(file).replace(/<figure class="team-result">[\s\S]*?<\/figure>/g, ''))
     const allowed = new Set(PLANS.map((p) => usd(p.usd)))
     for (const m of text.matchAll(/\$\s?\d[\d,.]*/g)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
     for (const m of text.matchAll(/₩[\d,]+/g)) expect(new Set(PLANS.map(p => krw(p.usd))).has(m[0]), `unexpected KRW amount ${m[0]}`).toBe(true)

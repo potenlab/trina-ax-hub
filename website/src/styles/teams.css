@@ -49,6 +49,7 @@
 .team-table caption { text-align: left; font-size: 12px; font-weight: 600; margin-bottom: 14px; }
 .team-table th { color: var(--fg-muted); font-weight: 500; background: var(--bg-soft); }
 .team-table th, .team-table td { padding: 8px 5px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.team-table td:not(:first-child) { overflow-wrap: normal; }
 .team-table p { margin-top: 12px; font-size: 10px; color: var(--fg-faint); }
 .team-number { padding: 18px 14px 22px; }
 .team-number p { font-size: 12px; font-weight: 550; }

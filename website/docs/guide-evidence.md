@@ -15,7 +15,7 @@
 | ai-connection | `web/src/pages/admin/Credentials.tsx`, `server/src/credentials/resolve.ts`: 회사 연결 추가·변경은 팀장만, 관리자는 조회·확인. https, API 키, 개인→사람→그룹→전체 순서 |
 | usage-limits | `web/src/pages/admin/{Usage,Engines}.tsx`, `server/src/admin/budgets.ts`: 사람·한 달, 토큰 및 API 키 금액, 경고/차단. 구독 금액 추정을 쓰는 옛 설명서 문구는 채택하지 않음 |
 | review-skills | `web/src/pages/Skills.tsx`, `web/src/components/SuggestSkillDialog.tsx`: 폴더 담당자의 검토·편집·등록/거절, 제안은 즉시 공개되지 않음 |
-| backup | `web/src/pages/admin/System.tsx`, `server/src/{routes/system,system/backup}.ts`: 팀장만, 수동은 전체 백업. 화면의 복원은 DB 복원이며 팀 파일은 그대로임 |
+| backup | `web/src/pages/admin/System.tsx`, `server/src/{routes/system,system/backup}.ts`: 팀장만, 수동도 DB와 팀 파일을 포함하며 팀 파일은 증분일 수 있음. 화면의 복원은 DB 복원이며 팀 파일은 그대로임 |
 | restore-file | `web/src/pages/Files.tsx`, `web/src/i18n/ko.ts`의 files.history/restore: 파일별 기록, 되돌리기 전 내용도 새 버전으로 남음 |
 | first-question | `web/src/pages/Chat.tsx`, `web/src/i18n/ko.ts`: 새 채팅, 볼 수 있는 폴더, 보내기/답변 멈추기 |
 | team-files | `web/src/components/chat`, ko.ts의 composer/picker: 팀 파일에서 추가→첨부, 현재 파일 접근 권한. `docs/PERMISSIONS.md`: 더 넓은 공개 범위 저장 확인 |
@@ -64,3 +64,16 @@
 The same 19 task guides are now published in English at `/guide/<slug>` (also available through `/en/guide/<slug>` aliases). English content lives in `src/content/guides-en.ts`; it shares the Korean article identities and evidence paths but omits Korean UI screenshots. Labels were checked against `web/src/i18n/en.ts` at product commit `5c15812`; desktop connection labels also match `desktop/src/common/i18n.ts`. English and Korean articles now point to each other in navigation and hreflang. English role requests and result examples come from `en.roles.items`.
 
 The English guides retain the corrections above: owner-only company connection creation and backup/restore, manual invite-link delivery, API-only cost estimates, database-only system restore, read-only Drive, new XLSX tables rather than workbook duplication, and HWP/HWPX input with DOCX reply output. See [the English hand-off](site-en-2026-10-29.md) for validation and remaining decisions.
+
+## Release integration review — 2026-10-29
+
+Rechecked against product `5c15812` and fetched GitHub main `892823c`. The newer schedule time-zone/completed-task, error translation, Markdown and update-window fixes do not add the excluded capabilities. All 104 English label fixtures match both revisions.
+
+- `server/src/tools/make-file.ts` / `tools/index.ts`: new XLSX values without formulas; DOCX/PPTX reference documents under `skills/`; PDF output; broader-audience confirmation. Quote previews now show fictional amounts and totals.
+- `server/src/tools/schedules.ts`, `chat/schedule-templates.ts`: independent scheduled prompts; weekly-summary template produces Markdown; custom chat requests can ask for Word in the user's own folder.
+- `server/src/system/backup.ts:archiveTeam`: full backups can occur sooner than seven days for a long/broken chain. Both guides now describe that accurately.
+- Photo/scan guidance explicitly covers extracted text only. Native-installer execution remains unverified; internal QA details were removed from customer troubleshooting.
+- The existing hero demo now stops immediately when reduced motion is enabled while the page is open; the team effects already handled that change.
+- Team guide links resolve directly in both languages after merging the English guides and team section.
+
+Commercial hosting promises and the personal-subscription policy remain founder-owned, not verified by the public product code.
