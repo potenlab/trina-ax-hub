@@ -155,7 +155,7 @@ describe('contact and links', () => {
   })
 })
 
-describe('how it is used: the demo and the role tabs work without JavaScript and can be paused', () => {
+describe('how it is used: the demo works without JavaScript and can be paused', () => {
   for (const [file, t] of [['index.html', en], ['ko/index.html', ko]] as const) {
     const html = built(file)
     const demo = html.slice(html.indexOf('data-demo'), html.indexOf('</figure>', html.indexOf('data-demo')))
@@ -174,12 +174,7 @@ describe('how it is used: the demo and the role tabs work without JavaScript and
       expect(t.demo.caption.length).toBeGreaterThan(10) // it says the data is made up
     })
 
-    test(`${file}: role tabs follow the ARIA tabs pattern, one tab per panel, the first selected`, () => {
-      const tabs = [...html.matchAll(/role="tab" id="role-tab-(\w+)" aria-controls="role-(\w+)" aria-selected="(true|false)"/g)]
-      expect(tabs.length).toBe(t.roles.items.length)
-      expect(tabs.map((m) => m[3])).toEqual(t.roles.items.map((_, i) => String(i === 0)))
-      for (const m of tabs) expect(html).toContain(`id="role-${m[2]}" role="tabpanel" aria-labelledby="role-tab-${m[1]}"`)
-    })
+
   }
 })
 

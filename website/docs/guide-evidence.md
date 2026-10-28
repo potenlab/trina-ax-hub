@@ -54,7 +54,7 @@
 
 ## 유지보수
 
-- 홈페이지와 활용 사례의 요청·결과물은 `ko.roles.items`와 `RoleDocument.astro`를 함께 사용함.
+- 활용 사례 가이드의 기존 요청·결과물은 `ko.roles.items`와 `RoleDocument.astro`를 사용함. 홈페이지 팀별 예시는 `src/content/teams.ts`에 별도로 두고, 관련 가이드로 연결함. 근거는 `team-showcase-evidence.md` 참조.
 - 새 글은 `GUIDES`에 추가하면 한국어 허브, 정적 경로, 사이트맵, llms.txt에 들어감. 준비된 영어 본문이 없으면 영문 허브에 링크하지 않음.
 - 한글 글꼴은 `python3 scripts/build-pretendard.py <PretendardVariable.woff2>`로 다시 생성함. 라이선스는 기존 OFL 파일을 유지함.
 - 총 한국어 가이드 글은 기존 첫 주 안내를 포함해 20개. 승인 계획의 20개 초과 시 문서 도구 전환 검토는 다음 글 추가 때 판단할 수 있음.

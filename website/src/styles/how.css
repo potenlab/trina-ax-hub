@@ -1,4 +1,4 @@
-/* "How it's used": the hero choices and demo, same question / different answers, role tabs, two ways to start, the
+/* "How it's used": the hero choices and demo, same question / different answers, guide document previews, two ways to start, the
    security diagram and questions, open-source benefits, and the guide pages. Colours come from tokens.css only, so
    every piece follows light and dark. No inline styles anywhere (the CSP): states are classes and data attributes. */
 
@@ -232,38 +232,7 @@ html:not(.js) .demo-btn { display: none; }
   .same-log-row > span:nth-child(2) { font-weight: 600; }
 }
 
-/* ---------- role tabs ---------- */
-.roles-tabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 18px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-soft); max-width: 100%; overflow-x: auto; }
-html:not(.js) .roles-tabs { display: none; }
-.roles-tab { border: 0; background: none; padding: 9px 20px; border-radius: 9px; font: inherit; font-size: 15px; font-weight: 600; color: var(--fg-muted); cursor: pointer; white-space: nowrap; }
-.roles-tab:hover { color: var(--fg); }
-.roles-tab[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: var(--shadow-sm); }
-html.js .role:not(.is-active) { display: none; }
-.role {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); grid-template-areas: "left right" "more right"; grid-template-rows: auto 1fr;
-  column-gap: 32px; padding: 28px; border-radius: var(--radius-lg);
-  border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow-sm);
-}
-.role + .role { margin-top: 16px; }
-html.js .role + .role { margin-top: 0; }
-.role:focus-visible { outline-offset: 4px; }
-.role-left { grid-area: left; display: flex; flex-direction: column; min-width: 0; }
-.role-who { display: flex; align-items: center; gap: 10px; font-weight: 650; margin-bottom: 18px; }
-.role-who > span:last-child { display: flex; flex-direction: column; line-height: 1.3; }
-.role-who small { font-size: 12.5px; color: var(--fg-faint); font-weight: 500; }
-.role-q { align-self: stretch; max-width: none; margin-bottom: 18px; font-size: 16px; }
-.role-used { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.role-used li { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; font-size: 13px; font-weight: 520; background: var(--bg-soft); border: 1px solid var(--border); max-width: 100%; }
-.role-used li span { overflow-wrap: anywhere; }
-.role-used svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
-.role-used li[data-kind="schedule"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
-.role-scope { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 1px dashed var(--border-strong); font-size: 13.5px; color: var(--fg-muted); }
-.role-scope svg { width: 15px; height: 15px; flex: none; }
-.role-more { grid-area: more; margin-top: 22px; min-width: 0; }
-.role-more ul { border-top: 1px solid var(--border); }
-.role-more li { position: relative; padding: 9px 0 9px 18px; border-bottom: 1px solid var(--border); font-size: 14.5px; color: var(--fg-muted); }
-.role-more li::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
-.role-right { grid-area: right; min-width: 0; }
+/* ---------- document previews in the guides ---------- */
 .rdoc { position: relative; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-soft); }
 .rdoc-file { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; font-weight: 600; color: var(--fg-muted); min-width: 0; }
 .rdoc-file svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
@@ -287,21 +256,11 @@ html.js .role + .role { margin-top: 0; }
   border: 1px solid var(--border-strong); background: var(--bg-elev); box-shadow: var(--shadow); font-size: 13px; font-weight: 600;
 }
 .rdoc-toast svg { width: 16px; height: 16px; color: var(--accent); }
-.roles-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 18px; font-size: 13.5px; color: var(--fg-faint); }
-.roles-foot a { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; text-decoration: none; }
-.roles-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.roles-foot svg { width: 15px; height: 15px; }
 @media (max-width: 900px) {
-  .role { grid-template-columns: minmax(0, 1fr); grid-template-areas: "left" "right" "more"; grid-template-rows: none; row-gap: 22px; padding: 20px; }
-  .role-more { margin-top: 0; }
   .rdoc-toast { position: static; margin-top: 10px; width: fit-content; }
   .rdoc-page { min-height: 0; padding: 18px; }
 }
-@media (max-width: 480px) {
-  .roles-tabs { display: flex; }
-  .roles-tab { flex: 1; padding: 9px 10px; }
-  html:not(.js) .roles-tabs { display: none; }
-}
+
 
 /* ---------- two ways to start ---------- */
 .paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -484,5 +443,3 @@ html[lang="ko"] .fw-hosted h2 { font-weight: 700; }
 .brochure-link a { text-decoration: underline; text-underline-offset: 4px; }
 .brochure-link span { font-size: .75rem; opacity: .65; }
 @media (max-width: 600px) { .quote-request { align-items: flex-start; flex-direction: column; } }
-
-.role-guide-link { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1rem; color: var(--accent); font-weight: 600; font-size: .875rem; }

@@ -4,7 +4,7 @@
 //
 // Uses the pinned Playwright dev dependency; install Chromium with bunx playwright install chromium.
 // PLAYWRIGHT_PATH can point at another installed copy.
-// Other options: SHOTS_DIR (where screenshots go), ALL_SHOTS=1 (every page x viewport x theme), PORT.
+// Other options: SHOTS_DIR (where screenshots go), ALL_SHOTS=1 (every page x viewport x theme), PORT, EXISTING_SERVER=1.
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -21,7 +21,7 @@ const base = `http://localhost:${port}`
 const shots = process.env.SHOTS_DIR || join(here, '..', '.shots')
 mkdirSync(shots, { recursive: true })
 
-const server = spawn('bun', [join(here, 'serve-dist.ts')], { env: { ...process.env, PORT: String(port) }, stdio: 'ignore' })
+const server = process.env.EXISTING_SERVER === '1' ? null : spawn('bun', [join(here, 'serve-dist.ts')], { env: { ...process.env, PORT: String(port) }, stdio: 'ignore' })
 await new Promise((r) => setTimeout(r, 1200))
 
 const pages = [
@@ -169,12 +169,18 @@ try {
     const hidden = await page.$$eval('[data-demo] [data-t]:not([data-off])', (els) => els.filter((e) => getComputedStyle(e).display === 'none').length)
     if (hidden) note('demo', `${hidden} parts still hidden at the end`)
 
-    // role tabs: the second tab shows its panel and hides the first
-    await page.click('#role-tab-sales')
-    const vis = await page.$$eval('[role="tabpanel"]', (els) => els.map((e) => getComputedStyle(e).display !== 'none'))
-    if (vis.join() !== 'false,true,false,false') note('tabs', `visible panels: ${vis.join()}`)
-    await page.keyboard.press('ArrowRight')
-    if ((await page.getAttribute('#role-tab-finance', 'aria-selected')) !== 'true') note('tabs', 'arrow key did not move to the next tab')
+    // Team showcase: keyboard jump, all examples readable, optional motion.
+    await page.locator('.team-jumps a[href="#team-finance"]').focus()
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => document.activeElement?.id === 'team-finance-title')
+    if (await page.evaluate(() => document.activeElement?.id) !== 'team-finance-title') note('teams', 'jump did not focus the team heading')
+    if (await page.locator('.team-example:visible').count() !== 18) note('teams', 'not all 18 examples are readable')
+    await page.locator('[data-team-motion]').focus()
+    await page.keyboard.press('Space')
+    if (await page.getAttribute('[data-team-showcase]', 'data-motion') !== 'off') note('teams', 'pause did not stop scroll effects')
+    if (await page.getAttribute('[data-team-motion]', 'aria-pressed') !== 'true') note('teams', 'pause state not exposed')
+    await page.keyboard.press('Space')
+    if (await page.getAttribute('[data-team-showcase]', 'data-motion') !== 'on') note('teams', 'resume did not restore scroll effects')
 
     // copy button (the commands on the security page, for the IT lead)
     await page.goto(base + '/security', { waitUntil: 'networkidle' })
@@ -222,7 +228,22 @@ try {
     if (rmHidden) note('reduced motion', `${rmHidden} demo parts hidden`)
     const anim = await rp.$$eval('[data-demo] *', (els) => els.map((e) => getComputedStyle(e).animationName).filter((a) => a !== 'none'))
     if (anim.length) note('reduced motion', `demo still animates: ${anim.join(',')}`)
+    await rp.locator('#roles').scrollIntoViewIfNeeded()
+    if (await rp.getAttribute('[data-team-showcase]', 'data-motion') !== 'off') note('reduced motion', 'team scroll effects are on')
+    if (await rp.isVisible('[data-team-motion]')) note('reduced motion', 'unnecessary motion control is visible')
+    if (await rp.locator('.team-example:visible').count() !== 18) note('reduced motion', 'team examples are hidden')
+    const teamAnimations = await rp.$$eval('.team-example', els => els.filter(e => getComputedStyle(e).animationName !== 'none').length)
+    if (teamAnimations) note('reduced motion', 'team examples still animate')
     await rm.close()
+
+    const nojs = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } })
+    const np = await nojs.newPage()
+    for (const path of ['/', '/ko/']) {
+      await np.goto(base + path)
+      if (await np.locator('.team-example:visible').count() !== 18) note('no JavaScript', `${path}: team examples are hidden`)
+      if (await np.isVisible('[data-team-motion]')) note('no JavaScript', `${path}: inert motion control is visible`)
+    }
+    await nojs.close()
 
     // internal links
     const lk = await browser.newContext()
@@ -252,7 +273,7 @@ try {
   }
 } finally {
   await browser.close()
-  server.kill()
+  server?.kill()
 }
 
 console.log(`screenshots (${saved.length}):`)

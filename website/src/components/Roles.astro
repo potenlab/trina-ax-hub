@@ -1,57 +1,89 @@
 ---
-// Role tabs (CEO / Sales / Finance / People): one real piece of office work each: what the person asks, what the AI
-// used (schedule, folders, team skill, where it saved) and a small preview of what comes back (a weekly report, a
-// quote, a tidied spreadsheet, a reply to an official letter). Tabs follow the ARIA tabs pattern and never advance on
-// their own (src/scripts/tabs.ts); without JavaScript the tab row is hidden and the four panels are simply listed.
+// Keep #roles for existing nav and guide links. Every example is server-rendered;
+// scroll effects only emphasize visible cards, never gate the content.
 import type { Copy } from '../content/en'
-import { ROUTES } from '../site'
-import { GUIDES, guidePath } from '../content/guides'
+import { teamCopy } from '../content/teams'
+import { guidePath } from '../content/guides'
 import { softPath } from '../util'
-import Lines from './Lines.astro'
 import Icon from './Icon.astro'
-import RoleDocument from './RoleDocument.astro'
+import '../styles/teams.css'
 interface Props { t: Copy }
 const { t } = Astro.props
-const r = t.roles
-const items = r.items as any[]
-const kindIcon: Record<string, string> = { schedule: 'clock', folder: 'folder', skill: 'spark', save: 'download', file: 'file' }
+const copy = teamCopy[t.lang]
 ---
-<section class="section" id="roles" aria-labelledby="roles-title">
+<section class="section team-showcase" id="roles" aria-labelledby="roles-title" data-team-showcase>
   <div class="container">
-    <div class="section-head">
-      <h2 id="roles-title"><Lines text={r.title} /></h2>
-      <p>{r.body}</p>
+    <div class="section-head team-intro">
+      <h2 id="roles-title">{copy.title}</h2>
+      <p>{copy.body}</p>
     </div>
-    <div class="roles" data-tabs>
-      <div class="roles-tabs" role="tablist" aria-label={r.tabsLabel}>
-        {items.map((it, i) => (
-          <button class="roles-tab" type="button" role="tab" id={`role-tab-${it.id}`} aria-controls={`role-${it.id}`} aria-selected={String(i === 0)} tabindex={i === 0 ? '0' : '-1'}>{it.role}</button>
-        ))}
-      </div>
-      {items.map((it, i) => (
-        <div class={`role${i === 0 ? ' is-active' : ''}`} id={`role-${it.id}`} role="tabpanel" aria-labelledby={`role-tab-${it.id}`} tabindex="0">
-          <div class="role-left">
-            <p class="role-who"><span class="av">{it.who.slice(0, 1)}</span><span>{it.who}<small>{it.role}</small></span></p>
-            <span class="ex-label">{r.asks}</span>
-            <p class="msg-q role-q">{it.q}</p>
-            <span class="ex-label">{r.used}</span>
-            <ul class="role-used">
-              {it.used.map((u: any) => <li data-kind={u.kind}><Icon name={kindIcon[u.kind] ?? 'file'} /><span>{softPath(u.text)}</span></li>)}
-            </ul>
-            <p class="role-scope"><Icon name="lock" />{r.scope.replace('{name}', it.who)}</p>
+    <p class="team-scope"><Icon name="lock" />{copy.scope}</p>
+    <p class="team-note">{copy.note}</p>
+    <div class="team-controls">
+      <nav class="team-jumps" aria-label={copy.jump}>
+        {copy.teams.map(team => <a href={`#team-${team.id}`}>{team.name}</a>)}
+      </nav>
+      <button class="team-motion" type="button" data-team-motion aria-pressed="false" hidden>
+        <Icon name="pause" /><span>{copy.motion}</span>
+      </button>
+    </div>
+    <div class="team-chapters">
+      {copy.teams.map(team => (
+        <section class="team-chapter" id={`team-${team.id}`} aria-labelledby={`team-${team.id}-title`}>
+          <header class="team-heading">
+            <div><h3 id={`team-${team.id}-title`} tabindex="-1">{team.name}</h3><p>{team.role}</p></div>
+            <a class="team-more" href={guidePath(team.guide, t.lang)}>{copy.more}<span class="sr-only"> · {team.name}</span><Icon name="arrow" /></a>
+          </header>
+          <div class="team-examples">
+            {team.examples.map((example, index) => (
+              <article class="team-example" aria-labelledby={`${team.id}-request-${index}`}>
+                <div class="team-request">
+                  <div class="team-person"><span class="team-avatar" aria-hidden="true">{example.person.slice(0, 1)}</span><span>{example.person}</span><span class="team-example-label">{copy.label}</span></div>
+                  <h4 id={`${team.id}-request-${index}`}>{example.request}</h4>
+                  <ul class="team-inputs">
+                    <li class="team-skill"><Icon name="spark" /><span>{copy.skill} · {example.skill}</span></li>
+                    {example.sources.map(source => <li class="team-source"><Icon name="folder" /><span>{copy.source} · {softPath(source)}</span></li>)}
+                    {example.tool && <li class="team-tool"><Icon name={example.tool.kind} /><span>{example.tool.text}</span></li>}
+                  </ul>
+                </div>
+                <div class="team-response">
+                  <p class="team-answer">{example.answer}</p>
+                  <figure class="team-result">
+                    <figcaption><span>{copy.result}</span><span aria-hidden="true">↳</span></figcaption>
+                    {example.preview.kind === 'file' && (
+                      <div class="team-document">
+                        <p class="team-file"><span>{example.preview.file.split('.').pop()?.toUpperCase()}</span><strong>{softPath(example.preview.file)}</strong></p>
+                        <p class="team-document-title">{example.preview.title}</p>
+                        <ul>{example.preview.lines.map(line => <li>{line}</li>)}</ul>
+                      </div>
+                    )}
+                    {example.preview.kind === 'table' && (
+                      <div class="team-table">
+                        <table>
+                          <caption>{softPath(example.preview.title)}</caption>
+                          <thead><tr>{example.preview.columns.map(column => <th scope="col">{column}</th>)}</tr></thead>
+                          <tbody>{example.preview.rows.map(row => <tr>{row.map(cell => <td>{cell}</td>)}</tr>)}</tbody>
+                        </table>
+                        {example.preview.foot && <p>{example.preview.foot}</p>}
+                      </div>
+                    )}
+                    {example.preview.kind === 'number' && (
+                      <div class="team-number"><p>{example.preview.title}</p><strong>{example.preview.value}</strong><small>{example.preview.detail}</small></div>
+                    )}
+                  </figure>
+                  {example.confirmation && <aside class="team-confirm" aria-label={example.confirmation.title}>
+                    <p><Icon name="shield" /><strong>{example.confirmation.title}</strong></p>
+                    <p>{example.confirmation.body}</p><small>{example.confirmation.status}</small>
+                  </aside>}
+                </div>
+              </article>
+            ))}
           </div>
-          <div class="role-right">
-            <span class="ex-label">{r.result}</span>
-            <RoleDocument doc={it.doc} />
-          </div>
-          <div class="role-more">
-            <span class="ex-label">{r.moreTitle}</span>
-            <ul>{it.more.map((m: string) => <li>{m}</li>)}</ul>
-            <a class="role-guide-link" href={guidePath(GUIDES.find(g => g.roleId === it.id)!.slug, t.lang)}>{t.lang === 'ko' ? '이 작업 따라 하기' : 'Follow this guide'}<Icon name="arrow" /></a>
-          </div>
-        </div>
+        </section>
       ))}
     </div>
-    <p class="roles-foot"><span>{r.note}</span><a href={ROUTES.guide[t.lang] + '#use-cases'}>{r.link}<Icon name="arrow" /></a></p>
   </div>
 </section>
+<script>
+  import '../scripts/teams'
+</script>

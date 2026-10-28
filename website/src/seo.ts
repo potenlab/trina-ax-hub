@@ -1,3 +1,4 @@
+import { teamCopy } from './content/teams'
 // Search and AI-search plumbing, built from the same copy the pages show (src/content), so the FAQ in the structured data
 // is the visible FAQ and the sitemap lists exactly the pages that exist. Pure functions; pages and endpoints call them at
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
@@ -149,9 +150,14 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     '',
     ...en.features.items.map((i) => `- ${i.title}: ${i.body}`),
     '',
-    '## Examples by role',
+    '## Examples by team',
+    teamCopy.en.note,
+    teamCopy.en.scope,
     '',
-    ...en.roles.items.map((r) => `- ${r.role}: "${r.q}" -> ${r.doc.file}`),
+    ...teamCopy.en.teams.flatMap(team => [
+      `### ${team.name}`,
+      ...team.examples.map(example => `- "${example.request}" | Team skill: ${example.skill} | Team files: ${example.sources.join(", ")}${example.tool ? ` | ${example.tool.text}` : ""} -> ${example.answer}`),
+    ]),
     '',
     '## How to start',
     '',

@@ -1,7 +1,6 @@
-// Client behaviour, for every page: theme toggle, mobile menu, copy button, the hero demo and the role tabs. No
+// Client behaviour, for every page: theme toggle, mobile menu, copy button and hero demo. No
 // dependencies; the page reads fine without it.
 import './demo'
-import './tabs'
 import { clipboardHelp } from '../content/clipboard'
 
 const root = document.documentElement

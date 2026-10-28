@@ -1,0 +1,90 @@
+/* The handoff is the visual signature: a request, its skill and sources, then a tangible work product.
+   Use the existing paper/ink/orange tokens, Geist/Pretendard type and first-party assets. */
+.team-showcase { background: var(--bg-tint); }
+.team-intro { margin-bottom: 20px; }
+.team-intro p { max-width: 650px; }
+.team-scope { display: flex; justify-content: flex-start; align-items: flex-start; gap: 7px; font-size: 14px; color: var(--fg-muted); }
+.team-scope svg { width: 16px; height: 20px; flex: none; }
+.team-note { margin: 10px 0 28px; max-width: 690px; text-align: left; color: var(--fg-faint); font-size: 13px; }
+.team-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 0; border-block: 1px solid var(--border-strong); }
+.team-jumps { display: flex; flex-wrap: wrap; gap: 4px; }
+.team-jumps a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 550; text-decoration: none; }
+.team-jumps a:hover, .team-jumps a[aria-current] { background: var(--accent-soft); color: var(--accent); }
+.team-motion { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-elev); color: var(--fg-muted); border: 1px solid var(--border-strong); border-radius: 8px; min-height: 44px; padding: 8px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+.team-motion[hidden] { display: none; }
+.team-motion[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.team-motion svg { width: 14px; height: 14px; }
+.team-chapter { padding-top: 56px; scroll-margin-top: 30px; }
+.team-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.team-heading h3 { font-size: clamp(25px, 3vw, 32px); }
+.team-heading p { color: var(--fg-muted); margin-top: 10px; font-size: 16px; }
+.team-more { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; color: var(--accent); font-size: 14px; font-weight: 550; text-decoration: none; flex: none; }
+.team-more:hover { text-decoration: underline; text-underline-offset: 4px; }
+.team-more svg { width: 16px; height: 16px; }
+.team-examples { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.team-example { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--card); overflow: clip; box-shadow: var(--shadow-sm); }
+.team-request { padding: 22px 20px 20px; }
+.team-person { display: flex; align-items: center; gap: 7px; color: var(--fg-muted); font-size: 12px; }
+.team-avatar { display: grid; place-items: center; flex: none; width: 25px; height: 25px; border-radius: 50%; background: var(--inset); color: var(--fg); font-size: 11px; }
+.team-example-label { margin-left: auto; padding: 1px 5px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--fg-faint); font-size: 10px; white-space: nowrap; }
+.team-request h4 { margin: 16px 0 18px; font-size: 18px; line-height: 1.55; font-weight: 550; letter-spacing: -0.025em; }
+.team-inputs { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.team-inputs li { max-width: 100%; display: flex; align-items: flex-start; gap: 6px; padding: 5px 8px; border-radius: 5px; background: var(--bg-soft); color: var(--fg-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.team-inputs svg { width: 13px; height: 17px; flex: none; }
+.team-inputs .team-skill { background: var(--accent-soft); color: var(--accent); font-weight: 550; }
+.team-inputs .team-tool { background: var(--ok-soft); color: var(--ok); }
+.team-response { flex: 1; padding: 20px; border-top: 1px solid var(--border); background: var(--bg-tint); }
+.team-answer { font-size: 14px; line-height: 1.75; color: var(--fg-muted); margin-bottom: 20px; }
+.team-result { border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-elev); overflow: clip; }
+.team-result figcaption { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--fg-faint); font-size: 10px; letter-spacing: 0.02em; }
+.team-document { padding: 14px 12px 18px; }
+.team-file { display: flex; align-items: flex-start; gap: 7px; overflow-wrap: anywhere; }
+.team-file > span { flex: none; padding: 2px 4px; font: 10px/1.6 var(--font-mono); background: var(--accent-soft); color: var(--accent); border-radius: 3px; }
+.team-file strong { font-size: 12px; font-weight: 550; }
+.team-document-title { margin: 20px 0 10px; font-size: 14px; font-weight: 600; }
+.team-document ul { display: grid; gap: 8px; font-size: 12px; color: var(--fg-muted); }
+.team-document li { padding-left: 9px; border-left: 2px solid var(--border-strong); }
+.team-table { padding: 12px; }
+.team-table table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; text-align: left; overflow-wrap: anywhere; }
+.team-table caption { text-align: left; font-size: 12px; font-weight: 600; margin-bottom: 14px; }
+.team-table th { color: var(--fg-muted); font-weight: 500; background: var(--bg-soft); }
+.team-table th, .team-table td { padding: 8px 5px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.team-table p { margin-top: 12px; font-size: 10px; color: var(--fg-faint); }
+.team-number { padding: 18px 14px 22px; }
+.team-number p { font-size: 12px; font-weight: 550; }
+.team-number strong { display: block; margin: 12px 0; font-size: 56px; line-height: 1.15; font-weight: 500; letter-spacing: -0.05em; }
+.team-number small { display: block; font-size: 11px; color: var(--fg-faint); }
+.team-confirm { margin-top: 14px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 12px; }
+.team-confirm p:first-child { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.team-confirm svg { width: 15px; height: 15px; flex: none; }
+.team-confirm small { display: block; margin-top: 8px; font-size: 11px; }
+/* The completed cards are always visible. A short scroll entrance adds emphasis, with no timer or autoplay. */
+@media (prefers-reduced-motion: no-preference) {
+  .team-showcase[data-motion="on"] .team-example.is-in-view { animation: team-arrive 320ms ease-out both; }
+  @keyframes team-arrive { from { transform: translateY(9px); } to { transform: translateY(0); } }
+}
+@media (min-width: 1100px) {
+  .team-controls { position: sticky; top: 64px; z-index: 10; background: var(--bg-tint); }
+  .team-chapter { scroll-margin-top: 110px; }
+}
+@media (max-width: 900px) {
+  .team-examples { grid-template-columns: 1fr; gap: 16px; }
+  .team-example { display: grid; grid-template-columns: 1fr 1fr; }
+  .team-response { border-top: 0; border-left: 1px solid var(--border); }
+}
+@media (max-width: 600px) {
+  .team-heading { display: block; }
+  .team-heading p { font-size: 15px; }
+  .team-more { margin-top: 5px; }
+  .team-chapter { padding-top: 40px; }
+  .team-example { display: flex; }
+  .team-response { border-left: 0; border-top: 1px solid var(--border); }
+  .team-request, .team-response { padding: 20px; }
+  .team-request h4 { font-size: 18px; }
+  .team-inputs li { font-size: 12px; }
+  .team-table table { font-size: 12px; }
+  .team-jumps { gap: 0; }
+  .team-jumps a { padding-inline: 10px; font-size: 13px; }
+  .team-scope { text-align: left; justify-content: flex-start; }
+  .team-note { text-align: left; }
+}

@@ -43,7 +43,7 @@ test('every published Korean guide is in the hub and sitemap, with an available 
   }
 })
 
-test('all four role guides share the home request and result, with copyable follow-up and skill handoff', () => {
+test('all four role guides retain their request and result, with copyable follow-up and skill handoff', () => {
   const cases = GUIDES.filter(g => g.roleId)
   expect(cases.length).toBe(4)
   for (const g of cases) {
