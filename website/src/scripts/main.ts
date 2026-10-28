@@ -2,6 +2,7 @@
 // dependencies; the page reads fine without it.
 import './demo'
 import './tabs'
+import { clipboardHelp } from '../content/clipboard'
 
 const root = document.documentElement
 
@@ -29,11 +30,33 @@ if (menuBtn && menu) {
 // ---- copy button ----
 document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
   const label = btn.textContent ?? ''
+  let fallback: HTMLDivElement | undefined
   btn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(btn.dataset.copy ?? '')
+      fallback?.remove()
+      fallback = undefined
       btn.textContent = btn.dataset.copied ?? label
       setTimeout(() => { btn.textContent = label }, 1600)
-    } catch { /* clipboard blocked: the text is visible next to the button */ }
+    } catch {
+      // A restricted browser still gets the exact text, without command prompts or markup.
+      if (!fallback) {
+        fallback = document.createElement('div')
+        fallback.className = 'copy-fallback'
+        const help = document.createElement('p')
+        help.id = `copy-help-${[...document.querySelectorAll('[data-copy]')].indexOf(btn)}`
+        help.setAttribute('role', 'status')
+        help.textContent = clipboardHelp[root.lang === 'ko' ? 'ko' : 'en']
+        const field = document.createElement('textarea')
+        field.readOnly = true
+        field.value = btn.dataset.copy ?? ''
+        field.setAttribute('aria-labelledby', help.id)
+        fallback.append(help, field)
+        btn.parentElement?.after(fallback)
+      }
+      const field = fallback.querySelector('textarea')!
+      field.focus()
+      field.select()
+    }
   })
 })

@@ -39,7 +39,14 @@
   :root { color-scheme: light; }
   body { background: #fff; color: #14110f; }
   body > .nav, body > .footer, .brochure-toolbar, .skip { display: none !important; }
-  .brochure { max-width: none; margin: 0; padding: 0; }
+  .brochure {
+    max-width: none; margin: 0; padding: 0;
+    /* Printed pages always use paper colours, including when a dark choice is saved. */
+    --bg: #fff; --bg-elev: #fff; --bg-soft: #f6f2ea;
+    --fg: #14110f; --fg-muted: #514b45; --border: #e9e3d8;
+    --accent: #c43d0a; --signal: #ff5b1f; --logo-ink: #14110f;
+    color: var(--fg);
+  }
   .brochure-sheet { box-sizing: border-box; width: 210mm; height: 297mm; margin: 0; padding: 17mm 18mm 23mm; border: 0; break-after: page; background: #fff; font-size: 10.5pt; line-height: 1.65; }
   .brochure-sheet:last-child { break-after: auto; }
   .brochure h1 { font-size: 38pt; }

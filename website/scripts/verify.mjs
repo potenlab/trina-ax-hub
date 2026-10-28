@@ -2,8 +2,8 @@
 // 360 / 768 / 1280 px in light and dark, the language switch, the theme toggle, the mobile menu, the copy button and
 // every internal link. Saves screenshots. Run:   bun run build && node scripts/verify.mjs
 //
-// Playwright is not a dependency of this site. Point PLAYWRIGHT_PATH at an installed copy:
-//   PLAYWRIGHT_PATH=/path/to/node_modules/playwright node scripts/verify.mjs
+// Uses the pinned Playwright dev dependency; install Chromium with bunx playwright install chromium.
+// PLAYWRIGHT_PATH can point at another installed copy.
 // Other options: SHOTS_DIR (where screenshots go), ALL_SHOTS=1 (every page x viewport x theme), PORT.
 import { spawn } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -13,11 +13,10 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const playwrightPath =
-  process.env.PLAYWRIGHT_PATH ||
-  '/Users/dion/potenlab/our_project/ai-marketing-wt/trina-umbrella/client/node_modules/playwright'
+  process.env.PLAYWRIGHT_PATH || 'playwright'
 const { chromium } = createRequire(import.meta.url)(playwrightPath)
 
-const port = Number(process.env.PORT || 4390)
+const port = Number(process.env.PORT || 19592)
 const base = `http://localhost:${port}`
 const shots = process.env.SHOTS_DIR || join(here, '..', '.shots')
 mkdirSync(shots, { recursive: true })
