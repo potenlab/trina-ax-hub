@@ -58,3 +58,9 @@
 - 새 글은 `GUIDES`에 추가하면 한국어 허브, 정적 경로, 사이트맵, llms.txt에 들어감. 준비된 영어 본문이 없으면 영문 허브에 링크하지 않음.
 - 한글 글꼴은 `python3 scripts/build-pretendard.py <PretendardVariable.woff2>`로 다시 생성함. 라이선스는 기존 OFL 파일을 유지함.
 - 총 한국어 가이드 글은 기존 첫 주 안내를 포함해 20개. 승인 계획의 20개 초과 시 문서 도구 전환 검토는 다음 글 추가 때 판단할 수 있음.
+
+## English completion — 2026-10-29
+
+The same 19 task guides are now published in English at `/guide/<slug>` (also available through `/en/guide/<slug>` aliases). English content lives in `src/content/guides-en.ts`; it shares the Korean article identities and evidence paths but omits Korean UI screenshots. Labels were checked against `web/src/i18n/en.ts` at product commit `5c15812`; desktop connection labels also match `desktop/src/common/i18n.ts`. English and Korean articles now point to each other in navigation and hreflang. English role requests and result examples come from `en.roles.items`.
+
+The English guides retain the corrections above: owner-only company connection creation and backup/restore, manual invite-link delivery, API-only cost estimates, database-only system restore, read-only Drive, new XLSX tables rather than workbook duplication, and HWP/HWPX input with DOCX reply output. See [the English hand-off](site-en-2026-10-29.md) for validation and remaining decisions.
