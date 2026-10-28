@@ -71,8 +71,8 @@ const en = {
       chatTitle: 'Sales weekly to-dos',
       engine: 'Claude',
       q: 'Pull the to-dos out of the Sales weekly meeting notes into a spreadsheet with owner and due date, and put it in Shared.',
-      thinking: 'Thinking',
-      stepsRunning: 'Working',
+      thinking: 'Thinking…',
+      stepsRunning: 'Running',
       stepsDone: '4 steps',
       steps: [
         { verb: 'Read', path: 'skills/meeting-notes.md' },
@@ -81,7 +81,7 @@ const en = {
         { verb: 'Make file', path: 'Shared/To-dos/sales-weekly-to-dos.xlsx' },
       ],
       confirm: {
-        title: 'Safety check from the team server',
+        title: 'Safety check by the team server',
         body: 'The AI read content fewer people can see (Sales) and now wants to save to Shared/To-dos, which 12 people can see. Save it?',
         allow: 'Save',
         deny: 'Don’t save',
@@ -106,7 +106,7 @@ const en = {
         ],
       },
       composer: 'Ask anything',
-      footer: 'AI can make mistakes. Check what matters. Only you can see your chats.',
+      footer: 'AI can make mistakes. Check important information. Only you can see your chats.',
     },
   },
 
@@ -121,7 +121,7 @@ const en = {
   same: {
     title: 'Same question,\ndifferent answers',
     body:
-      "The AI sees only what the person asking may open. A folder you can't open doesn't show up even by name, and who searched for what stays on the record.",
+      "The AI sees only what the person asking may open. A folder you can't open doesn't show up even by name, and the files the AI read stay on the record.",
     q: 'Summarize the first-half performance reviews',
     rule: 'HR folder: HR team only',
     people: [
@@ -146,14 +146,14 @@ const en = {
       },
     ],
     record: {
-      title: 'Admin › Audit log · AI tools',
+      title: 'Admin › Activity log · AI tool',
       cols: ['Time', 'Who', 'Did', 'What'],
       rows: [
-        ['10:02', 'Hajun Choi', 'Search', 'performance review'],
+        ['10:02', 'Hajun Choi', 'Search', '—'],
         ['10:02', 'Hajun Choi', 'Read', 'HR/Reviews/2026-H1-results.xlsx'],
-        ['10:03', 'Joon Park', 'Search', 'performance review'],
+        ['10:03', 'Joon Park', 'Search', '—'],
       ],
-      note: 'The log shows which files the AI read. It never shows the conversation.',
+      note: 'The log shows the files the AI read and wrote. It never shows search terms or the conversation.',
     },
     caption: 'Example screens. The people and the files are made up.',
     link: 'See how permissions are checked, in the code',
@@ -279,7 +279,7 @@ const en = {
         id: 'files',
         title: "Company files, opened by each person's permissions",
         body:
-          "Decide who can see each team, group, project and personal folder. The AI sees only the files the person asking can open; the rest don't show up even by name.",
+          "Decide who can see each team, group and project folder; a personal folder is its owner's alone. The AI sees only the files the person asking can open; the rest don't show up even by name.",
         ui: {
           head: "What Mina's AI can see",
           tree: [
@@ -435,7 +435,7 @@ const en = {
     qa: [
       {
         q: 'Can an admin read my chats?',
-        a: 'Not in the app. Chats are visible only to the person who had them; the admin screens show which files the AI read, never the conversation. People with access to the server itself are another matter (see below).',
+        a: 'Not in the app. Chats are visible only to the person who had them; the admin activity log shows only what the AI did, such as the files it read and wrote, never the conversation. People with access to the server itself are another matter (see below).',
       },
       {
         q: 'Can Trina see our files?',
@@ -451,11 +451,11 @@ const en = {
       },
       {
         q: 'What happens when someone leaves?',
-        a: 'Switch their account off and they lose files and AI at once. Deleting the account also deletes the services they connected for themselves.',
+        a: 'Switch their account off and they lose files and AI at once. Deleting the account also deletes the services they connected for themselves and moves their personal folder to the owner.',
       },
       {
         q: 'What if the AI overwrites or deletes a file?',
-        a: 'Every file keeps a version history you can roll back, and deleted files stay in the trash for 30 days.',
+        a: 'Every file keeps a version history you can roll back (7 days by default; an admin can change it), and deleted files stay in the trash for 30 days.',
       },
     ],
     limitsLabel: "What we don't promise",
@@ -535,7 +535,7 @@ const en = {
     items: [
       {
         q: 'Do employees have to install anything?',
-        a: 'No. They open your company address in a browser. If they like, there are desktop apps for Mac and Windows and an app for the phone.',
+        a: 'No. They open your company address in a browser. If they like, there are desktop apps for Mac and Windows, and on a phone they can add it to the home screen like an app.',
       },
       {
         q: 'Is it really free?',
@@ -543,7 +543,7 @@ const en = {
       },
       {
         q: 'Which Claude plan do we need?',
-        a: "Each person can connect their own Claude plan (Pro, Max or Team), or the company uses one API key with a monthly limit per person. One subscription is never shared between people.",
+        a: "Each person can connect their own Claude plan (Pro, Max or Team), or the company uses one API key with a monthly limit per person. Sharing one subscription between people is off by default, and we don't recommend it.",
       },
       {
         q: 'Where do our files live?',
@@ -625,7 +625,7 @@ const en = {
       {
         title: 'Chats belong to the person who had them.',
         how:
-          'Admins see which files the AI read, not the conversation. Personal folders are closed to admins and the owner, too.',
+          'The activity log shows what the AI did, such as the files it read and wrote, not the conversation. Personal folders are closed to admins and the owner, too; when an account is deleted, its personal folder moves to the owner.',
       },
     ],
     limitsTitle: "What we don't promise",
@@ -643,7 +643,7 @@ const en = {
       { title: 'Linux server', body: 'A Linux server of yours. You are the administrator.' },
     ],
     tryTitle: 'Try it on one Mac',
-    tryBody: 'Development mode, to look around with test files. It needs Bun and Go; the install guide covers the production setup.',
+    tryBody: 'Development mode, to try it out. It needs Bun and Go, and chats need Claude Code signed in on this Mac; the install guide covers the production setup.',
     cmds: ['git clone https://github.com/trina-app/trina-ax', 'cd trina-ax && bun install && bun run build:native && bun run dev'],
     copy: 'Copy',
     copied: 'Copied',
@@ -705,7 +705,7 @@ const en = {
           { title: 'Using team skills (type /)', to: '' },
           { title: 'Scheduling a task', to: '' },
           { title: 'Connecting Notion, GitHub and other services', to: '' },
-          { title: 'Desktop and phone apps', to: '' },
+          { title: 'Desktop app and phone home screen', to: '' },
         ],
       },
       {
@@ -757,7 +757,7 @@ const en = {
     days: [
       { day: 'Day 1', title: 'Set folder permissions', who: 'Admin', time: '30 minutes', body: 'Make Shared and a folder per team, and decide who can see each one. Before saving, the preview shows who will see what.' },
       { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'Connect one company API key, or let each person connect their own Claude plan in Settings.' },
-      { day: 'Day 2', title: 'Bring the files in', who: 'Admin', time: 'Depends on the files', body: 'Upload folders in the browser, or link an office folder or NAS as a connected folder.' },
+      { day: 'Day 2', title: 'Bring the files in', who: 'Admin', time: 'Depends on the files', body: 'Upload files from the Files screen, several at a time. On a server you run yourself, the owner can also link a shared folder or NAS mounted on that computer as a connected folder.' },
       { day: 'Day 3', title: 'Invite your team', who: 'Admin', time: '10 minutes', body: 'Make invite links and send them with the notice below. Trina AX sends no email, so use your messenger.' },
       { day: 'Day 4', title: 'Make the first team skill', who: 'Admin with one employee', time: '30 minutes', body: 'Pick the task people repeat most, like a quote or a weekly report, and save it as a team skill.' },
       { day: 'Day 5', title: 'Look back', who: 'Owner and admin', time: '15 minutes', body: 'Make the first backup, check who uses it and how much, and collect the questions that got stuck as the next skills.' },
@@ -767,7 +767,7 @@ const en = {
     noticeTitle: 'A notice to send your team',
     noticeBody: 'Copy it, change the address and the name, and send it in your messenger.',
     noticeText:
-      "[Notice] From today we use Trina AX, our company's AI workspace\n\n- Address: https://your-company.trina.app\n- First: open the invite link you got and set a password.\n- What it does: hand writing, searching and organizing to the AI, with company files. The AI sees only the folders you can see.\n- Your chats are yours alone. Admins see only which files the AI read.\n- Stuck? Ask (name).",
+      "[Notice] From today we use Trina AX, our company's AI workspace\n\n- Address: https://your-company.trina.app\n- First: open the invite link you got and set a password.\n- What it does: hand writing, searching and organizing to the AI, with company files. The AI sees only the folders you can see.\n- Your chats are yours alone. The admin activity log never shows your conversations.\n- Stuck? Ask (name).",
     copy: 'Copy',
     copied: 'Copied',
     copyLabel: 'Copy the notice',

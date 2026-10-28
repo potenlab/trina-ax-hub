@@ -37,8 +37,6 @@
 
 | 이미지 | 실제 위치 |
 |---|---|
-| folder-permissions | `/admin/folders` |
-| invite | `/admin/members` |
 | ai-connection | `/admin/credentials` |
 | skills | `/skills` |
 | schedules | `/settings/schedules` (기본 작업 선택 화면) |
@@ -47,11 +45,12 @@
 | first-question | `/` (팀장 계정의 첫 화면) |
 | team-files | `/files` |
 | usage-limits | `/admin/engines`, 한도 추가 창만 열고 저장하지 않음 |
-| file-history | `/files?path=shared/QA-2026-10-28&history=shared/QA-2026-10-28/주간메모-QA.md`, 아직 기록 없는 상태 |
 
 캡처 후 테스트 서버가 503/연결 실패 상태가 됨. 재시작하지 않았고, 이후 오류 화면은 삭제했음.
 따라서 첨부 선택기·슬래시 메뉴·실제 설치 완료 화면은 새로 확보하지 못함. 해당 가이드는 확인된 코드와 정상 캡처만 사용함.
 외부 서비스 인증·결제·실제 메일 발송·네이티브 앱 설치·서버 복원은 이번 작업에서 수행하지 않음.
+
+2026-10-29 배포 전 검토에서 `folder-permissions`, `invite`, `file-history` 화면은 내렸음. QA 테스트용 폴더·파일·계정 이름(`QA-2026-10-28`, `-QA` 파일, `QA 외부2` 등)이 화면 대부분을 채워서임. 같은 검토에서 5c15812와 다른 문장을 고쳤음: 수동 백업의 증분 표시, 팀 스킬 최근 변경 탭(팀장·관리자만), 등록 직후 스킬의 되돌리기, 버전 목록에 보이는 항목, 첫 화면 폴더 안내(첫 채팅 전만), 외부 서비스 인증 방식(OAuth는 MCP만), 데스크톱 앱 버튼·첫 화면 이름, 예약 실행 실패 확인 위치.
 
 ## 유지보수
 
