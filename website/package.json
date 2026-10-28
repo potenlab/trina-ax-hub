@@ -10,9 +10,13 @@
     "preview": "bun scripts/serve-dist.ts",
     "test": "astro build && bun test",
     "og": "bun scripts/og.ts",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "brochure": "node scripts/build-brochure.mjs"
   },
   "dependencies": {
     "astro": "7.3.8"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }

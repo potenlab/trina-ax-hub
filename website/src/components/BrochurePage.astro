@@ -1,0 +1,88 @@
+---
+import Base from '../layouts/Base.astro'
+import Nav from './Nav.astro'
+import Footer from './Footer.astro'
+import Logo from './Logo.astro'
+import t from '../content/ko'
+import { BROCHURE, CONTACT_EMAIL, KRW_REFERENCE, LINKS, PLANS, bookCall, krwNote, quoteRequest, usd } from '../site'
+import '../styles/brochure.css'
+---
+<Base t={t} path={BROCHURE.page} title="트리나 AX 소개서 | 우리 회사 전용 AI 업무 공간" description="회사 파일로 일하는 AI, 사람별 폴더 권한, 직무별 활용 예시와 도입 방법을 다섯 쪽으로 정리했어요. 이메일 입력 없이 PDF로 내려받을 수 있어요.">
+  <Nav t={t} />
+  <div class="brochure-toolbar container"><a href={BROCHURE.pdf} download class="btn btn-primary">소개서 받기 · PDF</a><a href="/ko/">홈페이지 보기</a></div>
+  <main id="main" class="brochure">
+    <section class="brochure-sheet brochure-cover">
+      <div class="brochure-brand"><Logo />트리나 AX</div>
+      <p class="brochure-kicker">회사 파일로 일하는 AI</p>
+      <h1>우리 회사 전용<br /><span>AI 업무 공간</span></h1>
+      <p class="brochure-lead">회사 서버에서 Claude가 돌아가고,<br />직원은 평소 하던 말을 건네면 돼요.</p>
+      <div class="brochure-task">
+        <p class="brochure-label">직원이 맡기는 일</p>
+        <blockquote>“영업팀 주간회의 회의록에서 할 일만 뽑아서<br />담당자·기한 표로 엑셀 만들어 줘.”</blockquote>
+        <div class="brochure-process"><span>회사 파일 읽기</span><b>→</b><span>할 일 정리</span><b>→</b><span>엑셀로 저장</span></div>
+        <p>AI는 묻는 사람이 열 수 있는 회사 파일만 봐요.<br />문서 작성, 검색, 정리를 웹·데스크톱·휴대폰에서 맡겨요.</p>
+      </div>
+      <p class="brochure-caption">이 소개서의 회사·사람·파일과 결과물은 모두 가상 예시예요.</p>
+      <div class="brochure-folio"><a href="https://ax.trina.app/ko/">ax.trina.app</a><span>제품 소개 · 1 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">권한부터 확인하는 AI</p>
+      <h2>같은 질문,<br />사람마다 다른 답</h2>
+      <p class="brochure-lead">“상반기 인사평가 결과 요약해 줘”</p>
+      <div class="brochure-split">
+        <article><h3>최하준 · 인사팀</h3><p class="brochure-label">인사 폴더를 볼 수 있어요</p><blockquote>평가 대상 24명 중 S등급은 2명이에요. 부서별 결과를 정리했어요.</blockquote></article>
+        <article><h3>박준호 · 영업팀</h3><p class="brochure-label">인사 폴더를 볼 수 없어요</p><blockquote>열 수 있는 폴더 중에 인사평가 자료는 없어요. 필요하면 인사팀에 요청해 주세요.</blockquote></article>
+      </div>
+      <h3>더 많은 사람이 보는 곳에 저장하기 전 확인</h3>
+      <p>AI가 제한된 폴더를 읽고 공용 폴더에 저장하려 하면, 팀 서버가 먼저 물어요. 내용을 옮겨도 되는지 사람이 결정해요.</p>
+      <h3>대화 대신 파일 접근을 남기는 기록</h3>
+      <p>관리자는 AI가 어떤 파일을 찾고 읽었는지 확인해요. 앱에는 다른 사람의 대화를 여는 화면이 없어요.</p>
+      <p class="brochure-caption">서버 관리자 권한이 있는 사람은 저장된 파일과 채팅에 접근할 수 있어요. 호스팅이면 트리나 운영자도 여기에 들어가요.</p>
+      <div class="brochure-folio"><span>사람별 폴더 권한</span><span>2 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">매일 하는 일부터</p>
+      <h2>직무별로 AI에게<br />맡기는 일</h2>
+      <div class="brochure-examples">
+        {t.roles.items.map((r) => <article><h3>{r.role}</h3><blockquote>{r.q}</blockquote><p class="brochure-result">결과 예시 · {r.doc.file}</p></article>)}
+      </div>
+      <h3>잘된 작업은 팀 스킬로</h3>
+      <p>답변 아래 <b>스킬로 제안</b>을 눌러 순서와 기준을 남겨요. 담당자가 검토해서 등록하면, 다음에는 채팅에서 <b>/</b>를 입력해 불러 쓸 수 있어요.</p>
+      <p class="brochure-caption">결과는 자료와 요청에 따라 달라져요. 견적의 단가, 보고서의 수치, 회신 내용은 담당자가 원본과 대조해요. 한글 파일은 읽을 수 있고 회신 초안은 Word로 만들어요.</p>
+      <div class="brochure-folio"><a href="https://ax.trina.app/ko/guide#use-cases">직무별 가이드</a><span>3 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">서버를 누가 운영할지만</p>
+      <h2>시작하는 두 가지 방법</h2>
+      <p>어느 쪽이든 같은 소프트웨어예요. 직원은 회사 주소로 들어와요.</p>
+      <div class="brochure-split">
+        <article><h3>트리나 호스팅</h3><ol><li>30분 상담으로 맡길 일을 정해요.</li><li>트리나가 회사 전용 AWS 서울 서버와 주소를 준비해요.</li><li>폴더 권한을 정하고 직원을 초대해요.</li></ol><p>설치·업데이트·백업·모니터링은 트리나가 맡아요.</p></article>
+        <article><h3>직접 설치</h3><ol><li>사무실 맥 미니나 회사 서버를 준비해요.</li><li>설치 안내에 따라 서버를 설정해요.</li><li>폴더 권한을 정하고 직원을 초대해요.</li></ol><p>소프트웨어는 무료예요. 서버를 다룰 담당자가 필요해요.</p></article>
+      </div>
+      <h3>첫 주에 준비할 다섯 가지</h3>
+      <p class="brochure-checklist">폴더 권한 → AI 연결 → 팀원 초대 → 첫 팀 스킬 → 첫 백업</p>
+      <h3>각자 구독이나 회사 키로 연결하는 AI</h3>
+      <p>각자 Claude 구독을 연결하거나 회사 API 키를 쓸 수 있어요. 개인 구독은 본인의 질문에만 써요. AI 사용료는 호스팅 요금과 별도예요.</p>
+      <h3>코드까지 공개한 회사 AI</h3>
+      <p>AGPL-3.0 오픈소스예요. IT 담당자가 코드를 확인할 수 있고, 호스팅을 그만둬도 파일을 넘겨받아 같은 소프트웨어로 계속 쓸 수 있어요.</p>
+      <div class="brochure-folio"><a href={LINKS.github}>공개 소스 코드</a><span>4 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">도입을 검토하는 분께</p>
+      <h2>회사 전용 서버와<br />운영을 포함한 비용</h2>
+      <div class="brochure-prices">
+        {PLANS.map((p) => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ 월</small></p><p>{krwNote(p.usd, 'ko')}</p><p>최대 {p.people}명 · 메모리 {p.memoryGb}GB<br />저장공간 {p.storageGb}GB</p></article>)}
+      </div>
+      <p class="brochure-caption">{KRW_REFERENCE.date} 환율 기준 · 천 원 단위 반올림 · 출처: <a href={KRW_REFERENCE.source}>{KRW_REFERENCE.provider}</a>. 원화는 참고 금액이고 실제 결제는 달러 기준이에요. AI 사용료와 세금은 별도예요. 40명이 넘으면 별도 견적을 안내해 드려요.</p>
+      <h3>도입 전에 확인할 보안 범위</h3>
+      <p>회사 파일과 채팅은 회사 서버에 남아요. 답에 필요한 내용은 Anthropic으로 가고, Codex를 쓰면 OpenAI로도 가요. 학습 여부는 연결한 AI 요금제의 약관을 따라요. 보안 인증은 아직 받지 않았어요.</p>
+      <h3>상담부터 견적서까지</h3>
+      <p>인원, 맡기고 싶은 일, 호스팅 여부를 알려 주세요. 원화 계약과 세금계산서 발행도 요청하시면 안내해 드려요.</p>
+      <p class="brochure-contact"><a href={bookCall('ko')}>도입 문의하기</a> · <a href={quoteRequest('ko')}>견적서 받기</a><br /><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+      <p class="brochure-caption">호스팅은 매달 자동 결제돼요. 언제든 해지할 수 있고, 첫 결제 후 14일 안에 요청하면 전액 환불해 드려요. <a href="https://ax.trina.app/terms">이용약관</a> · <a href="https://ax.trina.app/refund">환불 정책</a> · <a href="https://ax.trina.app/ko/security">IT 담당자용 보안 안내</a></p>
+      <div class="brochure-folio"><span>주식회사 트리나 · Trina Inc.</span><span>5 / 5</span></div>
+    </section>
+  </main>
+  <Footer t={t} />
+  <script>import '../scripts/main'</script>
+</Base>

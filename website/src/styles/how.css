@@ -474,3 +474,13 @@ html[lang="ko"] .fw-hosted h2 { font-weight: 700; }
   .fw-hosted { grid-template-columns: minmax(0, 1fr); }
   .fw-notice-text { padding: 54px 16px 16px; }
 }
+
+/* Reference prices and ungated sales material. */
+.plan-reference { color: var(--fg-muted); font-size: .875rem; margin: .4rem 0 .8rem; }
+.quote-request { display: flex; align-items: center; gap: 1.5rem; margin: 1.5rem 0; padding: 1.5rem; border: 1px solid var(--border); border-radius: 16px; }
+.quote-request p { margin: 0; font-size: .9rem; line-height: 1.7; }
+.quote-request .btn { flex-shrink: 0; }
+.brochure-link { margin: 1.5rem 0 0; font-size: .9rem; }
+.brochure-link a { text-decoration: underline; text-underline-offset: 4px; }
+.brochure-link span { font-size: .75rem; opacity: .65; }
+@media (max-width: 600px) { .quote-request { align-items: flex-start; flex-direction: column; } }

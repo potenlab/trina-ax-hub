@@ -3,12 +3,12 @@
 // src/site.ts, words from the copy), what every plan includes, the billing terms the resellers ask us to show, and
 // three small blocks. The table keeps its semantics (explicit roles) because on phones its rows become stacked cards.
 import type { Copy } from '../content/en'
-import { LEGAL, LINKS, PLANS, bookCall, usd } from '../site'
+import { LEGAL, LINKS, PLANS, bookCall, usd, priceWithReference, krwNote, KRW_REFERENCE, quoteRequest, CONTACT_EMAIL } from '../site'
 import Lines from './Lines.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const p = t.pricing
-const from = usd(PLANS[0].usd)
+const from = priceWithReference(PLANS[0].usd, t.lang)
 const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k]))
 const book = bookCall(t.lang)
 ---
@@ -49,6 +49,7 @@ const book = bookCall(t.lang)
         <li class="plan" data-plan={plan.id}>
           <h4 class="plan-name">{p.plans[plan.id]}</h4>
           <p class="plan-price"><span class="plan-amount">{usd(plan.usd)}</span> <span class="plan-per">{p.perMonth}</span></p>
+          <p class="plan-reference">{krwNote(plan.usd, t.lang)}</p>
           <p class="plan-people">{fill(p.people, { n: plan.people })}</p>
           <p class="plan-server">{fill(p.server, { cpu: plan.vcpu, mem: plan.memoryGb, disk: plan.storageGb })}</p>
           <a class="btn btn-primary btn-sm plan-cta" href={book}>{p.planCta}</a>
@@ -62,6 +63,15 @@ const book = bookCall(t.lang)
         <a class="btn btn-secondary btn-sm plan-cta" href={book}>{p.custom.cta}</a>
       </li>
     </ul>
+    <p class="plans-fine krw-reference">{t.lang === 'ko'
+      ? `${KRW_REFERENCE.date} 환율 기준 · 천 원 단위 반올림. 원화는 참고 금액이고 실제 결제는 달러 기준이에요.`
+      : `Reference rate dated ${KRW_REFERENCE.date}, rounded to the nearest thousand won. KRW amounts are estimates; billing is in USD.`}
+      <a href={KRW_REFERENCE.source} rel="noopener">{KRW_REFERENCE.provider}</a>
+    </p>
+    <div class="quote-request">
+      <a class="btn btn-secondary" href={quoteRequest(t.lang)}>{t.lang === 'ko' ? '견적서 받기' : 'Request a quote'}</a>
+      <p>{t.lang === 'ko' ? '원화 계약과 세금계산서 발행은 요청하시면 안내해 드려요. 메일 앱이 열리지 않으면 아래 주소로 보내 주세요.' : 'KRW contracts and Korean tax invoices are available on request. If your mail app does not open, email the address below.'}<br /><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+    </div>
     <p class="plans-included">{p.included}</p>
     <p class="plans-fine">
       {p.fine}

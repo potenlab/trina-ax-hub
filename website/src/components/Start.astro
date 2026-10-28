@@ -3,13 +3,13 @@
 // says who does the work, and one button). Then the first week as a checklist, linked to the guide page.
 // Replaces the old "Set up once" steps and the "Not a one-off install" block.
 import type { Copy } from '../content/en'
-import { LINKS, PLANS, ROUTES, bookCall, usd } from '../site'
+import { LINKS, PLANS, ROUTES, bookCall, priceWithReference } from '../site'
 import Lines from './Lines.astro'
 import Icon from './Icon.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const s = t.start
-const from = usd(PLANS[0].usd)
+const from = priceWithReference(PLANS[0].usd, t.lang)
 ---
 <section class="section" id="start" aria-labelledby="start-title">
   <div class="container">

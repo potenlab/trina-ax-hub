@@ -2,13 +2,13 @@
 // Hero: what Trina AX is in one line, two captioned ways to start (hosted by Trina, or install it yourself), and the
 // scripted demo of the real app right under it (Demo.astro). {from} in a caption is the cheapest plan in PLANS.
 import type { Copy } from '../content/en'
-import { PLANS, bookCall, usd } from '../site'
+import { BROCHURE, PLANS, bookCall, priceWithReference } from '../site'
 import Demo from './Demo.astro'
 import Icon from './Icon.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const h = t.hero
-const from = usd(PLANS[0].usd)
+const from = priceWithReference(PLANS[0].usd, t.lang)
 ---
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-bg" aria-hidden="true"></div>
@@ -26,6 +26,7 @@ const from = usd(PLANS[0].usd)
         <span class="hero-choice-note">{h.secondaryNote}</span>
       </div>
     </div>
+      <p class="brochure-link"><a href={BROCHURE.pdf} download>{t.lang === 'ko' ? '소개서 받기' : 'Download brochure (Korean)'} <span>PDF</span></a></p>
   </div>
   <Demo t={t} />
 </section>

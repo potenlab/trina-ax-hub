@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
-import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd } from '../src/site'
+import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
 import { LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
@@ -15,10 +15,11 @@ describe('things the site must never say', () => {
   const everything: [string, string][] = [...texts.map(([p, t]): [string, string] => [p, t]), [llms[0], built('llms.txt')]]
 
   // Prices live in one place (PLANS in src/site.ts): any other money amount on a page is a mistake.
-  test.each(everything)('%s: the only money amounts are the hosting plan prices, in dollars', (_, text) => {
+  test.each(everything)('%s: money amounts come from hosting plans and the dated KRW reference', (_, text) => {
     const allowed = new Set(PLANS.map((p) => usd(p.usd)))
     for (const m of text.matchAll(/\$\s?\d[\d,.]*/g)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
-    expect(text).not.toMatch(/[€£¥₩]\s?\d/)
+    for (const m of text.matchAll(/₩[\d,]+/g)) expect(new Set(PLANS.map(p => krw(p.usd))).has(m[0]), `unexpected KRW amount ${m[0]}`).toBe(true)
+    expect(text).not.toMatch(/[€£¥]\s?\d/)
     expect(text).not.toMatch(/\d[\d,.]*\s?(원|만\s?원|KRW|JPY|EUR|won)(?![a-z])/i)
   })
 
@@ -97,7 +98,7 @@ describe('contact and links', () => {
     for (const [file, lang, subject] of [['index.html', 'en', 'Trina%20AX'], ['ko/index.html', 'ko', encodeURIComponent('트리나 AX 도입 문의')]] as const) {
       const hrefs = attrs(built(file), 'href').filter((h) => h.startsWith('mailto:contact@trina.app?subject='))
       expect(hrefs.length).toBeGreaterThanOrEqual(6) // nav, mobile menu, hero, "two ways to start", pricing, final CTA
-      for (const h of hrefs) expect(h).toBe(bookCall(lang) as string)
+      for (const h of hrefs) expect([bookCall(lang), quoteRequest(lang)]).toContain(h)
       expect(bookCall(lang)).toBe(`mailto:contact@trina.app?subject=${subject}`)
     }
   })
@@ -109,7 +110,7 @@ describe('contact and links', () => {
       for (const u of [...attrs(html, 'href'), ...attrs(html, 'src')]) {
         if (!/^https?:\/\//.test(u)) continue
         const ok =
-          u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
+          u === KRW_REFERENCE.source || u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
         expect(ok, `unexpected outside address ${u} in ${file}`).toBe(true)
       }
     }

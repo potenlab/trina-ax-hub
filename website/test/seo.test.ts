@@ -112,7 +112,7 @@ describe('crawling', () => {
       expect(xml).toContain(`<loc>https://ax.trina.app${ROUTES[p.route].ko}</loc>`)
     }
     for (const p of SINGLE_PAGES) expect(xml).toContain(`<loc>https://ax.trina.app${p.path}</loc>`)
-    expect(SINGLE_PAGES.map((p) => p.path)).toEqual(['/terms', '/privacy', '/refund'])
+    expect(SINGLE_PAGES.map((p) => p.path)).toEqual(['/terms', '/privacy', '/refund', '/ko/brochure'])
     expect((xml.match(/<url>/g) ?? []).length).toBe(PAGES.length * 2 + SINGLE_PAGES.length)
     expect(xml).toContain('hreflang="x-default"')
     expect(xml).not.toContain('404')

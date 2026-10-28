@@ -48,6 +48,21 @@ export const PLANS = [
 export type PlanId = (typeof PLANS)[number]['id']
 export const usd = (n: number) => `$${n}`
 
+/** Public daily reference, fetched once. USD remains the billing currency. */
+export const KRW_REFERENCE = {
+  rate: 1326.806219,
+  date: '2026-10-28',
+  source: 'https://open.er-api.com/v6/latest/USD',
+  provider: 'ExchangeRate-API',
+} as const
+export const krw = (dollars: number) => `₩${(Math.round(dollars * KRW_REFERENCE.rate / 1000) * 1000).toLocaleString('en-US')}`
+export const krwNote = (dollars: number, lang: Lang) => lang === 'ko'
+  ? `약 ${krw(dollars)} · VAT 별도`
+  : `Approx. ${krw(dollars)} · excl. VAT`
+export const priceWithReference = (dollars: number, lang: Lang) => `${usd(dollars)} (${krwNote(dollars, lang)})`
+export const quoteRequest = (lang: Lang) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(lang === 'ko' ? '견적서 요청' : 'Trina AX quote request')}`
+export const BROCHURE = { page: '/ko/brochure', pdf: '/downloads/trina-ax-introduction-ko.pdf' } as const
+
 /** The resellers that run the online checkout (Merchant of Record). The legal pages name them and their buyer terms. */
 export const RESELLERS = [
   { name: 'Polar', entity: 'Polar Software, Inc.', buyerTerms: 'https://polar.sh/legal/checkout-buyer-terms' },

@@ -2,7 +2,7 @@
 // is the visible FAQ and the sitemap lists exactly the pages that exist. Pure functions; pages and endpoints call them at
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import type { Copy } from './content/en'
-import { CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
+import { BROCHURE, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
 /** Indexable pages. Each exists in both languages and lists the other as an alternate. 404 is left out. */
 export const PAGES: { route: RouteId; lastmod: string }[] = [
@@ -13,7 +13,7 @@ export const PAGES: { route: RouteId; lastmod: string }[] = [
 ]
 
 /** English-only pages (the legal texts): listed without language alternates. */
-export const SINGLE_PAGES: { path: string; lastmod: string }[] = Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED }))
+export const SINGLE_PAGES: { path: string; lastmod: string }[] = [...Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED })), { path: BROCHURE.page, lastmod: KRW_REFERENCE.date }]
 
 const LANGS: Lang[] = ['en', 'ko']
 

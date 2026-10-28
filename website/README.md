@@ -82,3 +82,12 @@ Generated with Higgsfield (`higgsfield generate create nano_banana_pro`, 2k), co
 | `streaks-{1000,2000}.webp` (21:9) | final call to action | long-exposure orange light ribbons on near-black |
 
 The hero keeps a soft wash of the page colour over the middle so the headline stays readable on top of the threads.
+
+## 소개서와 원화 참고가
+
+- 가격·환율은 `src/site.ts`의 `PLANS`, `KRW_REFERENCE`에서만 바꿔요. 원화는 천 원 단위로 반올림한 참고가이고, 실제 결제 가격은 USD예요. 환율을 바꾸면 소개서도 다시 만들어요.
+- 소개서 HTML: `/ko/brochure`. 공개 PDF: `/downloads/trina-ax-introduction-ko.pdf` (이메일 입력 없음).
+- 재생성: `bun install` → 처음 한 번 `bunx playwright install chromium` → `bun run brochure`.
+  스크립트는 Astro를 빌드한 뒤 로컬 HTML·글꼴만 읽어 A4 5쪽을 출력해요. 웹 서버를 띄우거나 외부 서비스를 요청하지 않아요. 본문이 쪽 번호와 겹치면 실패해요.
+- 확인: `pdfinfo public/downloads/trina-ax-introduction-ko.pdf`로 5쪽인지 확인하고, `pdftoppm -png -scale-to 1200 public/downloads/trina-ax-introduction-ko.pdf <출력경로>/brochure`로 각 쪽을 검수해요.
+- macOS 샌드박스에서 Chromium 실행이 막히면 연결된 Playwright MCP 브라우저로 `/ko/brochure`를 열고 `document.fonts.ready` 뒤 print/light 모드에서 `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, tagged: true, path: '<사이트>/public/downloads/trina-ax-introduction-ko.pdf' })`를 실행할 수 있어요. 이때 사이트 미리보기는 지정된 19592 포트만 사용해요.

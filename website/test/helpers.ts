@@ -8,6 +8,7 @@ export const dist = join(root, 'dist')
 export const PAGE_FILES: Record<string, string> = {
   '/': 'index.html',
   '/ko/': 'ko/index.html',
+  '/ko/brochure': 'ko/brochure.html',
   '/security': 'security.html',
   '/ko/security': 'ko/security.html',
   '/guide': 'guide.html',
