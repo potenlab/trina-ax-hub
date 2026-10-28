@@ -146,4 +146,6 @@ figure, blockquote { margin: 0; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 10px 22px; align-content: flex-start; }
 .footer a { text-decoration: none; }
 .footer a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
-.footer-trademark { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--fg-faint); max-width: 780px; }
+.footer-biz { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--fg-muted); max-width: 980px; }
+.footer-biz-label { color: var(--fg-faint); }
+.footer-trademark { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--fg-faint); max-width: 780px; }

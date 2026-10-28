@@ -5,6 +5,19 @@ export type Lang = 'en' | 'ko'
 export const SITE_URL = 'https://ax.trina.app'
 export const CONTACT_EMAIL = 'contact@trina.app'
 
+/**
+ * The company as every footer shows it (전자상거래법 §10: name, CEO, address, phone, email, business registration
+ * number, hosting provider), in the same order as trina.app. No mail-order registration number (통신판매업 신고):
+ * not filed; Payple advised leaving it blank (~/Desktop/Trina/제출_페이플/README.md). Add it here once there is one.
+ */
+export const COMPANY = {
+  ceo: { en: 'Daehyeon Nam (남대현)', ko: '남대현' },
+  bizNo: '414-81-10138',
+  address: { en: '27-8 Obong-ro, Sannae-myeon, Gyeongju-si, Gyeongsangbuk-do, Republic of Korea', ko: '경상북도 경주시 산내면 오봉로 27-8' },
+  phone: { en: '+82 70-8064-3349', ko: '070-8064-3349' },
+  hosting: 'Cloudflare, Inc.',
+} as const
+
 export const LINKS = {
   // The repository is the product. It must be public (and Apache-2.0) before this site goes live.
   github: 'https://github.com/potenlab/trina-ax',

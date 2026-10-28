@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
-import { LEGAL, LINKS, PLANS, bookCall, usd } from '../src/site'
+import { COMPANY, LEGAL, LINKS, PLANS, bookCall, usd } from '../src/site'
 import { LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
@@ -115,6 +115,17 @@ describe('contact and links', () => {
     expect(attrs(built('ko/index.html'), 'href')).toContain(LINKS.install.ko)
     for (const f of ['index.html', 'ko/index.html', 'security.html', 'ko/security.html', ...LEGAL_FILES]) {
       for (const d of Object.values(LEGAL)) expect(attrs(built(f), 'href'), `${f} -> ${d.path}`).toContain(d.path)
+    }
+  })
+
+  test('every footer shows the company: name, CEO, registration number, address, phone, email, hosting provider', () => {
+    for (const [path, file] of files) {
+      const lang = path.startsWith('/ko') ? 'ko' : 'en'
+      const html = built(file)
+      const footer = visibleText(html.slice(html.indexOf('<footer')))
+      for (const v of ['Trina Inc.', COMPANY.ceo[lang], COMPANY.bizNo, COMPANY.address[lang], COMPANY.phone[lang], 'contact@trina.app', COMPANY.hosting]) {
+        expect(footer, `${path} footer lacks ${v}`).toContain(v)
+      }
     }
   })
 

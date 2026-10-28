@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../content/en'
-import { CONTACT_EMAIL, LEGAL, LINKS, ROUTES } from '../site'
+import { COMPANY, CONTACT_EMAIL, LEGAL, LINKS, ROUTES } from '../site'
 import Logo from './Logo.astro'
 
 interface Props { t: Copy }
@@ -8,6 +8,15 @@ const { t } = Astro.props
 const f = t.footer
 const l = f.links
 const home = ROUTES.home[t.lang]
+const lang = t.lang
+// the business details Korean e-commerce law asks for, in trina.app's order
+const biz: [string, string][] = [
+  [f.biz.ceo, COMPANY.ceo[lang]],
+  [f.biz.bizNo, COMPANY.bizNo],
+  [f.biz.address, COMPANY.address[lang]],
+  [f.biz.phone, COMPANY.phone[lang]],
+  [f.biz.hosting, COMPANY.hosting],
+]
 ---
 <footer class="footer">
   <div class="container">
@@ -26,6 +35,9 @@ const home = ROUTES.home[t.lang]
         <a href={LEGAL.refund.path} hreflang="en">{l.refund}</a>
       </nav>
     </div>
+    <p class="footer-biz">
+      {biz.map(([label, value]) => <span class="footer-biz-item"><span class="footer-biz-label">{label}</span> {value}</span>)}
+    </p>
     <p class="footer-trademark">{f.trademark}</p>
   </div>
 </footer>

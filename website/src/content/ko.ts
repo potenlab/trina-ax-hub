@@ -384,6 +384,7 @@ const ko = {
       terms: '이용약관(영문)',
       refund: '환불 정책(영문)',
     },
+    biz: { ceo: '대표', bizNo: '사업자등록번호', address: '사업장 소재지', phone: '고객센터', hosting: '호스팅 제공자' },
     trademark:
       'Claude는 Anthropic의 상표이고, 트리나 AX는 주식회사 트리나가 만든 별도 제품이에요.',
     langLabel: '언어',

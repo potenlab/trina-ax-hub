@@ -395,6 +395,7 @@ const en = {
       terms: 'Terms',
       refund: 'Refunds',
     },
+    biz: { ceo: 'CEO', bizNo: 'Business registration no.', address: 'Address', phone: 'Phone', hosting: 'Website hosting' },
     trademark:
       "Claude is a trademark of Anthropic. Trina AX is made by Trina Inc. and is not affiliated with Anthropic.",
     langLabel: 'Language',
