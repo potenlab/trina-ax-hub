@@ -1,12 +1,11 @@
 ---
-// /guide and /ko/guide: the hub. Five groups (getting started, for admins, for employees, use cases, security and
-// billing), each a list of pages; a page that is not written yet says so instead of linking. An item's `to` names its
-// target: firstWeek, install (GitHub), roles (the home page's role tabs, until each use case has its own page),
-// security, pricing; '' = coming soon. Static HTML, so people, search engines and AI crawlers all read the same thing.
+// The bilingual hub. Task groups come from the published articles in each language.
+// The getting-started and security groups also link the first-week page and install notes.
 import type { Copy } from '../content/en'
 import Base from '../layouts/Base.astro'
-import { LINKS, ROUTES, BROCHURE } from '../site'
+import { LINKS, ROUTES, BROCHURES } from '../site'
 import { GUIDES, guidePath } from '../content/guides'
+import { EN_GUIDES } from '../content/guides-en'
 import { breadcrumbJsonLd } from '../seo'
 import Footer from './Footer.astro'
 import Icon from './Icon.astro'
@@ -17,8 +16,9 @@ const { t } = Astro.props
 const g = t.guide
 const lang = t.lang
 const home = ROUTES.home[lang]
-const sections = g.sections.map(section => lang === 'ko' && ['admin', 'members', 'use-cases'].includes(section.id)
-  ? { ...section, items: GUIDES.filter(article => article.group === section.id).map(article => ({ title: article.title, to: article.slug })) }
+const articles = lang === 'ko' ? GUIDES : EN_GUIDES
+const sections = g.sections.map(section => ['admin', 'members', 'use-cases'].includes(section.id)
+  ? { ...section, items: articles.filter(article => article.group === section.id).map(article => ({ title: article.title, to: article.slug })) }
   : section)
 
 const hrefOf = (to: string): string | null =>
@@ -28,7 +28,7 @@ const hrefOf = (to: string): string | null =>
     roles: `${home}#roles`,
     security: ROUTES.security[lang],
     pricing: `${home}#pricing`,
-  } as Record<string, string>)[to] ?? (lang === 'ko' && GUIDES.some(article => article.slug === to) ? guidePath(to) : null)
+  } as Record<string, string>)[to] ?? (articles.some(article => article.slug === to) ? guidePath(to, lang) : null)
 const icons: Record<string, string> = { start: 'arrow', admin: 'key', members: 'users', 'use-cases': 'spark', trust: 'shield' }
 ---
 <Base t={t} route="guide" title={g.title} description={g.description} ogImage={t.meta.ogImage} jsonLd={breadcrumbJsonLd(t, [{ name: g.breadcrumb, route: 'guide' }])}>
@@ -39,8 +39,7 @@ const icons: Record<string, string> = { start: 'arrow', admin: 'key', members: '
         <h1>{g.h1}</h1>
         <p class="secpage-lead">{g.lead}</p>
         <p class="guide-notice"><Icon name="edit" />{g.notice}</p>
-        {lang === 'en' && <p><a href={ROUTES.guide.ko}>Read the task guides in Korean →</a></p>}
-        <p class="brochure-link"><a href={BROCHURE.pdf} download>{lang === 'ko' ? '소개서 받기 · PDF' : 'Download brochure (Korean PDF)'}</a></p>
+        <p class="brochure-link"><a href={BROCHURES[t.lang].pdf} download>{lang === 'ko' ? '소개서 받기 · PDF' : 'Download brochure · PDF'}</a></p>
         <nav class="guide-jump" aria-label={g.h1}>
           {sections.map((s) => <a href={`#${s.id}`}>{s.title}</a>)}
         </nav>

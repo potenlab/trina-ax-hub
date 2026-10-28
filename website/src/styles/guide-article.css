@@ -30,3 +30,12 @@
 .article-version { margin-top: 2rem; }
 .role-guide-link { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1rem; color: var(--accent); font-weight: 600; font-size: .875rem; }
 @media (max-width: 600px) { .article-header { padding-top: 2rem; } .article-copy { padding: 1rem; } .article-steps li { gap: .65rem; } }
+
+/* Keep English spreadsheet values and column labels readable on a phone. */
+html[lang="en"] .article-guide .rdoc-grid { overflow-wrap: normal; line-height: 1.5; }
+html[lang="en"] .article-guide .rdoc-grid .num { white-space: nowrap; }
+@media (max-width: 600px) {
+  html[lang="en"] .article-guide .rdoc-page { padding: 12px; }
+  html[lang="en"] .article-guide .rdoc-grid th,
+  html[lang="en"] .article-guide .rdoc-grid td { padding: 8px 5px; }
+}

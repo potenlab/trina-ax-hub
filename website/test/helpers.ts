@@ -8,6 +8,10 @@ export const dist = join(root, 'dist')
 /** Built pages, by the address they are served at. `bun run test` builds first. */
 export const PAGE_FILES: Record<string, string> = {
   '/': 'index.html',
+  '/en': 'en.html',
+  '/en/guide': 'en/guide.html',
+  '/en/guide/first-week': 'en/guide/first-week.html',
+  '/brochure': 'brochure.html',
   '/ko/': 'ko/index.html',
   '/ko/brochure': 'ko/brochure.html',
   '/security': 'security.html',
@@ -20,7 +24,11 @@ export const PAGE_FILES: Record<string, string> = {
   '/terms': 'terms.html',
   '/privacy': 'privacy.html',
   '/refund': 'refund.html',
-  ...Object.fromEntries(GUIDES.map(g => [guidePath(g.slug), `ko/guide/${g.slug}.html`])),
+  ...Object.fromEntries(GUIDES.flatMap(g => [
+    [guidePath(g.slug), `ko/guide/${g.slug}.html`],
+    [guidePath(g.slug, 'en'), `guide/${g.slug}.html`],
+    [`/en/guide/${g.slug}`, `en/guide/${g.slug}.html`],
+  ])),
 }
 
 /** The English-only legal pages. */

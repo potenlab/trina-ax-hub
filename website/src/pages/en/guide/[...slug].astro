@@ -1,0 +1,10 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro'
+import en from '../../../content/en'
+import { EN_GUIDES } from '../../../content/guides-en'
+export function getStaticPaths() {
+  return EN_GUIDES.map(guide => ({ params: { slug: guide.slug }, props: { guide } }))
+}
+const { guide } = Astro.props
+---
+<GuideArticle guide={guide} t={en} />

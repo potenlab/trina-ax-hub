@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 execFileSync('bun', ['run', 'build'], { cwd: root, stdio: 'inherit' })
-const origin = 'http://127.0.0.1:19592'
-const output = join(root, 'public/downloads/trina-ax-introduction-ko.pdf')
+const lang = process.argv[2] ?? 'ko'
+if (!['en', 'ko'].includes(lang)) throw new Error('Usage: bun run brochure [en|ko]')
+const origin = 'http://127.0.0.1:19900'
+const output = join(root, `public/downloads/trina-ax-introduction-${lang}.pdf`)
 await mkdir(dirname(output), { recursive: true })
 const browser = await chromium.launch()
 try {
@@ -26,7 +28,7 @@ try {
     try { await route.fulfill({ body: await readFile(file), contentType: types[extname(file)] || 'application/octet-stream' }) }
     catch { problems.push(`Missing asset: ${path}`); await route.abort() }
   })
-  await page.goto(origin + '/ko/brochure', { waitUntil: 'networkidle' })
+  await page.goto(origin + (lang === 'ko' ? '/ko/brochure' : '/brochure'), { waitUntil: 'networkidle' })
   await page.evaluate(() => document.fonts.ready)
   await page.emulateMedia({ media: 'print' })
   const count = await page.locator('.brochure-sheet').count()
@@ -40,6 +42,6 @@ try {
   await page.pdf({ path: output, format: 'A4', printBackground: true, preferCSSPageSize: true, tagged: true })
   // Keep the current build ready to preview too; the next Astro build copies public automatically.
   await mkdir(join(root, 'dist/downloads'), { recursive: true })
-  await copyFile(output, join(root, 'dist/downloads/trina-ax-introduction-ko.pdf'))
+  await copyFile(output, join(root, `dist/downloads/trina-ax-introduction-${lang}.pdf`))
   console.log(`Generated ${output} (${count} A4 pages)`)
 } finally { await browser.close() }

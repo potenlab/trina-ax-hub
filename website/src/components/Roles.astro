@@ -47,7 +47,7 @@ const kindIcon: Record<string, string> = { schedule: 'clock', folder: 'folder', 
           <div class="role-more">
             <span class="ex-label">{r.moreTitle}</span>
             <ul>{it.more.map((m: string) => <li>{m}</li>)}</ul>
-            {t.lang === 'ko' && <a class="role-guide-link" href={guidePath(GUIDES.find(g => g.roleId === it.id)!.slug)}>이 작업 따라 하기<Icon name="arrow" /></a>}
+            <a class="role-guide-link" href={guidePath(GUIDES.find(g => g.roleId === it.id)!.slug, t.lang)}>{t.lang === 'ko' ? '이 작업 따라 하기' : 'Follow this guide'}<Icon name="arrow" /></a>
           </div>
         </div>
       ))}

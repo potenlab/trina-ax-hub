@@ -37,7 +37,7 @@ test('every published Korean guide is in the hub and sitemap, with an available 
     for (const heading of [g.title, '이 글을 읽을 분', '따라 할 순서', '막힐 때 확인할 점', '다음에 읽을 것']) expect(text).toContain(heading)
     expect(GUIDES.some(next => next.slug === g.next)).toBe(true)
     expect(attrs(html, 'href')).toContain(guidePath(g.next))
-    expect(html).not.toContain('hreflang="x-default"') // no pretend English translation
+    expect(html).toContain(`hreflang="en" href="https://ax.trina.app${guidePath(g.slug, 'en')}"`)
     expect(text).not.toContain('준비 중')
     if (g.image) expect(existsSync(join(dist, `images/guide/${g.image.name}.webp`))).toBe(true)
   }

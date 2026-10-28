@@ -1,0 +1,89 @@
+---
+import Base from '../layouts/Base.astro'
+import Nav from './Nav.astro'
+import Footer from './Footer.astro'
+import Logo from './Logo.astro'
+import t from '../content/en'
+import { BROCHURES, CONTACT_EMAIL, KRW_REFERENCE, LINKS, PLANS, bookCall, krwNote, quoteRequest, usd } from '../site'
+import '../styles/brochure.css'
+const brochure = BROCHURES.en
+---
+<Base t={t} path={brochure.page} title="Trina AX brochure | Your company’s own AI workspace" description="A five-page introduction to company AI, folder permissions, everyday tasks, setup and hosting. Download the PDF without entering an email address.">
+  <Nav t={t} switchPath={BROCHURES.ko.page} />
+  <div class="brochure-toolbar container"><a href={brochure.pdf} download class="btn btn-primary">Download brochure · PDF</a><a href="/">View the website</a></div>
+  <main id="main" class="brochure">
+    <section class="brochure-sheet brochure-cover">
+      <div class="brochure-brand"><Logo />Trina AX</div>
+      <p class="brochure-kicker">AI that works with your company files</p>
+      <h1>Your company’s own<br /><span>AI workspace</span></h1>
+      <p class="brochure-lead">Claude runs on your company’s server.<br />Your team asks for what they need in plain words.</p>
+      <div class="brochure-task">
+        <p class="brochure-label">An everyday task</p>
+        <blockquote>“Turn the Sales meeting notes into an Excel table of tasks, owners and deadlines.”</blockquote>
+        <div class="brochure-process"><span>Read company files</span><b>→</b><span>Organize tasks</span><b>→</b><span>Save as Excel</span></div>
+        <p>The AI opens only the files the person asking can read. Write, search and organize from the web, desktop or phone.</p>
+      </div>
+      <p class="brochure-caption">All companies, people, files and results in these examples are fictional.</p>
+      <div class="brochure-folio"><a href="https://ax.trina.app/">ax.trina.app</a><span>Product introduction · 1 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">Permissions checked first</p>
+      <h2>Same question,<br />different answers</h2>
+      <p class="brochure-lead">“Summarize the first-half performance reviews.”</p>
+      <div class="brochure-split">
+        <article><h3>Hajun · HR</h3><p class="brochure-label">Can read the HR folder</p><blockquote>24 people were reviewed; 2 rated S. Here are the results by team.</blockquote></article>
+        <article><h3>Joon · Sales</h3><p class="brochure-label">Cannot read the HR folder</p><blockquote>There are no performance reviews in the folders you can open. Ask HR if you need them.</blockquote></article>
+      </div>
+      <h3>A check before sharing more widely</h3>
+      <p>If the AI reads restricted material and tries to save it where more people can see it, the server asks first. A person decides whether to allow it.</p>
+      <h3>A record of file access, not conversations</h3>
+      <p>Admins can see which files the AI read and wrote. The app has no screen for opening someone else’s chats.</p>
+      <p class="brochure-caption">People with administrator access to the server can access stored files and chats. On Trina hosting, that includes Trina’s operators.</p>
+      <div class="brochure-folio"><span>Folder permissions per person</span><span>2 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">Start with everyday work</p>
+      <h2>What each role<br />hands to the AI</h2>
+      <div class="brochure-examples">
+        {t.roles.items.map(r => <article><h3>{r.role}</h3><blockquote>{r.q}</blockquote><p class="brochure-result">Example result · {r.doc.file}</p></article>)}
+      </div>
+      <h3>Turn a useful workflow into a team skill</h3>
+      <p>Select <b>Suggest as skill</b> below an answer. Once a person who manages the folder reviews and registers it, teammates with access can select it with <b>/</b> in chat.</p>
+      <p class="brochure-caption">Check results against the sources. Excel output uses new tables; it does not copy workbook formatting or formulas. Hangul files can be read; reply drafts are saved as Word.</p>
+      <div class="brochure-folio"><a href="https://ax.trina.app/guide#use-cases">Guides by role</a><span>3 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">Choose who runs the server</p>
+      <h2>Two ways to start</h2>
+      <p>Both use the same software. Employees sign in at your company address.</p>
+      <div class="brochure-split">
+        <article><h3>Hosted by Trina</h3><ol><li>Choose a first task on a 30-minute call.</li><li>Trina prepares your dedicated AWS server in Seoul and company address.</li><li>Set folder permissions and invite employees.</li></ol><p>Trina handles setup, updates, backups and monitoring.</p></article>
+        <article><h3>Install it yourself</h3><ol><li>Prepare an office Mac mini or your own server.</li><li>Follow the installation guide.</li><li>Set folder permissions and invite employees.</li></ol><p>The software is free. You need someone who can manage a server.</p></article>
+      </div>
+      <h3>Your first-week checklist</h3>
+      <p>Folder permissions → AI connection → Invitations → First team skill → First backup</p>
+      <h3>AI usage is separate from hosting</h3>
+      <p>Connect a company API key and set usage limits per person. The owner adds company AI connections and creates backups.</p>
+      <h3>Open source, so you can check</h3>
+      <p>Trina AX is open source under AGPL-3.0. Your IT lead can review the code. If you stop hosting, you can take your files and keep using the same software on your own server.</p>
+      <div class="brochure-folio"><a href={LINKS.github}>Source code</a><span>4 / 5</span></div>
+    </section>
+    <section class="brochure-sheet">
+      <p class="brochure-kicker">For your buying decision</p>
+      <h2>Your own server,<br />with operation included</h2>
+      <div class="brochure-prices">
+        {PLANS.map(p => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ month</small></p><p>{krwNote(p.usd, 'en')}</p><p>Up to {p.people} people · {p.memoryGb} GB memory<br />{p.storageGb} GB storage</p></article>)}
+      </div>
+      <p class="brochure-caption">KRW reference: {KRW_REFERENCE.date}, rounded to the nearest thousand. Source: <a href={KRW_REFERENCE.source}>{KRW_REFERENCE.provider}</a>. Billing is in USD. AI usage and taxes are separate. For more than {PLANS[PLANS.length - 1].people} people, ask for a quote.</p>
+      <h3>Understand the security boundaries</h3>
+      <p>Files and chats stay on your company server. Content needed for an answer goes to Anthropic, or OpenAI when using Codex. Training use follows your AI plan’s terms. We hold no security certification yet.</p>
+      <h3>Talk through setup and pricing</h3>
+      <p>Tell us your team size, first task and hosting preference. Ask us about KRW contracts and Korean tax invoices if you need them.</p>
+      <p class="brochure-contact"><a href={bookCall('en')}>Book a call</a> · <a href={quoteRequest('en')}>Request a quote</a><br /><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+      <p class="brochure-caption">Hosting renews monthly. Cancel any time; request a full refund within 14 days of your first payment. <a href="https://ax.trina.app/terms">Terms</a> · <a href="https://ax.trina.app/refund">Refund policy</a> · <a href="https://ax.trina.app/security">Security for your IT lead</a></p>
+      <div class="brochure-folio"><span>Trina Inc.</span><span>5 / 5</span></div>
+    </section>
+  </main>
+  <Footer t={t} />
+  <script>import '../scripts/main'</script>
+</Base>

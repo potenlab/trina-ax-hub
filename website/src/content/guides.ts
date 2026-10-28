@@ -17,7 +17,7 @@ export type Guide = {
   prompt?: string
 }
 const shot = (name: string, alt: string, caption: string) => ({ name, alt, caption })
-export const guidePath = (slug: string) => `/ko/guide/${slug}`
+export const guidePath = (slug: string, lang: 'en' | 'ko' = 'ko') => `${lang === 'ko' ? '/ko' : ''}/guide/${slug}`
 export const GUIDES: Guide[] = [
   {
     slug: 'hosting', group: 'start', title: '호스팅 도입 준비',

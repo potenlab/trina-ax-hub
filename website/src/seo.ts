@@ -2,19 +2,27 @@
 // is the visible FAQ and the sitemap lists exactly the pages that exist. Pure functions; pages and endpoints call them at
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import { GUIDES, guidePath } from './content/guides'
+import { EN_GUIDES } from './content/guides-en'
 import type { Copy } from './content/en'
-import { BROCHURE, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
+import { BROCHURES, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
 /** Indexable pages. Each exists in both languages and lists the other as an alternate. 404 is left out. */
 export const PAGES: { route: RouteId; lastmod: string }[] = [
-  { route: 'home', lastmod: '2026-10-28' },
+  { route: 'home', lastmod: '2026-10-29' },
   { route: 'security', lastmod: '2026-10-28' },
-  { route: 'guide', lastmod: '2026-10-28' },
-  { route: 'firstWeek', lastmod: '2026-10-28' },
+  { route: 'guide', lastmod: '2026-10-29' },
+  { route: 'firstWeek', lastmod: '2026-10-29' },
 ]
 
-/** English-only pages (the legal texts): listed without language alternates. */
-export const SINGLE_PAGES: { path: string; lastmod: string }[] = [...Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED })), { path: BROCHURE.page, lastmod: KRW_REFERENCE.date }, ...GUIDES.map(g => ({ path: guidePath(g.slug), lastmod: '2026-10-28' }))]
+/** Additional canonical paths. Legal pages and brochures have no alternates; translated guides do. */
+export const SINGLE_PAGES: { path: string; lastmod: string; alternates?: Record<Lang, string> }[] = [
+  ...Object.values(LEGAL).map(d => ({ path: d.path, lastmod: LEGAL_UPDATED })),
+  ...Object.values(BROCHURES).map(b => ({ path: b.page, lastmod: KRW_REFERENCE.date })),
+  ...GUIDES.flatMap(g => (['en', 'ko'] as const).map(lang => ({
+    path: guidePath(g.slug, lang), lastmod: '2026-10-29',
+    alternates: { en: guidePath(g.slug, 'en'), ko: guidePath(g.slug, 'ko') },
+  }))),
+]
 
 const LANGS: Lang[] = ['en', 'ko']
 
@@ -28,7 +36,10 @@ export function sitemapXml(pages = PAGES, single = SINGLE_PAGES): string {
       return `  <url>\n    <loc>${abs(ROUTES[p.route][lang])}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n${alt}\n  </url>`
     }),
   )
-  for (const p of single) urls.push(`  <url>\n    <loc>${abs(p.path)}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n  </url>`)
+  for (const p of single) {
+    const alt = p.alternates ? [...LANGS, 'x-default'].map(lang => `    <xhtml:link rel="alternate" hreflang="${lang}" href="${abs(p.alternates![lang === 'ko' ? 'ko' : 'en'])}"/>`).join('\n') + '\n' : ''
+    urls.push(`  <url>\n    <loc>${abs(p.path)}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n${alt}  </url>`)
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`
 }
 
@@ -169,7 +180,8 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     `- [Security](${abs(ROUTES.security.en)}): ${en.secPage.description}`,
     `- [Guide](${abs(ROUTES.guide.en)}): ${en.guide.description}`,
     `- [The first week](${abs(ROUTES.firstWeek.en)}): ${en.firstWeek.description}`,
-    ...GUIDES.map(g => `- [${g.title} (Korean)](${abs(guidePath(g.slug))})`),
+    ...EN_GUIDES.map(g => `- [${g.title}](${abs(guidePath(g.slug, 'en'))}): ${g.description}`),
+    `- [Brochure (English PDF)](${abs(BROCHURES.en.pdf)}): five-page product introduction`,
     `- [Source code on GitHub](${LINKS.github}): AGPL-3.0-only`,
     `- [Permission model](${LINKS.permissions}): who sees what and how the AI is kept to it (Korean)`,
     ...Object.values(LEGAL).map((d) => `- [${d.title}](${abs(d.path)}): ${d.description}`),

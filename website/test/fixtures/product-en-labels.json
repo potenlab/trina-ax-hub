@@ -1,0 +1,137 @@
+{
+  "source": "trina-app/trina-ax 5c15812 web/src/i18n/en.ts",
+  "guides": {
+    "folder-permissions": {
+      "admin.folders": "Folder permissions",
+      "rules.addFolder": "Add folder",
+      "rules.addRule": "Add rule",
+      "rules.who": "Applies to",
+      "rules.target": "Who",
+      "rules.access": "Access",
+      "access.none": "No access",
+      "access.read": "Read",
+      "access.write": "Read & write",
+      "rules.preview": "Who sees what",
+      "rules.whoSeesWhat": "After saving",
+      "rules.losing": "People losing access"
+    },
+    "invite": {
+      "admin.members": "Members & invites",
+      "members.invite": "Invite link",
+      "members.validDays": "Valid for",
+      "members.createLink": "Create link",
+      "members.inviteReady": "Invite link created",
+      "members.copyLink": "Copy link",
+      "invite.accept": "Create account and join",
+      "members.revoke": "Revoke"
+    },
+    "ai-connection": {
+      "admin.credentials": "AI connections",
+      "credentials.add": "Add connection",
+      "credentials.chooseKind": "What do you want to connect?",
+      "credentials.kind.anthropic-api-key": "Claude API key",
+      "credentials.reauth": "Your password again",
+      "credentials.target": "Used by",
+      "credentials.target.team": "Whole team",
+      "credentials.target.pick": "Chosen groups and people",
+      "credentials.check": "Check again",
+      "credentials.memberOwn": "Let members add their own AI connection",
+      "credentials.kind.anthropic-oauth": "Claude subscription (Pro, Max, Team)"
+    },
+    "usage-limits": {
+      "usage.groupBy": "Group by",
+      "usage.by.user": "Person",
+      "usage.exportCsv": "Download CSV",
+      "budgets.title": "Usage limits",
+      "budgets.new": "Add limit",
+      "budgets.for": "Applies to",
+      "budgets.period": "Period",
+      "budgets.perMonth": "Per month",
+      "budgets.tokens": "Token limit",
+      "budgets.usd": "Spending limit (USD)",
+      "budgets.action": "When exceeded",
+      "budgets.warn": "Warn only",
+      "budgets.block": "Block"
+    },
+    "review-skills": {
+      "skills.tabReview": "To review",
+      "skills.review": "Review",
+      "skills.reviewTitle": "Review a suggested skill",
+      "skills.register": "Register",
+      "skills.reject": "Turn down",
+      "skills.tabChanges": "Recent changes"
+    },
+    "backup": {
+      "system.backups": "Backups",
+      "system.backupNow": "Back up now",
+      "system.backupDone": "Backup created.",
+      "system.backupScope.incremental": "Incremental"
+    },
+    "restore-file": {
+      "teamSettings.historyDays": "Keep file versions (days)",
+      "files.history": "Version history",
+      "files.restoreTitle": "Restore v{version}?"
+    },
+    "first-question": {
+      "sidebar.newChat": "New chat",
+      "home.foldersTitle": "Folders your AI can see",
+      "chat.send": "Send",
+      "composer.stop": "Stop answering"
+    },
+    "team-files": {
+      "composer.attach": "Attach files",
+      "composer.fromTeam": "Add from team files",
+      "picker.search": "Search files by name",
+      "picker.attach": "Attach",
+      "ask.serverTitle": "Safety check by the team server",
+      "attach.unavailable": "File no longer available"
+    },
+    "use-skills": {
+      "skills.tabMine": "My suggestions",
+      "skills.status.pending": "Waiting for review",
+      "suggest.button": "Suggest as skill",
+      "suggest.name": "Skill name",
+      "suggest.description": "Description (one sentence)",
+      "suggest.content": "Steps",
+      "suggest.folder": "Folder",
+      "suggest.send": "Suggest"
+    },
+    "schedules": {
+      "settings.schedules": "Scheduled tasks",
+      "scheduleTemplates.title": "Create a scheduled task",
+      "scheduleTemplates.weekly-summary": "Weekly summary",
+      "scheduleTemplates.source": "Folder to read",
+      "scheduleTemplates.chooseSource": "Choose a folder",
+      "scheduleTemplates.output": "My report folder",
+      "scheduleTemplates.weekday": "Weekday",
+      "scheduleTemplates.time": "Run time",
+      "scheduleTemplates.create": "Create scheduled task",
+      "schedules.lastRun": "Last run",
+      "schedules.pause": "Pause",
+      "schedules.resume": "Resume",
+      "scheduleTemplates.outcome.budget_exceeded": "Usage limit prevented the run"
+    },
+    "external-services": {
+      "integrations.title": "External services",
+      "integrations.field.kind": "Type",
+      "integrations.field.auth": "Sign-in method",
+      "integrations.auth.oauth": "Sign in (OAuth)",
+      "integrations.field.write": "Writing, deleting and sending",
+      "integrations.write.deny": "Block writing",
+      "integrations.write.ask": "Ask every time",
+      "integrations.field.notes": "Usage notes",
+      "integrations.saveAndSignIn": "Save and sign in",
+      "integrations.signIn.open": "Open sign-in window"
+    },
+    "desktop-app": {
+      "settings.apps": "Apps",
+      "apps.desktopTitle": "Desktop app",
+      "apps.mac": "Download for macOS",
+      "apps.windows": "Download for Windows"
+    },
+    "phone-app": {
+      "apps.installTitle": "Install as an app",
+      "sidebar.open": "Open menu"
+    }
+  }
+}

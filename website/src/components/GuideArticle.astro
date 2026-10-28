@@ -3,52 +3,117 @@ import Base from '../layouts/Base.astro'
 import Nav from './Nav.astro'
 import Footer from './Footer.astro'
 import RoleDocument from './RoleDocument.astro'
-import t from '../content/ko'
+import ko from '../content/ko'
+import type { Copy } from '../content/en'
+import { EN_GUIDES } from '../content/guides-en'
 import { GUIDES, guidePath, type Guide } from '../content/guides'
 import { ROUTES, abs, bookCall } from '../site'
 import '../styles/guide-article.css'
-interface Props { guide: Guide }
-const { guide: g } = Astro.props
+interface Props { guide: Guide; t?: Copy }
+const { guide: g, t = ko } = Astro.props
+const lang = t.lang
+const articles = lang === 'ko' ? GUIDES : EN_GUIDES
+const home = ROUTES.home[lang]
+const hub = ROUTES.guide[lang]
+const path = guidePath(g.slug, lang)
+const alternates = { en: guidePath(g.slug, 'en'), ko: guidePath(g.slug, 'ko') }
+const w = lang === 'ko' ? {
+  audience: '이 글을 읽을 분',
+  toc: '이 글의 순서',
+  request: '복사할 요청',
+  first: '첫 질문 예시',
+  folders: '필요한 폴더',
+  before: '준비할 것',
+  steps: '따라 할 순서',
+  result: '결과 예시',
+  follow: '이어서 물을 것',
+  save: '팀 스킬로 저장',
+  problems: '막힐 때 확인할 점',
+  requestTitle: '복사해서 시작할 요청',
+  replace: '파일 이름과 폴더 경로는 우리 회사 자료에 맞게 바꿔요.',
+  copied: '복사했어요',
+  copyLabel: '요청 문장 복사',
+  copy: '요청 복사',
+  beforeTitle: '시작 전에 준비할 것',
+  foldersTitle: '필요한 폴더와 권한',
+  resultTitle: '완성될 결과 예시',
+  fictional: '설명을 위한 가상 결과예요. 실제 실행 결과는 회사 자료와 요청에 따라 달라요. 수치와 사실을 확인한 뒤 업무에 사용해요.',
+  followLabel: '후속 질문 복사',
+  followCopy: '질문 복사',
+  skillTitle: '다음에도 쓸 팀 스킬',
+  review: '관리자의 검토와 등록 순서 →',
+  next: '다음에 읽을 것',
+  version: '제품 0.2.2 기준 · 2026-10-28 확인',
+  back: '← 가이드 전체 보기',
+} : {
+  audience: 'Who this is for',
+  toc: 'On this page',
+  request: 'Copy the request',
+  first: 'A first question',
+  folders: 'Folders you need',
+  before: 'Before you start',
+  steps: 'Step by step',
+  result: 'Example result',
+  follow: 'Follow-up question',
+  save: 'Save a team skill',
+  problems: 'If you get stuck',
+  requestTitle: 'Copy this request to start',
+  replace: 'Replace the file names and folder paths with your company’s own.',
+  copied: 'Copied',
+  copyLabel: 'Copy the request',
+  copy: 'Copy request',
+  beforeTitle: 'Before you start',
+  foldersTitle: 'Folders and permissions you need',
+  resultTitle: 'Example result',
+  fictional: 'This is a fictional example, not a recorded AI result. Your output depends on your files and request. Check the facts and figures before using it.',
+  followLabel: 'Copy the follow-up question',
+  followCopy: 'Copy question',
+  skillTitle: 'A team skill for next time',
+  review: 'How to review and register a skill →',
+  next: 'Read next',
+  version: 'Product 0.2.2 · Checked October 28, 2026',
+  back: '← All guides',
+}
 const role = g.roleId ? t.roles.items.find(r => r.id === g.roleId) : undefined
 const prompt = role?.q ?? g.prompt
-const next = GUIDES.find(article => article.slug === g.next)!
-const group = { start: '시작하기', admin: '관리자 가이드', members: '직원 가이드', 'use-cases': '활용 사례' }[g.group]
+const next = articles.find(article => article.slug === g.next)!
+const group = t.guide.sections.find(s => s.id === g.group)!.title
 const jsonLd = {
   '@context': 'https://schema.org', '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: '트리나 AX', item: abs(ROUTES.home.ko) },
-    { '@type': 'ListItem', position: 2, name: '가이드', item: abs(ROUTES.guide.ko) },
-    { '@type': 'ListItem', position: 3, name: g.title, item: abs(guidePath(g.slug)) },
+    { '@type': 'ListItem', position: 1, name: t.brand, item: abs(home) },
+    { '@type': 'ListItem', position: 2, name: t.guide.breadcrumb, item: abs(hub) },
+    { '@type': 'ListItem', position: 3, name: g.title, item: abs(path) },
   ],
 }
 ---
-<Base t={t} path={guidePath(g.slug)} title={`${g.title} | 트리나 AX 가이드`} description={g.description} jsonLd={jsonLd}>
-  <Nav t={t} switchPath="/guide" />
+<Base t={t} path={path} alternates={alternates} title={`${g.title} | ${t.brand} ${t.guide.breadcrumb}`} description={g.description} jsonLd={jsonLd}>
+  <Nav t={t} switchPath={alternates[lang === 'ko' ? 'en' : 'ko']} />
   <main id="main" class="secpage guide article-guide">
     <div class="container article-width">
       <header class="article-header">
-        <p class="guide-crumb"><a href={ROUTES.guide.ko}>가이드</a><span aria-hidden="true">/</span><a href={`${ROUTES.guide.ko}#${g.group}`}>{group}</a></p>
+        <p class="guide-crumb"><a href={hub}>{t.guide.breadcrumb}</a><span aria-hidden="true">/</span><a href={`${hub}#${g.group}`}>{group}</a></p>
         <h1>{g.title}</h1>
         <p class="article-lead">{g.description}</p>
-        <p class="article-audience"><strong>이 글을 읽을 분</strong>{g.audience}</p>
+        <p class="article-audience"><strong>{w.audience}</strong>{g.audience}</p>
       </header>
-      <nav class="article-toc" aria-label="이 글의 순서">
-        {prompt && <a href="#request">{role ? '복사할 요청' : '첫 질문 예시'}</a>}
-        <a href="#before">{role ? '필요한 폴더' : '준비할 것'}</a><a href="#steps">따라 할 순서</a>
-        {role && <><a href="#result">결과 예시</a><a href="#follow-up">이어서 물을 것</a><a href="#save-skill">팀 스킬로 저장</a></>}
-        <a href="#problems">막힐 때 확인할 점</a>
+      <nav class="article-toc" aria-label={w.toc}>
+        {prompt && <a href="#request">{role ? w.request : w.first}</a>}
+        <a href="#before">{role ? w.folders : w.before}</a><a href="#steps">{w.steps}</a>
+        {role && <><a href="#result">{w.result}</a><a href="#follow-up">{w.follow}</a><a href="#save-skill">{w.save}</a></>}
+        <a href="#problems">{w.problems}</a>
       </nav>
       {prompt && <section class="article-section" id="request">
-        <h2>{role ? '복사해서 시작할 요청' : '첫 질문 예시'}</h2>
-        <p>파일 이름과 폴더 경로는 우리 회사 자료에 맞게 바꿔요.</p>
-        <div class="article-copy"><blockquote>{prompt}</blockquote><button type="button" class="copy-btn" data-copy={prompt} data-copied="복사했어요" aria-label="요청 문장 복사">요청 복사</button></div>
+        <h2>{role ? w.requestTitle : w.first}</h2>
+        <p>{w.replace}</p>
+        <div class="article-copy"><blockquote>{prompt}</blockquote><button type="button" class="copy-btn" data-copy={prompt} data-copied={w.copied} aria-label={w.copyLabel}>{w.copy}</button></div>
       </section>}
       <section class="article-section" id="before">
-        <h2>{role ? '필요한 폴더와 권한' : '시작 전에 준비할 것'}</h2>
+        <h2>{role ? w.foldersTitle : w.beforeTitle}</h2>
         <ul>{g.before.map(s => <li>{s}</li>)}</ul>
       </section>
       <section class="article-section" id="steps">
-        <h2>따라 할 순서</h2>
+        <h2>{w.steps}</h2>
         <ol class="article-steps">{g.steps.map((s, i) => <li><span class="article-step-number" aria-hidden="true">{i + 1}</span><div><h3>{s.title}</h3><p>{s.body}</p></div></li>)}</ol>
         {g.image && <figure class="article-screenshot">
           <a href={`/images/guide/${g.image.name}.webp`} aria-label={`${g.image.alt} 크게 보기`}><img src={`/images/guide/${g.image.name}.webp`} alt={g.image.alt} width="1440" height="900" loading="lazy" /></a>
@@ -56,15 +121,15 @@ const jsonLd = {
         </figure>}
       </section>
       {role && <>
-        <section class="article-section" id="result"><h2>완성될 결과 예시</h2><p>설명을 위한 가상 결과예요. 실제 실행 결과는 회사 자료와 요청에 따라 달라요. 수치와 사실을 확인한 뒤 업무에 사용해요.</p><RoleDocument doc={role.doc} /></section>
-        <section class="article-section" id="follow-up"><h2>이어서 물을 것</h2><div class="article-copy"><blockquote>{g.followUp}</blockquote><button type="button" class="copy-btn" data-copy={g.followUp} data-copied="복사했어요" aria-label="후속 질문 복사">질문 복사</button></div></section>
-        <section class="article-section" id="save-skill"><h2>다음에도 쓸 팀 스킬</h2><p>{g.skill}</p><p>잘 정리된 답변 아래 <strong>스킬로 제안</strong>을 눌러요. <strong>스킬 이름</strong>·<strong>설명 (한 문장)</strong>·<strong>단계</strong>·<strong>넣을 폴더</strong>를 정하고 <strong>제안하기</strong>를 눌러요. 담당자가 검토해 등록하면 채팅에서 <strong>/</strong>로 불러 쓸 수 있어요.</p><a href={guidePath('review-skills')}>관리자의 검토와 등록 순서 →</a></section>
+        <section class="article-section" id="result"><h2>{w.resultTitle}</h2><p>{w.fictional}</p><RoleDocument doc={role.doc} /></section>
+        <section class="article-section" id="follow-up"><h2>{w.follow}</h2><div class="article-copy"><blockquote>{g.followUp}</blockquote><button type="button" class="copy-btn" data-copy={g.followUp} data-copied={w.copied} aria-label={w.followLabel}>{w.followCopy}</button></div></section>
+        <section class="article-section" id="save-skill"><h2>{w.skillTitle}</h2><p>{g.skill}</p>{lang === 'ko' ? <p>잘 정리된 답변 아래 <strong>스킬로 제안</strong>을 눌러요. <strong>스킬 이름</strong>·<strong>설명 (한 문장)</strong>·<strong>단계</strong>·<strong>넣을 폴더</strong>를 정하고 <strong>제안하기</strong>를 눌러요. 담당자가 검토해 등록하면 채팅에서 <strong>/</strong>로 불러 쓸 수 있어요.</p> : <p>Select <strong>Suggest as skill</strong> below a useful answer. Fill in <strong>Skill name</strong>, <strong>Description (one sentence)</strong>, <strong>Steps</strong> and <strong>Folder</strong>, then select <strong>Suggest</strong>. Once a person who manages that folder reviews and registers it, teammates with access can use it by typing <strong>/</strong> in chat.</p>}<a href={guidePath('review-skills', lang)}>{w.review}</a></section>
       </>}
-      <section class="article-section" id="problems"><h2>막힐 때 확인할 점</h2>{g.problems.map(p => <div class="article-problem"><h3>{p.title}</h3><p>{p.body}</p></div>)}</section>
-      {g.slug === 'hosting' && <p><a class="btn btn-primary" href={bookCall('ko')}>도입 문의하기</a></p>}
-      <aside class="article-next"><h2>다음에 읽을 것</h2><a href={guidePath(next.slug)}>{next.title} →</a><p>{next.description}</p></aside>
-      <p class="article-version">제품 0.2.2 기준 · 2026-10-28 확인</p>
-      <a class="back" href={ROUTES.guide.ko}>← 가이드 전체 보기</a>
+      <section class="article-section" id="problems"><h2>{w.problems}</h2>{g.problems.map(p => <div class="article-problem"><h3>{p.title}</h3><p>{p.body}</p></div>)}</section>
+      {g.slug === 'hosting' && <p><a class="btn btn-primary" href={bookCall(lang)}>{t.nav.book}</a></p>}
+      <aside class="article-next"><h2>{w.next}</h2><a href={guidePath(next.slug, lang)}>{next.title} →</a><p>{next.description}</p></aside>
+      <p class="article-version">{w.version}</p>
+      <a class="back" href={hub}>{w.back}</a>
     </div>
   </main>
   <Footer t={t} />

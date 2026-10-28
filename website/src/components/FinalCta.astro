@@ -2,7 +2,7 @@
 // Final call to action: dark in both themes. The same two choices as the hero: a call, or start free (the self-install
 // path in "Two ways to start").
 import type { Copy } from '../content/en'
-import { BROCHURE, bookCall } from '../site'
+import { BROCHURES, bookCall } from '../site'
 import Lines from './Lines.astro'
 import Icon from './Icon.astro'
 import Logo from './Logo.astro'
@@ -20,7 +20,7 @@ const c = t.cta
         <a class="btn btn-primary btn-lg" href={bookCall(t.lang)}>{c.primary}<Icon name="arrow" /></a>
         <a class="btn btn-secondary btn-lg" href="#start-self">{c.secondary}</a>
       </div>
-      <p class="brochure-link"><a href={BROCHURE.pdf} download>{t.lang === 'ko' ? '소개서 받기' : 'Download brochure (Korean)'} <span>PDF</span></a></p>
+      <p class="brochure-link"><a href={BROCHURES[t.lang].pdf} download>{t.lang === 'ko' ? '소개서 받기' : 'Download brochure'} <span>PDF</span></a></p>
     </div>
   </div>
 </section>

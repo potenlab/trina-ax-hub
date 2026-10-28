@@ -174,7 +174,7 @@ const en = {
         id: 'ceo',
         role: 'CEO',
         who: 'Daeho Kim',
-        q: 'Every Monday at 9, write me a weekly report from what changed last week in the Sales and Finance folders.',
+        q: 'Every Monday at 9, write a weekly report from last week’s changes in Sales and Finance. Save a new Word file in my folder and include the source files.',
         used: [
           { kind: 'schedule', text: 'Schedule · every Monday 9:00' },
           { kind: 'folder', text: 'Folders · Sales, Finance' },
@@ -198,7 +198,7 @@ const en = {
         id: 'sales',
         role: 'Sales',
         who: 'Mina Kim',
-        q: 'Make a quote for B Corp. in the same format as the one for A Corp. 120 units, delivery by November 20.',
+        q: 'Draft an Excel quote for B Corp. using the columns and items in the A Corp. quote and our current price sheet. 120 units, delivery by November 20.',
         used: [
           { kind: 'skill', text: 'Team skill · quote' },
           { kind: 'file', text: 'Read · A-Corp-quote.xlsx, price-sheet-2026.xlsx' },
@@ -222,7 +222,7 @@ const en = {
         id: 'finance',
         role: 'Finance',
         who: 'Seoyeon Lee',
-        q: 'Merge the three company-card spreadsheets for Q3, sort them by team and category, and flag anything without a receipt.',
+        q: 'Merge the three Q3 company-card spreadsheets and group them by team and category. Check the receipt records, and mark missing and unknown receipts separately.',
         used: [
           { kind: 'file', text: 'Read · card-jul.xlsx, card-aug.xlsx, card-sep.xlsx' },
           { kind: 'skill', text: 'Team skill · expense rules' },
@@ -300,7 +300,7 @@ const en = {
       {
         id: 'skills',
         title: 'The same way of working on every desk',
-        body: 'Save the tasks people repeat, like a quote or a weekly report, as team skills. Anyone can suggest one; an admin reviews it before everyone gets it.',
+        body: 'Save the tasks people repeat, like a quote or a weekly report, as team skills. Anyone can suggest one; a person who manages the skill folder reviews it before teammates with access can use it.',
         ui: {
           head: 'Team skills',
           rows: [
@@ -315,7 +315,7 @@ const en = {
         title: 'Work that runs on a schedule',
         body: 'Set a time, like Monday 9:00 for the weekly report, and the AI runs it for you, saves the result to your folder and lets you know.',
         ui: {
-          head: 'Schedules',
+          head: 'Scheduled tasks',
           rows: [
             { name: 'Weekly report', when: 'Every Monday 9:00' },
             { name: "Today's quotes", when: 'Weekdays (Mon–Fri) 18:00' },
@@ -327,7 +327,7 @@ const en = {
       {
         id: 'connections',
         title: 'Your other services, connected',
-        body: 'Connect services like Notion, Linear or GitHub, or your own company API, with your account or the team’s. Reads run at once; anything that changes something asks first.',
+        body: 'Connect services like Notion, Linear or GitHub, or your own company API, with your account or the team’s. Lookups run right away; you choose whether changes are blocked, ask each time or run without asking.',
         ui: {
           head: 'External services',
           rows: [
@@ -344,7 +344,7 @@ const en = {
           'See usage by person, model and skill, and export it as CSV. Set a monthly limit for people on the company API key.',
         ui: {
           head: 'This month',
-          export: 'Export CSV',
+          export: 'Download CSV',
           limit: 'Monthly limit',
           rows: [
             { name: 'Mina', w: 82 },
@@ -670,7 +670,7 @@ const en = {
     breadcrumb: 'Guide',
     ready: 'Read',
     soon: 'Coming soon',
-    notice: 'The task guides are available in Korean. English translations marked "coming soon" are still being prepared.',
+    notice: 'Start with one task. Each guide lists what you need, the steps to follow and what to check if you get stuck.',
     sections: [
       {
         id: 'start',
@@ -678,7 +678,7 @@ const en = {
         body: 'Pick who runs the server, then follow the first week.',
         items: [
           { title: 'The first week, step by step', to: 'firstWeek' },
-          { title: 'Hosted by Trina: what we do and what you do', to: '' },
+          { title: 'Hosted by Trina: what we do and what you do', to: 'hosting' },
           { title: 'Install it yourself (Mac mini, Linux)', to: 'install' },
         ],
       },
@@ -687,12 +687,12 @@ const en = {
         title: 'For admins',
         body: 'Owners and admins: folders, people, AI connections and limits.',
         items: [
-          { title: 'Folders and permissions', to: '' },
-          { title: 'Inviting people', to: '' },
-          { title: 'Connecting the AI: own plans or a company key', to: '' },
-          { title: 'Usage and monthly limits', to: '' },
-          { title: 'Reviewing and registering team skills', to: '' },
-          { title: 'Backups and rolling back files', to: '' },
+          { title: 'Folders and permissions', to: 'folder-permissions' },
+          { title: 'Inviting people', to: 'invite' },
+          { title: 'Connecting the AI: own plans or a company key', to: 'ai-connection' },
+          { title: 'Usage and monthly limits', to: 'usage-limits' },
+          { title: 'Reviewing and registering team skills', to: 'review-skills' },
+          { title: 'Backups and rolling back files', to: 'backup' },
         ],
       },
       {
@@ -700,12 +700,12 @@ const en = {
         title: 'For employees',
         body: 'Everyone: asking, working with team files, skills and schedules.',
         items: [
-          { title: 'Your first question', to: '' },
-          { title: 'Working with team files', to: '' },
-          { title: 'Using team skills (type /)', to: '' },
-          { title: 'Scheduling a task', to: '' },
-          { title: 'Connecting Notion, GitHub and other services', to: '' },
-          { title: 'Desktop app and phone home screen', to: '' },
+          { title: 'Your first question', to: 'first-question' },
+          { title: 'Working with team files', to: 'team-files' },
+          { title: 'Using team skills (type /)', to: 'use-skills' },
+          { title: 'Scheduling a task', to: 'schedules' },
+          { title: 'Connecting Notion, GitHub and other services', to: 'external-services' },
+          { title: 'Desktop app and phone home screen', to: 'desktop-app' },
         ],
       },
       {
@@ -713,10 +713,10 @@ const en = {
         title: 'Use cases',
         body: 'One task per page: what to ask, which folder it needs, what comes back and how to save it as a skill.',
         items: [
-          { title: 'CEO: a weekly report every Monday', to: '' },
-          { title: 'Sales: a quote in your format', to: '' },
-          { title: 'Finance: tidying up spreadsheets', to: '' },
-          { title: 'People: replying to an official Hangul letter', to: '' },
+          { title: 'CEO: a weekly report every Monday', to: 'use-cases/weekly-report' },
+          { title: 'Sales: a quote in your format', to: 'use-cases/sales-quote' },
+          { title: 'Finance: tidying up spreadsheets', to: 'use-cases/expense-summary' },
+          { title: 'People: replying to an official Hangul letter', to: 'use-cases/official-letter' },
         ],
       },
       {
@@ -755,12 +755,12 @@ const en = {
     whoLabel: 'Who',
     timeLabel: 'Time',
     days: [
-      { day: 'Day 1', title: 'Set folder permissions', who: 'Admin', time: '30 minutes', body: 'Make Shared and a folder per team, and decide who can see each one. Before saving, the preview shows who will see what.' },
-      { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'Connect one company API key, or let each person connect their own Claude plan in Settings.' },
+      { day: 'Day 1', title: 'Set folder permissions', who: 'Admin', time: '30 minutes', body: 'Open Admin → Folder permissions and set access to Shared and each team folder. Use Who sees what to preview access before selecting Save.' },
+      { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'The owner adds a company key in Admin → AI connections. If personal connections are enabled, each employee can add their own in Settings → AI connections.' },
       { day: 'Day 2', title: 'Bring the files in', who: 'Admin', time: 'Depends on the files', body: 'Upload files from the Files screen, several at a time. On a server you run yourself, the owner can also link a shared folder or NAS mounted on that computer as a connected folder.' },
-      { day: 'Day 3', title: 'Invite your team', who: 'Admin', time: '10 minutes', body: 'Make invite links and send them with the notice below. Trina AX sends no email, so use your messenger.' },
-      { day: 'Day 4', title: 'Make the first team skill', who: 'Admin with one employee', time: '30 minutes', body: 'Pick the task people repeat most, like a quote or a weekly report, and save it as a team skill.' },
-      { day: 'Day 5', title: 'Look back', who: 'Owner and admin', time: '15 minutes', body: 'Make the first backup, check who uses it and how much, and collect the questions that got stuck as the next skills.' },
+      { day: 'Day 3', title: 'Invite your team', who: 'Admin', time: '10 minutes', body: 'Open Admin → Members & invites → Invite link. Choose the role, groups and expiry, then Create link and Copy link. Share it with the notice below; invitations are not emailed automatically.' },
+      { day: 'Day 4', title: 'Make the first team skill', who: 'Admin with one employee', time: '30 minutes', body: 'Choose a recurring task, such as a quote or weekly report. Use Suggest as skill below a useful answer. A person who manages the folder reviews it in Team skills → To review and selects Register.' },
+      { day: 'Day 5', title: 'Look back', who: 'Owner and admin', time: '15 minutes', body: 'The owner selects Back up now in Admin → System and checks completion. Review Admin → Usage together and collect questions that got stuck as ideas for the next skills.' },
     ],
     hostedTitle: 'On a hosted plan',
     hostedBody: 'Trina sets up the server and the address, keeps it updated and backed up, and goes through day 1 with you on the call.',

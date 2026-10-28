@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { BROCHURE, CONTACT_EMAIL, KRW_REFERENCE, PLANS, krw, krwNote, quoteRequest } from '../src/site'
+import { BROCHURE, BROCHURES, CONTACT_EMAIL, KRW_REFERENCE, PLANS, krw, krwNote, quoteRequest } from '../src/site'
 import { attrs, built, root, visibleText } from './helpers'
 
 test('KRW reference has a real date, positive rate and public source; rounds to whole thousands', () => {
@@ -22,7 +22,7 @@ for (const [file, lang] of [['ko/index.html', 'ko'], ['index.html', 'en']] as co
     expect(text.split(KRW_REFERENCE.date).length - 1).toBe(1)
     expect(hrefs).toContain(quoteRequest(lang))
     expect(text).toContain(CONTACT_EMAIL)
-    expect(hrefs.filter(h => h === BROCHURE.pdf).length).toBe(2)
+    expect(hrefs.filter(h => h === BROCHURES[lang].pdf).length).toBe(2)
     expect(html).not.toContain('<form')
   })
 }

@@ -5,6 +5,7 @@
 import type { Copy } from '../content/en'
 import Base from '../layouts/Base.astro'
 import { ROUTES, bookCall } from '../site'
+import { guidePath } from '../content/guides'
 import { breadcrumbJsonLd } from '../seo'
 import Footer from './Footer.astro'
 import Icon from './Icon.astro'
@@ -42,6 +43,7 @@ const lang = t.lang
             <div class="fw-daybody">
               <h3><span class="step-num" aria-hidden="true">{i + 1}</span>{d.title}</h3>
               <p>{d.body}</p>
+              <a href={guidePath(['folder-permissions', 'ai-connection', 'team-files', 'invite', 'review-skills', 'backup'][i], lang)}>{lang === 'ko' ? '자세한 순서 →' : 'Step-by-step guide →'}</a>
               <p class="fw-meta"><span><Icon name="user" />{w.whoLabel} · {d.who}</span><span><Icon name="clock" />{w.timeLabel} · {d.time}</span></p>
             </div>
           </li>

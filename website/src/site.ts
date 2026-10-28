@@ -62,6 +62,10 @@ export const krwNote = (dollars: number, lang: Lang) => lang === 'ko'
 export const priceWithReference = (dollars: number, lang: Lang) => `${usd(dollars)} (${krwNote(dollars, lang)})`
 export const quoteRequest = (lang: Lang) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(lang === 'ko' ? '견적서 요청' : 'Trina AX quote request')}`
 export const BROCHURE = { page: '/ko/brochure', pdf: '/downloads/trina-ax-introduction-ko.pdf' } as const
+export const BROCHURES = {
+  ko: BROCHURE,
+  en: { page: '/brochure', pdf: '/downloads/trina-ax-introduction-en.pdf' },
+} as const
 
 /** The resellers that run the online checkout (Merchant of Record). The legal pages name them and their buyer terms. */
 export const RESELLERS = [

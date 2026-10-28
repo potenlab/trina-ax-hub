@@ -5,7 +5,7 @@ import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { PAGES, SINGLE_PAGES, faqPage, homeJsonLd, llmsTxt, oneLine, sitemapXml } from '../src/seo'
 import { GUIDES, guidePath } from '../src/content/guides'
-import { ROUTES } from '../src/site'
+import { ROUTES, BROCHURES } from '../src/site'
 import { PAGE_FILES, attrs, built, decode, jsonLd, root } from './helpers'
 
 describe('titles and descriptions', () => {
@@ -113,7 +113,7 @@ describe('crawling', () => {
       expect(xml).toContain(`<loc>https://ax.trina.app${ROUTES[p.route].ko}</loc>`)
     }
     for (const p of SINGLE_PAGES) expect(xml).toContain(`<loc>https://ax.trina.app${p.path}</loc>`)
-    expect(SINGLE_PAGES.map((p) => p.path)).toEqual(['/terms', '/privacy', '/refund', '/ko/brochure', ...GUIDES.map(g => guidePath(g.slug))])
+    expect(SINGLE_PAGES.map((p) => p.path)).toEqual(['/terms', '/privacy', '/refund', ...Object.values(BROCHURES).map(b => b.page), ...GUIDES.flatMap(g => [guidePath(g.slug, 'en'), guidePath(g.slug, 'ko')])])
     expect((xml.match(/<url>/g) ?? []).length).toBe(PAGES.length * 2 + SINGLE_PAGES.length)
     expect(xml).toContain('hreflang="x-default"')
     expect(xml).not.toContain('404')

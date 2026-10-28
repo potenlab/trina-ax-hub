@@ -17,19 +17,22 @@ interface Props {
   t: Copy
   /** The page, for the canonical URL and the language alternates. Omit for 404 (noindex, no alternates). */
   route?: RouteId
-  /** An English-only page (the legal pages): its address, for the canonical URL. Indexed, no language alternates. */
+  /** An explicit canonical path for a guide, brochure or legal page. */
   path?: string
+  /** Matching translated pages, when not part of ROUTES. */
+  alternates?: Record<'en' | 'ko', string>
   title?: string
   description?: string
   ogImage?: string
   ogAlt?: string
   jsonLd?: object
 }
-const { t, route, path, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
+const { t, route, path, alternates, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
 const lang = t.lang
 const locale = LOCALES[lang]
 const other = lang === 'en' ? 'ko' : 'en'
 const canonical = route ? abs(ROUTES[route][lang]) : path ? abs(path) : undefined
+const languagePaths = route ? ROUTES[route] : alternates
 const image = abs(ogImage)
 const robots = route || path ? 'index, follow, max-image-preview:large, max-snippet:-1' : 'noindex, follow'
 ---
@@ -42,11 +45,11 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
     {canonical && <link rel="canonical" href={canonical} />}
-    {route && (
+    {languagePaths && (
       <>
-        <link rel="alternate" hreflang="en" href={abs(ROUTES[route].en)} />
-        <link rel="alternate" hreflang="ko" href={abs(ROUTES[route].ko)} />
-        <link rel="alternate" hreflang="x-default" href={abs(ROUTES[route].en)} />
+        <link rel="alternate" hreflang="en" href={abs(languagePaths.en)} />
+        <link rel="alternate" hreflang="ko" href={abs(languagePaths.ko)} />
+        <link rel="alternate" hreflang="x-default" href={abs(languagePaths.en)} />
       </>
     )}
     <meta name="theme-color" content="#fcfbf8" media="(prefers-color-scheme: light)" />
@@ -71,7 +74,7 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogAlt} />
     <meta property="og:locale" content={locale.og} />
-    {route && <meta property="og:locale:alternate" content={LOCALES[other].og} />}
+    {languagePaths && <meta property="og:locale:alternate" content={LOCALES[other].og} />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
