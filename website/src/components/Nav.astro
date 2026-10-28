@@ -7,13 +7,13 @@ import { LINKS, ROUTES, bookCall, type RouteId } from '../site'
 import Icon from './Icon.astro'
 import Logo from './Logo.astro'
 
-interface Props { t: Copy; route?: RouteId }
-const { t, route } = Astro.props
+interface Props { t: Copy; route?: RouteId; switchPath?: string }
+const { t, route, switchPath } = Astro.props
 const n = t.nav
 const lang = t.lang
 const home = ROUTES.home[lang]
 const a = (id: string) => `${home}#${id}`
-const switchHref = ROUTES[route ?? 'home'][n.switchToLang as 'en' | 'ko']
+const switchHref = switchPath ?? ROUTES[route ?? 'home'][n.switchToLang as 'en' | 'ko']
 const book = bookCall(lang)
 const links = [
   { href: a('roles'), label: n.examples, external: false },

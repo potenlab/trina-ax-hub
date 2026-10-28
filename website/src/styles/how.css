@@ -36,8 +36,8 @@
 /* ---------- hero: two captioned choices ---------- */
 .hero { padding-top: 72px; }
 .hero-choices { align-items: flex-start; gap: 16px; }
-.hero-choice { display: flex; flex-direction: column; align-items: center; gap: 9px; }
-.hero-choice-note { font-size: 13.5px; color: var(--fg-faint); white-space: nowrap; }
+.hero-choice { min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.hero-choice-note { font-size: 13.5px; color: var(--fg-faint); white-space: normal; text-wrap: balance; }
 @media (max-width: 640px) {
   .hero { padding-top: 48px; }
   .hero-choices { gap: 14px; }
@@ -484,3 +484,5 @@ html[lang="ko"] .fw-hosted h2 { font-weight: 700; }
 .brochure-link a { text-decoration: underline; text-underline-offset: 4px; }
 .brochure-link span { font-size: .75rem; opacity: .65; }
 @media (max-width: 600px) { .quote-request { align-items: flex-start; flex-direction: column; } }
+
+.role-guide-link { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1rem; color: var(--accent); font-weight: 600; font-size: .875rem; }

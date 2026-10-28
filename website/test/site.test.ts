@@ -20,7 +20,7 @@ describe('things the site must never say', () => {
     for (const m of text.matchAll(/\$\s?\d[\d,.]*/g)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
     for (const m of text.matchAll(/₩[\d,]+/g)) expect(new Set(PLANS.map(p => krw(p.usd))).has(m[0]), `unexpected KRW amount ${m[0]}`).toBe(true)
     expect(text).not.toMatch(/[€£¥]\s?\d/)
-    expect(text).not.toMatch(/\d[\d,.]*\s?(원|만\s?원|KRW|JPY|EUR|won)(?![a-z])/i)
+    expect(text).not.toMatch(/\d[\d,.]*\s?(원(?!본)|만\s?원|KRW|JPY|EUR|won)(?![a-z])/i)
   })
 
   test.each(everything)('%s: no YC, no star counter', (_, text) => {
@@ -67,6 +67,7 @@ describe('Korean copy rules (korean-landing-copy)', () => {
   test('no machine-translation verbs or words the skill bans', () => {
     for (const [p, t] of kpages) {
       for (const bad of ['잽니다', '측정합니다', '제공합니다', '~을 통해', '를 통해', '을 통해', '하는 것이 가능합니다', '혁신적', '최적의', '스마트한', 'MCP', 'RBAC', '온프레미스']) {
+        if (bad === 'MCP' && p === '/ko/guide/external-services') continue // exact UI label, explained on this task page
         expect(t.includes(bad), `${p} contains "${bad}"`).toBe(false)
       }
     }

@@ -392,10 +392,10 @@ const en = {
       title: 'The first week, as a checklist',
       items: [
         { who: 'Admin', title: 'Set folder permissions', body: 'Shared and team folders, and who can see each one.' },
-        { who: 'Admin', title: 'Connect the AI', body: 'One company API key, or each person connects their own Claude plan.' },
+        { who: 'Owner / each person', title: 'Connect the AI', body: 'One company API key, or each person connects their own Claude plan.' },
         { who: 'Admin', title: 'Invite your team', body: 'Send each person an invite link.' },
         { who: 'Everyone', title: 'Make the first team skill', body: 'The task people repeat most, like a quote.' },
-        { who: 'Admin', title: 'Make the first backup', body: 'Then check usage at the end of the week.' },
+        { who: 'Owner', title: 'Make the first backup', body: 'Then check usage at the end of the week.' },
       ],
       link: 'The first week, step by step',
     },
@@ -670,7 +670,7 @@ const en = {
     breadcrumb: 'Guide',
     ready: 'Read',
     soon: 'Coming soon',
-    notice: 'The guide is being written. Pages marked "coming soon" come next.',
+    notice: 'The task guides are available in Korean. English translations marked "coming soon" are still being prepared.',
     sections: [
       {
         id: 'start',
@@ -713,10 +713,10 @@ const en = {
         title: 'Use cases',
         body: 'One task per page: what to ask, which folder it needs, what comes back and how to save it as a skill.',
         items: [
-          { title: 'CEO: a weekly report every Monday', to: 'roles' },
-          { title: 'Sales: a quote in your format', to: 'roles' },
-          { title: 'Finance: tidying up spreadsheets', to: 'roles' },
-          { title: 'People: replying to an official Hangul letter', to: 'roles' },
+          { title: 'CEO: a weekly report every Monday', to: '' },
+          { title: 'Sales: a quote in your format', to: '' },
+          { title: 'Finance: tidying up spreadsheets', to: '' },
+          { title: 'People: replying to an official Hangul letter', to: '' },
         ],
       },
       {
@@ -756,11 +756,11 @@ const en = {
     timeLabel: 'Time',
     days: [
       { day: 'Day 1', title: 'Set folder permissions', who: 'Admin', time: '30 minutes', body: 'Make Shared and a folder per team, and decide who can see each one. Before saving, the preview shows who will see what.' },
-      { day: 'Day 1', title: 'Connect the AI', who: 'Admin or each person', time: '10 minutes', body: 'Connect one company API key, or let each person connect their own Claude plan in Settings.' },
+      { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'Connect one company API key, or let each person connect their own Claude plan in Settings.' },
       { day: 'Day 2', title: 'Bring the files in', who: 'Admin', time: 'Depends on the files', body: 'Upload folders in the browser, or link an office folder or NAS as a connected folder.' },
       { day: 'Day 3', title: 'Invite your team', who: 'Admin', time: '10 minutes', body: 'Make invite links and send them with the notice below. Trina AX sends no email, so use your messenger.' },
       { day: 'Day 4', title: 'Make the first team skill', who: 'Admin with one employee', time: '30 minutes', body: 'Pick the task people repeat most, like a quote or a weekly report, and save it as a team skill.' },
-      { day: 'Day 5', title: 'Look back', who: 'Admin', time: '15 minutes', body: 'Make the first backup, check who uses it and how much, and collect the questions that got stuck as the next skills.' },
+      { day: 'Day 5', title: 'Look back', who: 'Owner and admin', time: '15 minutes', body: 'Make the first backup, check who uses it and how much, and collect the questions that got stuck as the next skills.' },
     ],
     hostedTitle: 'On a hosted plan',
     hostedBody: 'Trina sets up the server and the address, keeps it updated and backed up, and goes through day 1 with you on the call.',

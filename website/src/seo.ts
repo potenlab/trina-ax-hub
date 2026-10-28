@@ -1,6 +1,7 @@
 // Search and AI-search plumbing, built from the same copy the pages show (src/content), so the FAQ in the structured data
 // is the visible FAQ and the sitemap lists exactly the pages that exist. Pure functions; pages and endpoints call them at
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
+import { GUIDES, guidePath } from './content/guides'
 import type { Copy } from './content/en'
 import { BROCHURE, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
@@ -13,7 +14,7 @@ export const PAGES: { route: RouteId; lastmod: string }[] = [
 ]
 
 /** English-only pages (the legal texts): listed without language alternates. */
-export const SINGLE_PAGES: { path: string; lastmod: string }[] = [...Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED })), { path: BROCHURE.page, lastmod: KRW_REFERENCE.date }]
+export const SINGLE_PAGES: { path: string; lastmod: string }[] = [...Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED })), { path: BROCHURE.page, lastmod: KRW_REFERENCE.date }, ...GUIDES.map(g => ({ path: guidePath(g.slug), lastmod: '2026-10-28' }))]
 
 const LANGS: Lang[] = ['en', 'ko']
 
@@ -168,6 +169,7 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     `- [Security](${abs(ROUTES.security.en)}): ${en.secPage.description}`,
     `- [Guide](${abs(ROUTES.guide.en)}): ${en.guide.description}`,
     `- [The first week](${abs(ROUTES.firstWeek.en)}): ${en.firstWeek.description}`,
+    ...GUIDES.map(g => `- [${g.title} (Korean)](${abs(guidePath(g.slug))})`),
     `- [Source code on GitHub](${LINKS.github}): AGPL-3.0-only`,
     `- [Permission model](${LINKS.permissions}): who sees what and how the AI is kept to it (Korean)`,
     ...Object.values(LEGAL).map((d) => `- [${d.title}](${abs(d.path)}): ${d.description}`),

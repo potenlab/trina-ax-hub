@@ -1,0 +1,28 @@
+---
+import Icon from './Icon.astro'
+interface Props { doc: any }
+const { doc } = Astro.props
+const docIcon: Record<string, string> = { doc: 'doc', sheet: 'sheet', letter: 'doc' }
+---
+<div class={`rdoc rdoc-${doc.kind}`}>
+  <p class="rdoc-file"><Icon name={docIcon[doc.kind] ?? 'doc'} /><span>{doc.file}</span></p>
+  <div class="rdoc-page">
+    <p class="rdoc-title">{doc.title}</p>
+    {doc.kind === 'doc' && doc.blocks.map((b: any) => (
+      <div class="rdoc-block"><p class="rdoc-h">{b.h}</p><p>{b.p}</p></div>
+    ))}
+    {doc.kind === 'sheet' && (
+      <>
+        <table class="rdoc-grid">
+          <thead><tr>{doc.cols.map((c: string) => <th>{c}</th>)}</tr></thead>
+          <tbody>{doc.rows.map((row: string[]) => <tr>{row.map((c, j) => <td class={j > 0 && /^\d/.test(c) ? 'num' : undefined}>{c}</td>)}</tr>)}</tbody>
+        </table>
+        <p class="rdoc-foot">{doc.foot}</p>
+      </>
+    )}
+    {doc.kind === 'letter' && (
+      <div class="rdoc-letter">{doc.lines.map((l: string) => <p>{l}</p>)}</div>
+    )}
+  </div>
+  {doc.toast && <p class="rdoc-toast"><Icon name="bell" /><span>{doc.toast}</span></p>}
+</div>

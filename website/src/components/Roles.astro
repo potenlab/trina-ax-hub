@@ -5,15 +5,16 @@
 // their own (src/scripts/tabs.ts); without JavaScript the tab row is hidden and the four panels are simply listed.
 import type { Copy } from '../content/en'
 import { ROUTES } from '../site'
+import { GUIDES, guidePath } from '../content/guides'
 import { softPath } from '../util'
 import Lines from './Lines.astro'
 import Icon from './Icon.astro'
+import RoleDocument from './RoleDocument.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const r = t.roles
 const items = r.items as any[]
 const kindIcon: Record<string, string> = { schedule: 'clock', folder: 'folder', skill: 'spark', save: 'download', file: 'file' }
-const docIcon: Record<string, string> = { doc: 'doc', sheet: 'sheet', letter: 'doc' }
 ---
 <section class="section" id="roles" aria-labelledby="roles-title">
   <div class="container">
@@ -41,32 +42,12 @@ const docIcon: Record<string, string> = { doc: 'doc', sheet: 'sheet', letter: 'd
           </div>
           <div class="role-right">
             <span class="ex-label">{r.result}</span>
-            <div class={`rdoc rdoc-${it.doc.kind}`}>
-              <p class="rdoc-file"><Icon name={docIcon[it.doc.kind] ?? 'doc'} /><span>{it.doc.file}</span></p>
-              <div class="rdoc-page">
-                <p class="rdoc-title">{it.doc.title}</p>
-                {it.doc.kind === 'doc' && it.doc.blocks.map((b: any) => (
-                  <div class="rdoc-block"><p class="rdoc-h">{b.h}</p><p>{b.p}</p></div>
-                ))}
-                {it.doc.kind === 'sheet' && (
-                  <>
-                    <table class="rdoc-grid">
-                      <thead><tr>{it.doc.cols.map((c: string) => <th>{c}</th>)}</tr></thead>
-                      <tbody>{it.doc.rows.map((row: string[]) => <tr>{row.map((c, j) => <td class={j > 0 && /^\d/.test(c) ? 'num' : undefined}>{c}</td>)}</tr>)}</tbody>
-                    </table>
-                    <p class="rdoc-foot">{it.doc.foot}</p>
-                  </>
-                )}
-                {it.doc.kind === 'letter' && (
-                  <div class="rdoc-letter">{it.doc.lines.map((l: string) => <p>{l}</p>)}</div>
-                )}
-              </div>
-              {it.doc.toast && <p class="rdoc-toast"><Icon name="bell" /><span>{it.doc.toast}</span></p>}
-            </div>
+            <RoleDocument doc={it.doc} />
           </div>
           <div class="role-more">
             <span class="ex-label">{r.moreTitle}</span>
             <ul>{it.more.map((m: string) => <li>{m}</li>)}</ul>
+            {t.lang === 'ko' && <a class="role-guide-link" href={guidePath(GUIDES.find(g => g.roleId === it.id)!.slug)}>이 작업 따라 하기<Icon name="arrow" /></a>}
           </div>
         </div>
       ))}

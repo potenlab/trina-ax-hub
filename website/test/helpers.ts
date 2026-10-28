@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { GUIDES, guidePath } from '../src/content/guides'
 
 export const root = join(import.meta.dir, '..')
 export const dist = join(root, 'dist')
@@ -19,6 +20,7 @@ export const PAGE_FILES: Record<string, string> = {
   '/terms': 'terms.html',
   '/privacy': 'privacy.html',
   '/refund': 'refund.html',
+  ...Object.fromEntries(GUIDES.map(g => [guidePath(g.slug), `ko/guide/${g.slug}.html`])),
 }
 
 /** The English-only legal pages. */
