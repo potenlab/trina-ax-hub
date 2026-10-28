@@ -53,3 +53,19 @@ html[lang="ko"] .secpage-card h3 { font-weight: 700; }
   margin-top: 24px; padding: 16px 18px; border-radius: var(--radius-sm); border: 1px dashed var(--border-strong);
   background: var(--bg-soft); color: var(--fg-muted);
 }
+
+/* legal pages (/terms, /privacy, /refund): long-form text from src/legal/*.en.md */
+.legal-doc .legal-updated { margin-top: 12px; color: var(--fg-faint); font-size: 14px; }
+.legal-doc .prose { margin-top: 32px; color: var(--fg); font-size: 15.5px; line-height: 1.7; }
+.legal-doc .prose h2 { margin-top: 40px; font-size: 21px; letter-spacing: -0.02em; line-height: 1.3; }
+.legal-doc .prose h3 { margin-top: 28px; font-size: 17px; }
+.legal-doc .prose p, .legal-doc .prose ul, .legal-doc .prose ol, .legal-doc .prose table { margin-top: 14px; }
+.legal-doc .prose ul, .legal-doc .prose ol { padding-left: 22px; }
+.legal-doc .prose li + li { margin-top: 6px; }
+.legal-doc .prose a { color: var(--accent); overflow-wrap: anywhere; }
+.legal-doc .prose strong { font-weight: 650; }
+.legal-doc .prose table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 14px; line-height: 1.5; }
+.legal-doc .prose th, .legal-doc .prose td { padding: 8px 10px; border: 1px solid var(--border); text-align: left; vertical-align: top; min-width: 120px; }
+.legal-doc .prose th { background: var(--bg-soft); font-weight: 600; }
+.legal-doc .legal-more { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--fg-muted); font-size: 14.5px; }
+.legal-doc .legal-more a { color: var(--accent); }

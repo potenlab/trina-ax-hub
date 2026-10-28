@@ -11,7 +11,13 @@ export const PAGE_FILES: Record<string, string> = {
   '/security': 'security.html',
   '/ko/security': 'ko/security.html',
   '/404': '404.html',
+  '/terms': 'terms.html',
+  '/privacy': 'privacy.html',
+  '/refund': 'refund.html',
 }
+
+/** The English-only legal pages. */
+export const LEGAL_FILES = ['terms.html', 'privacy.html', 'refund.html']
 
 export function built(file: string): string {
   const p = join(dist, file)

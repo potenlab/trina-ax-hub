@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
-import { LINKS, bookCall } from '../src/site'
-import { PAGE_FILES, attrs, built, root, visibleText } from './helpers'
+import { LEGAL, LINKS, PLANS, bookCall, usd } from '../src/site'
+import { LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
 const texts = files.map(([path, file]) => [path, visibleText(built(file))] as const)
@@ -14,12 +14,12 @@ const llms = ['llms.txt', llmsTxt(en, ko)] as const
 describe('things the site must never say', () => {
   const everything: [string, string][] = [...texts.map(([p, t]): [string, string] => [p, t]), [llms[0], built('llms.txt')]]
 
-  test.each(everything)('%s: no price, currency amount or per-month figure', (_, text) => {
-    expect(text).not.toMatch(/[$€£¥₩]\s?\d/)
-    expect(text).not.toMatch(/\d[\d,.]*\s?(원|만\s?원|USD|KRW|JPY|EUR|달러|dollars?|won)(?![a-z])/i)
-    expect(text).not.toMatch(/\d\s?\/\s?(mo|month|yr|year|seat|user|월|년|명)(?![a-z])/i)
-    expect(text).not.toMatch(/\b(per|a|each) (month|year|seat|user)\b.*\d|\d.*\bper (month|year|seat|user)\b/i)
-    expect(text).not.toMatch(/\bVAT\b|부가세|부가가치세/i)
+  // Prices live in one place (PLANS in src/site.ts): any other money amount on a page is a mistake.
+  test.each(everything)('%s: the only money amounts are the hosting plan prices, in dollars', (_, text) => {
+    const allowed = new Set(PLANS.map((p) => usd(p.usd)))
+    for (const m of text.matchAll(/\$\s?\d[\d,.]*/g)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
+    expect(text).not.toMatch(/[€£¥₩]\s?\d/)
+    expect(text).not.toMatch(/\d[\d,.]*\s?(원|만\s?원|KRW|JPY|EUR|won)(?![a-z])/i)
   })
 
   test.each(everything)('%s: no YC, no star counter', (_, text) => {
@@ -38,7 +38,8 @@ describe('things the site must never say', () => {
 
   test('no customer names or invented numbers about adoption', () => {
     for (const [, t] of texts) {
-      expect(t).not.toMatch(/\b\d+\+? (customers|companies|teams|users)\b/i)
+      // (not a numbered clause like "8.2 Customers in Korea" on the legal pages)
+      expect(t).not.toMatch(/(?<![\d.])\b\d+\+? (customers|companies|teams|users)\b/i)
       expect(t).not.toMatch(/\d+\s?(곳|개 회사|개사)\s?(이|가)?\s?(쓰|사용)/)
       expect(t).not.toMatch(/SOC ?2|ISO ?27001|ISMS/i)
     }
@@ -94,7 +95,8 @@ describe('contact and links', () => {
   })
 
   test('the only outside addresses are the repository, trina.app and (inside JSON-LD) schema.org / apache.org', () => {
-    for (const [, file] of files) {
+    // The legal pages also link the resellers' buyer terms and the Korean complaint bodies; they are checked below.
+    for (const [, file] of files.filter(([, f]) => !LEGAL_FILES.includes(f))) {
       const html = built(file)
       for (const u of [...attrs(html, 'href'), ...attrs(html, 'src')]) {
         if (!/^https?:\/\//.test(u)) continue
@@ -105,15 +107,14 @@ describe('contact and links', () => {
     }
   })
 
-  test('GitHub, install guide, privacy and terms links', () => {
+  test('GitHub, install guide, and the terms, privacy and refund links', () => {
     expect(LINKS.github).toBe('https://github.com/potenlab/trina-ax')
     const home = attrs(built('index.html'), 'href')
     expect(home).toContain(LINKS.github)
     expect(home).toContain(LINKS.install.en)
     expect(attrs(built('ko/index.html'), 'href')).toContain(LINKS.install.ko)
-    for (const f of ['index.html', 'ko/index.html']) {
-      expect(attrs(built(f), 'href')).toContain('https://trina.app/ko/privacy')
-      expect(attrs(built(f), 'href')).toContain('https://trina.app/ko/terms')
+    for (const f of ['index.html', 'ko/index.html', 'security.html', 'ko/security.html', ...LEGAL_FILES]) {
+      for (const d of Object.values(LEGAL)) expect(attrs(built(f), 'href'), `${f} -> ${d.path}`).toContain(d.path)
     }
   })
 

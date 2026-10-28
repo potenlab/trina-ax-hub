@@ -1,6 +1,6 @@
 ---
 import type { Copy } from '../content/en'
-import { CONTACT_EMAIL, LINKS, ROUTES } from '../site'
+import { CONTACT_EMAIL, LEGAL, LINKS, ROUTES } from '../site'
 import Logo from './Logo.astro'
 
 interface Props { t: Copy }
@@ -21,8 +21,9 @@ const home = ROUTES.home[t.lang]
         <a href={LINKS.company} rel="noopener">{l.company}</a>
         <a href={LINKS.github} rel="noopener">{l.github}</a>
         <a href={ROUTES.security[t.lang]}>{l.security}</a>
-        <a href={LINKS.privacy} rel="noopener" hreflang="ko">{l.privacy}</a>
-        <a href={LINKS.terms} rel="noopener" hreflang="ko">{l.terms}</a>
+        <a href={LEGAL.terms.path} hreflang="en">{l.terms}</a>
+        <a href={LEGAL.privacy.path} hreflang="en">{l.privacy}</a>
+        <a href={LEGAL.refund.path} hreflang="en">{l.refund}</a>
       </nav>
     </div>
     <p class="footer-trademark">{f.trademark}</p>

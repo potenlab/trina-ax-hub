@@ -1,17 +1,21 @@
 ---
-// Pricing (A11): a two-column comparison, no numbers anywhere, and three small blocks under it. The table keeps its
-// semantics (explicit roles) because on phones its rows are re-laid out as stacked cards.
+// Pricing: self-host versus Trina hosting as a two-column comparison, then the hosting plans (numbers from PLANS in
+// src/site.ts, words from the copy), what every plan includes, the billing terms the resellers ask us to show, and
+// three small blocks. The table keeps its semantics (explicit roles) because on phones its rows become stacked cards.
 import type { Copy } from '../content/en'
-import { LINKS, bookCall } from '../site'
+import { LEGAL, LINKS, PLANS, bookCall, usd } from '../site'
 import Lines from './Lines.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
 const p = t.pricing
+const from = usd(PLANS[0].usd)
+const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k]))
+const book = bookCall(t.lang)
 ---
 <section class="section section-tint" id="pricing" aria-labelledby="pricing-title">
   <div class="container">
     <div class="section-head">
-      <h2 id="pricing-title"><Lines text={p.title} /></h2>
+      <h2 id="pricing-title"><Lines text={fill(p.title, { from })} /></h2>
     </div>
     <div class="cmp-wrap">
       <table class="cmp" role="table">
@@ -27,17 +31,43 @@ const p = t.pricing
             <tr role="row">
               <th scope="row" role="rowheader">{r.label}</th>
               <td role="cell" data-label={p.cols[0]}>{r.a}</td>
-              <td role="cell" data-label={p.cols[1]} class="cmp-hosted">{r.b}</td>
+              <td role="cell" data-label={p.cols[1]} class="cmp-hosted">{fill(r.b, { from })}</td>
             </tr>
           ))}
           <tr role="row">
             <th scope="row" role="rowheader">{p.startLabel}</th>
             <td role="cell" data-label={p.cols[0]}><a class="btn btn-secondary btn-sm" href={LINKS.install[t.lang]} rel="noopener">{p.startA}</a></td>
-            <td role="cell" data-label={p.cols[1]} class="cmp-hosted"><a class="btn btn-primary btn-sm" href={bookCall(t.lang)}>{p.startB}</a></td>
+            <td role="cell" data-label={p.cols[1]} class="cmp-hosted"><a class="btn btn-primary btn-sm" href="#plans">{p.startB}</a></td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <h3 class="plans-title" id="plans">{p.plansTitle}</h3>
+    <ul class="plans">
+      {PLANS.map((plan) => (
+        <li class="plan" data-plan={plan.id}>
+          <h4 class="plan-name">{p.plans[plan.id]}</h4>
+          <p class="plan-price"><span class="plan-amount">{usd(plan.usd)}</span> <span class="plan-per">{p.perMonth}</span></p>
+          <p class="plan-people">{fill(p.people, { n: plan.people })}</p>
+          <p class="plan-server">{fill(p.server, { cpu: plan.vcpu, mem: plan.memoryGb, disk: plan.storageGb })}</p>
+          <a class="btn btn-primary btn-sm plan-cta" href={book}>{p.planCta}</a>
+        </li>
+      ))}
+      <li class="plan plan-custom" data-plan="custom">
+        <h4 class="plan-name">{p.custom.name}</h4>
+        <p class="plan-price"><span class="plan-amount">{p.custom.price}</span></p>
+        <p class="plan-people">{p.custom.people}</p>
+        <p class="plan-server">{p.custom.body}</p>
+        <a class="btn btn-secondary btn-sm plan-cta" href={book}>{p.custom.cta}</a>
+      </li>
+    </ul>
+    <p class="plans-included">{p.included}</p>
+    <p class="plans-fine">
+      {p.fine}
+      <a href={LEGAL.terms.path}>{p.termsLink}</a> · <a href={LEGAL.refund.path}>{p.refundLink}</a>
+    </p>
+
     <div class="cmp-blocks">
       {p.blocks.map((b) => (
         <div class="cmp-block"><h3>{b.title}</h3><p>{b.body}</p></div>

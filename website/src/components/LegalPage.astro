@@ -1,0 +1,37 @@
+---
+// /terms, /privacy and /refund: English only (they are what the payment resellers review). The text is the Markdown in
+// src/legal/<page>.en.md, rendered at build time; edit the Markdown, not this file, to change the wording.
+// Draft: lawyer review pending.
+import en from '../content/en'
+import Base from '../layouts/Base.astro'
+import { LEGAL, LEGAL_UPDATED, ROUTES, type LegalId } from '../site'
+import Footer from './Footer.astro'
+import Nav from './Nav.astro'
+import * as terms from '../legal/terms.en.md'
+import * as privacy from '../legal/privacy.en.md'
+import * as refund from '../legal/refund.en.md'
+
+interface Props { page: LegalId }
+const { page } = Astro.props
+const { Content } = { terms, privacy, refund }[page]
+const doc = LEGAL[page]
+const others = (Object.keys(LEGAL) as LegalId[]).filter((id) => id !== page)
+---
+<Base t={en} path={doc.path} title={`${doc.title} — Trina AX`} description={doc.description}>
+  <Nav t={en} />
+  <main id="main" class="container legal legal-doc">
+    <h1>{doc.title}</h1>
+    <p class="legal-updated">Last updated <time datetime={LEGAL_UPDATED}>{LEGAL_UPDATED}</time> · Trina Inc. (주식회사 트리나)</p>
+    <article class="prose">
+      <Content />
+    </article>
+    <p class="legal-more">
+      {others.map((id, i) => <>{i > 0 && ' · '}<a href={LEGAL[id].path}>{LEGAL[id].title}</a></>)}
+    </p>
+    <a class="back" href={ROUTES.home.en}>← {en.notFound.back}</a>
+  </main>
+  <Footer t={en} />
+  <script>
+    import '../scripts/main'
+  </script>
+</Base>

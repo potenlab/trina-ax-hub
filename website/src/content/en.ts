@@ -1,7 +1,7 @@
 // English copy for ax.trina.app. Words come from the launch copy deck (A0-A17); the Korean twin is ko.ts and must keep
 // the same shape (it is declared `satisfies Copy`). "\n" in a heading becomes a line break (Lines.astro).
-// Rules for this file: no prices or numbers about money anywhere (test/site.test.ts), no customer names, no quotes,
-// no features that are not in the hub today.
+// Rules for this file: no money amounts here (prices come from PLANS in src/site.ts; test/site.test.ts), no customer
+// names, no quotes, no features that are not in the hub today.
 import type { Lang } from '../site'
 
 const en = {
@@ -252,12 +252,14 @@ const en = {
     copyLabel: 'Copy the commands',
   },
 
+  // Plan numbers (price, people, server size) come from PLANS in src/site.ts; {from}, {n}, {cpu}, {mem} and {disk}
+  // are filled in from there.
   pricing: {
-    title: 'Free to run yourself. Hosting is quoted.',
+    title: 'Free to run yourself.\nHosted by Trina from {from} a month',
     corner: 'What you get',
     cols: ['Self-host', 'Trina hosting'],
     rows: [
-      { label: 'Price', a: 'Free · Apache-2.0', b: 'Quoted, by people, files and how much operation you want' },
+      { label: 'Price', a: 'Free · Apache-2.0', b: 'From {from} a month, by plan' },
       { label: 'Who runs it', a: 'You', b: 'Trina' },
       { label: 'Address', a: 'Your server or office Mac mini', b: 'your-company.trina.app' },
       { label: 'Updates and backups', a: 'You', b: 'Trina does them' },
@@ -265,15 +267,34 @@ const en = {
     ],
     startLabel: 'Start',
     startA: 'Install guide (GitHub)',
-    startB: 'Book a call',
+    startB: 'See the plans',
+    plansTitle: 'Trina hosting plans',
+    plans: { starter: 'Starter', team: 'Team', business: 'Business' },
+    perMonth: '/ month',
+    people: 'Up to {n} people',
+    server: 'Your own server: {cpu} vCPU, {mem} GB memory, {disk} GB storage',
+    planCta: 'Get started',
+    custom: {
+      name: 'Larger',
+      price: 'Quoted',
+      people: 'More than 40 people',
+      body: "Your own AWS account, or a server or Mac mini in your office. Contracted directly with Trina.",
+      cta: 'Book a call',
+    },
+    included:
+      'Every plan: a server on AWS in Seoul for your company alone, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
+    fine:
+      'Prices are in US dollars, before tax. Plans are sold by our reseller (Merchant of Record), Polar or Creem as shown at checkout, which adds any sales tax or VAT. A plan renews every month until you cancel. Cancel any time from the billing portal linked in your receipt; it runs to the end of the month you paid for. Ask within 14 days of your first payment for a full refund.',
+    termsLink: 'Terms',
+    refundLink: 'Refund policy',
     blocks: [
       {
-        title: 'What a quote lists',
-        body: 'Monthly hosting, first setup and connection, and monthly operation if you want it. Each on its own line.',
+        title: 'Priced from the server',
+        body: "Each plan is your company's own AWS server, sized for its number of people. The price is that server plus Trina running it.",
       },
       {
         title: 'Who you pay for what',
-        body: 'Claude usage goes to Anthropic, never through us. Hosting, setup and operation go to Trina.',
+        body: 'Claude usage goes to Anthropic, never through us. Only the hosting plan goes to Trina.',
       },
       {
         title: "When you don't need us",
@@ -328,7 +349,7 @@ const en = {
       },
       {
         q: 'Is it really free?',
-        a: 'The software is free (Apache-2.0). Only hosting, setup and operation by Trina are paid, and they are quoted. Claude usage is paid to Anthropic separately.',
+        a: 'The software is free (Apache-2.0). Only hosting by Trina is paid: a monthly plan by the number of people, setup included. Claude usage is paid to Anthropic separately.',
       },
       {
         q: 'Where do our files live?',
@@ -370,8 +391,9 @@ const en = {
       company: 'trina.app',
       github: 'GitHub',
       security: 'Security',
-      privacy: 'Privacy (Korean)',
-      terms: 'Terms (Korean)',
+      privacy: 'Privacy',
+      terms: 'Terms',
+      refund: 'Refunds',
     },
     trademark:
       "Claude is a trademark of Anthropic. Trina AX is made by Trina Inc. and is not affiliated with Anthropic.",

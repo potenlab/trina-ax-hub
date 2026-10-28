@@ -16,19 +16,21 @@ interface Props {
   t: Copy
   /** The page, for the canonical URL and the language alternates. Omit for 404 (noindex, no alternates). */
   route?: RouteId
+  /** An English-only page (the legal pages): its address, for the canonical URL. Indexed, no language alternates. */
+  path?: string
   title?: string
   description?: string
   ogImage?: string
   ogAlt?: string
   jsonLd?: object
 }
-const { t, route, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
+const { t, route, path, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
 const lang = t.lang
 const locale = LOCALES[lang]
 const other = lang === 'en' ? 'ko' : 'en'
-const canonical = route ? abs(ROUTES[route][lang]) : undefined
+const canonical = route ? abs(ROUTES[route][lang]) : path ? abs(path) : undefined
 const image = abs(ogImage)
-const robots = route ? 'index, follow, max-image-preview:large, max-snippet:-1' : 'noindex, follow'
+const robots = route || path ? 'index, follow, max-image-preview:large, max-snippet:-1' : 'noindex, follow'
 ---
 <!doctype html>
 <html lang={locale.html}>

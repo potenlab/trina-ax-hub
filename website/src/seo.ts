@@ -1,8 +1,8 @@
 // Search and AI-search plumbing, built from the same copy the pages show (src/content), so the FAQ in the structured data
 // is the visible FAQ and the sitemap lists exactly the pages that exist. Pure functions; pages and endpoints call them at
-// build time. There are no offers or prices anywhere on this site, so none appear here.
+// build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import type { Copy } from './content/en'
-import { CONTACT_EMAIL, LINKS, ROUTES, SITE_URL, abs, type Lang, type RouteId } from './site'
+import { CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
 /** Indexable pages. Each exists in both languages and lists the other as an alternate. 404 is left out. */
 export const PAGES: { route: RouteId; lastmod: string }[] = [
@@ -10,9 +10,12 @@ export const PAGES: { route: RouteId; lastmod: string }[] = [
   { route: 'security', lastmod: '2026-10-25' },
 ]
 
+/** English-only pages (the legal texts): listed without language alternates. */
+export const SINGLE_PAGES: { path: string; lastmod: string }[] = Object.values(LEGAL).map((d) => ({ path: d.path, lastmod: LEGAL_UPDATED }))
+
 const LANGS: Lang[] = ['en', 'ko']
 
-export function sitemapXml(pages = PAGES): string {
+export function sitemapXml(pages = PAGES, single = SINGLE_PAGES): string {
   const urls = pages.flatMap((p) =>
     LANGS.map((lang) => {
       const alt = [
@@ -22,6 +25,7 @@ export function sitemapXml(pages = PAGES): string {
       return `  <url>\n    <loc>${abs(ROUTES[p.route][lang])}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n${alt}\n  </url>`
     }),
   )
+  for (const p of single) urls.push(`  <url>\n    <loc>${abs(p.path)}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n  </url>`)
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`
 }
 
@@ -125,7 +129,7 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     '',
     `> ${en.meta.long}`,
     '',
-    "Trina AX is made by Trina Inc. (주식회사 트리나). Claude runs as it does today (the desktop and phone apps, claude.ai, Claude Code, Cowork); the hub serves the company's files to each person's Claude with that person's folder permissions. It is free to self-host (Apache-2.0). Trina hosts it at your-company.trina.app and offers setup and monthly operation, quoted per company. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
+    "Trina AX is made by Trina Inc. (주식회사 트리나). Claude runs as it does today (the desktop and phone apps, claude.ai, Claude Code, Cowork); the hub serves the company's files to each person's Claude with that person's folder permissions. It is free to self-host (Apache-2.0). Trina hosts it at your-company.trina.app on a server of the company's own (AWS, Seoul) for a monthly plan by the number of people, setup included. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
     '',
     '## What it does',
     '',
@@ -141,12 +145,19 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     ...en.security.promises.map((p) => `- ${p}`),
     `- ${en.security.limitsLabel}: ${en.security.limits}`,
     '',
+    '## Trina hosting plans',
+    '',
+    ...PLANS.map((p) => `- ${en.pricing.plans[p.id]}: ${usd(p.usd)} a month, up to ${p.people} people, ${p.vcpu} vCPU, ${p.memoryGb} GB memory, ${p.storageGb} GB storage`),
+    `- ${en.pricing.custom.name} (${en.pricing.custom.people.toLowerCase()}): ${en.pricing.custom.price.toLowerCase()}`,
+    `- ${en.pricing.fine}`,
+    '',
     '## Pages',
     '',
-    `- [Home](${abs('/')}): product, pricing shape and FAQ`,
+    `- [Home](${abs('/')}): product, pricing and FAQ`,
     `- [Security](${abs(ROUTES.security.en)}): ${en.secPage.description}`,
     `- [Source code on GitHub](${LINKS.github}): Apache-2.0`,
     `- [Security policy](${LINKS.securityMd}): how to report a vulnerability`,
+    ...Object.values(LEGAL).map((d) => `- [${d.title}](${abs(d.path)}): ${d.description}`),
     `- [한국어 (Korean)](${abs(ROUTES.home.ko)}): the same site in Korean`,
     '',
     '## FAQ',

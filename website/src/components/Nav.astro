@@ -1,18 +1,19 @@
 ---
 // Top navigation: logo, section links, language switch, theme toggle, "Book a call". The same markup serves the home page
-// (in-page anchors) and /security (anchors back to the home page of the same language).
+// (in-page anchors), /security and the English-only legal pages (anchors back to the home page of the same language;
+// with no route, the language switch goes to the other language's home).
 import type { Copy } from '../content/en'
 import { LINKS, ROUTES, bookCall, type RouteId } from '../site'
 import Icon from './Icon.astro'
 import Logo from './Logo.astro'
 
-interface Props { t: Copy; route: RouteId }
+interface Props { t: Copy; route?: RouteId }
 const { t, route } = Astro.props
 const n = t.nav
 const lang = t.lang
 const home = ROUTES.home[lang]
 const a = (id: string) => `${home}#${id}`
-const switchHref = ROUTES[route][n.switchToLang as 'en' | 'ko']
+const switchHref = ROUTES[route ?? 'home'][n.switchToLang as 'en' | 'ko']
 const book = bookCall(lang)
 const links = [
   { href: a('features'), label: n.features, external: false },

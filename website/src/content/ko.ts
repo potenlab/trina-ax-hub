@@ -245,11 +245,11 @@ const ko = {
   },
 
   pricing: {
-    title: '직접 설치는 무료, 호스팅은 견적',
+    title: '직접 설치는 무료,\n트리나 호스팅은 월 {from}부터',
     corner: '구분',
     cols: ['직접 설치 (오픈소스)', '트리나 호스팅'],
     rows: [
-      { label: '비용', a: '무료 · Apache-2.0', b: '견적 (인원, 파일 양, 운영 범위에 따라)' },
+      { label: '비용', a: '무료 · Apache-2.0', b: '요금제에 따라 월 {from}부터' },
       { label: '운영하는 곳', a: '우리 회사', b: '트리나' },
       { label: '주소', a: '회사 서버나 사무실 Mac mini', b: '회사이름.trina.app' },
       { label: '업데이트·백업', a: '직접', b: '트리나가 해요' },
@@ -257,15 +257,34 @@ const ko = {
     ],
     startLabel: '시작하기',
     startA: '설치 안내 보기',
-    startB: '상담하고 견적 받기',
+    startB: '요금제 보기',
+    plansTitle: '트리나 호스팅 요금제',
+    plans: { starter: '스타터', team: '팀', business: '비즈니스' },
+    perMonth: '/ 월',
+    people: '최대 {n}명',
+    server: '회사 전용 서버: vCPU {cpu}개, 메모리 {mem}GB, 저장공간 {disk}GB',
+    planCta: '도입 문의하기',
+    custom: {
+      name: '더 큰 회사',
+      price: '견적',
+      people: '40명이 넘는 회사',
+      body: '회사 AWS 계정이나 사무실 서버, Mac mini에 설치해요. 트리나와 직접 계약해요.',
+      cta: '상담하고 견적 받기',
+    },
+    included:
+      '모든 요금제에는 회사 전용 AWS 서울 서버와 회사이름.trina.app 주소가 있어요. 처음 설치부터 업데이트, 백업, 모니터링까지 트리나가 맡고, 문의에는 트리나 담당자가 답해 드려요.',
+    fine:
+      '가격은 달러 기준이고 세금은 별도예요. 결제는 해외 결제 대행사(Merchant of Record)인 Polar나 Creem이 맡고, 나라별 세금을 더해 청구해요. 해지할 때까지 매달 자동으로 결제돼요. 영수증 메일의 결제 포털에서 언제든 해지할 수 있고, 결제한 달 끝까지 쓸 수 있어요. 첫 결제 후 14일 안에 요청하면 전액 환불해 드려요. 원화 계약과 세금계산서가 필요하면 문의해 주세요.',
+    termsLink: '이용약관(영문)',
+    refundLink: '환불 정책(영문)',
     blocks: [
       {
-        title: '견적에 들어가는 것',
-        body: '월 호스팅비, 처음 설치와 연결, 원하시면 매달 운영까지. 하나씩 따로 적어 드려요.',
+        title: '서버 기준 요금',
+        body: '요금제마다 회사 전용 AWS 서버가 하나씩 있고, 인원에 맞춰 크기를 정했어요. 요금은 그 서버 비용에 트리나의 운영을 더한 금액이에요.',
       },
       {
-        title: '세 군데에 나눠 내는 돈',
-        body: 'Claude 사용료는 Anthropic에 직접 내요. 호스팅과 설치·운영만 트리나에 내요.',
+        title: '따로 내는 Claude 사용료',
+        body: 'Claude 사용료는 Anthropic에 직접 내요. 트리나에는 호스팅 요금제만 내요.',
       },
       {
         title: '호스팅이 필요 없는 경우',
@@ -319,7 +338,7 @@ const ko = {
       },
       {
         q: '정말 무료인가요?',
-        a: '소프트웨어는 무료예요(Apache-2.0). 트리나가 호스팅하거나 설치·운영을 맡는 부분만 유료이고, 견적으로 안내해요. Claude 사용료는 따로 Anthropic에 내요.',
+        a: '소프트웨어는 무료예요(Apache-2.0). 트리나 호스팅만 유료이고, 인원에 따라 고르는 월 요금제예요. 처음 설치도 들어 있어요. Claude 사용료는 따로 Anthropic에 내요.',
       },
       {
         q: '회사 파일은 어디에 있나요?',
@@ -361,8 +380,9 @@ const ko = {
       company: 'trina.app',
       github: 'GitHub',
       security: '보안',
-      privacy: '개인정보 처리방침',
-      terms: '이용약관',
+      privacy: '개인정보 처리방침(영문)',
+      terms: '이용약관(영문)',
+      refund: '환불 정책(영문)',
     },
     trademark:
       'Claude는 Anthropic의 상표이고, 트리나 AX는 주식회사 트리나가 만든 별도 제품이에요.',

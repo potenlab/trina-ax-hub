@@ -258,6 +258,31 @@ html[lang="ko"] .pay-opt h3 { font-weight: 700; }
 html[lang="ko"] .cmp-block h3 { font-weight: 700; }
 .cmp-block p { margin-top: 8px; color: var(--fg-muted); font-size: 15px; }
 @media (max-width: 900px) { .cmp-blocks { grid-template-columns: minmax(0, 1fr); } }
+
+/* hosting plans (numbers from PLANS in src/site.ts) */
+.plans-title { margin-top: 48px; font-size: 22px; letter-spacing: -0.02em; scroll-margin-top: 96px; }
+html[lang="ko"] .plans-title { font-weight: 700; }
+.plans { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.plan {
+  display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--border);
+  background: var(--card); box-shadow: var(--shadow-sm);
+}
+.plan > * { margin: 0; }
+.plan-name { font-size: 16.5px; font-weight: 650; color: var(--accent); }
+html[lang="ko"] .plan-name { font-weight: 700; }
+.plan-price { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+.plan-amount { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; color: var(--fg); line-height: 1.1; }
+.plan-per { color: var(--fg-muted); font-size: 14.5px; }
+.plan-people { font-weight: 600; color: var(--fg); }
+.plan-server { color: var(--fg-muted); font-size: 14.5px; flex: 1; }
+.plan-cta { margin-top: 10px; align-self: stretch; }
+.plan-custom { background: var(--bg-soft); box-shadow: none; }
+.plan-custom .plan-name { color: var(--fg); }
+.plans-included { margin-top: 18px; color: var(--fg); font-size: 15px; max-width: 900px; }
+.plans-fine { margin-top: 10px; color: var(--fg-muted); font-size: 13.5px; max-width: 900px; }
+.plans-fine a { color: var(--accent); white-space: nowrap; }
+@media (max-width: 1000px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .plans { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) {
   .cmp thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .cmp, .cmp tbody, .cmp tr, .cmp th, .cmp td { display: block; width: 100%; }

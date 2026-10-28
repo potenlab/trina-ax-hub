@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
-import { PAGES, faqPage, homeJsonLd, llmsTxt, oneLine, sitemapXml } from '../src/seo'
+import { PAGES, SINGLE_PAGES, faqPage, homeJsonLd, llmsTxt, oneLine, sitemapXml } from '../src/seo'
 import { ROUTES } from '../src/site'
 import { PAGE_FILES, attrs, built, decode, jsonLd, root } from './helpers'
 
@@ -101,7 +101,9 @@ describe('crawling', () => {
       expect(xml).toContain(`<loc>https://ax.trina.app${ROUTES[p.route].en}</loc>`)
       expect(xml).toContain(`<loc>https://ax.trina.app${ROUTES[p.route].ko}</loc>`)
     }
-    expect((xml.match(/<url>/g) ?? []).length).toBe(PAGES.length * 2)
+    for (const p of SINGLE_PAGES) expect(xml).toContain(`<loc>https://ax.trina.app${p.path}</loc>`)
+    expect(SINGLE_PAGES.map((p) => p.path)).toEqual(['/terms', '/privacy', '/refund'])
+    expect((xml.match(/<url>/g) ?? []).length).toBe(PAGES.length * 2 + SINGLE_PAGES.length)
     expect(xml).toContain('hreflang="x-default"')
     expect(xml).not.toContain('404')
     expect(built('sitemap.xml')).toBe(xml)
