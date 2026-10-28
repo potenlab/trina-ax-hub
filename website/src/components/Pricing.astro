@@ -15,7 +15,7 @@ const book = bookCall(t.lang)
 <section class="section section-tint" id="pricing" aria-labelledby="pricing-title">
   <div class="container">
     <div class="section-head">
-      <h2 id="pricing-title"><Lines text={fill(p.title, { from })} /></h2>
+      <h2 id="pricing-title"><Lines text={fill(p.title, { from: usd(PLANS[0].usd) })} /></h2>
     </div>
     <div class="cmp-wrap">
       <table class="cmp" role="table">
