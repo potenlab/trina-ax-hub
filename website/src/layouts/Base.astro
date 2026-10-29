@@ -27,9 +27,11 @@ interface Props {
   ogAlt?: string
   /** "article" for a blog post. */
   ogType?: 'website' | 'article'
+  /** A blog post's first and latest dates (YYYY-MM-DD), for article:published_time and article:modified_time. */
+  article?: { published: string; modified: string }
   jsonLd?: object
 }
-const { t, route, path, alternates, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, ogType = 'website', jsonLd } = Astro.props
+const { t, route, path, alternates, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, ogType = 'website', article, jsonLd } = Astro.props
 const lang = t.lang
 const locale = LOCALES[lang]
 const other = lang === 'en' ? 'ko' : 'en'
@@ -66,6 +68,8 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Trina AX for LLMs (llms.txt)" />
     <meta property="og:type" content={ogType} />
+    {article && <meta property="article:published_time" content={article.published} />}
+    {article && <meta property="article:modified_time" content={article.modified} />}
     <meta property="og:site_name" content="Trina AX" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />

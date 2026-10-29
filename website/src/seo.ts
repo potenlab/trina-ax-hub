@@ -4,7 +4,7 @@ import { teamCopy } from './content/teams'
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import { GUIDES, guidePath } from './content/guides'
 import { EN_GUIDES } from './content/guides-en'
-import { BLOG, POSTS, blogPath, type Post } from './content/blog-en'
+import { BLOG, POSTS, blogCard, blogPath, type Post } from './content/blog-en'
 import type { Copy } from './content/en'
 import { BROCHURES, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
@@ -25,8 +25,8 @@ export const SINGLE_PAGES: { path: string; lastmod: string; alternates?: { en: s
     path: guidePath(g.slug, lang), lastmod: '2026-10-29',
     alternates: { en: guidePath(g.slug, 'en'), ko: guidePath(g.slug, 'ko') },
   }))),
-  { path: BLOG.path, lastmod: POSTS.map(p => p.published).sort().at(-1)!, alternates: { en: BLOG.path } },
-  ...POSTS.map(p => ({ path: blogPath(p.slug), lastmod: p.published, alternates: { en: blogPath(p.slug) } })),
+  { path: BLOG.path, lastmod: POSTS.map(p => p.modified).sort().at(-1)!, alternates: { en: BLOG.path } },
+  ...POSTS.map(p => ({ path: blogPath(p.slug), lastmod: p.modified, alternates: { en: blogPath(p.slug) } })),
 ]
 
 const LANGS: Lang[] = ['en', 'ko']
@@ -140,8 +140,9 @@ export function breadcrumbJsonLd(t: Copy, crumbs: { name: string; route: RouteId
   }
 }
 
-/** A blog post as the page shows it: the headline is its H1, the date is the visible date, Trina Inc. wrote it. No offers. */
-export function blogPostingJsonLd(t: Copy, post: Post) {
+/** A blog post as the page shows it: the headline is its H1, the dates are the visible dates, the image is its card,
+ * Trina Inc. wrote it. No offers, and no FAQPage for the questions in the text (the home page keeps the site's FAQ). */
+export function blogPostingJsonLd(post: Post) {
   const url = abs(blogPath(post.slug))
   return {
     '@context': 'https://schema.org',
@@ -153,10 +154,11 @@ export function blogPostingJsonLd(t: Copy, post: Post) {
         headline: post.title,
         description: post.description,
         datePublished: post.published,
+        dateModified: post.modified,
         inLanguage: 'en',
         url,
         mainEntityOfPage: url,
-        image: abs(t.meta.ogImage),
+        image: abs(blogCard(post.slug)),
         author: { '@id': ORG_ID },
         publisher: { '@id': ORG_ID },
       },

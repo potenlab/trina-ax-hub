@@ -15,7 +15,8 @@ const posts = [...POSTS].sort((a, b) => b.published.localeCompare(a.published))
   <main id="main" class="secpage blog">
     <section class="secpage-hero">
       <div class="container">
-        <h1>{BLOG.name}</h1>
+        <p class="blog-label"><span class="pill"><span class="pill-dot" aria-hidden="true"></span>{BLOG.name}</span></p>
+        <h1>{BLOG.h1}</h1>
         <p class="secpage-lead">{BLOG.description}</p>
       </div>
     </section>

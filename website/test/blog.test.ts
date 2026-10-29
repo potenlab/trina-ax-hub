@@ -2,7 +2,9 @@ import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
-import { BLOG, POSTS, blogPath, longDate } from '../src/content/blog-en'
+import { BLOG, POSTS, blogCard, blogPath, longDate } from '../src/content/blog-en'
+import { EN_GUIDES } from '../src/content/guides-en'
+import { GUIDES, guidePath } from '../src/content/guides'
 import { organization } from '../src/seo'
 import { LINKS, SITE_URL } from '../src/site'
 import { PAGE_FILES, attrs, built, decode, dist, jsonLd, root, visibleText } from './helpers'
@@ -15,6 +17,9 @@ const text = (html: string) => html.slice(html.indexOf('<div class="blog-text">'
 const sourceList = (html: string) => html.slice(html.indexOf('<section class="blog-sources"'), html.indexOf('</section>', html.indexOf('<section class="blog-sources"')))
 /** Words in order: typographic quotes, line breaks and Markdown marks do not count. */
 const words = (s: string) => s.toLowerCase().match(/[a-z0-9]+/g) ?? []
+/** The date line under a post's breadcrumb: published, "Updated" only when the text changed later, and the author. */
+const dateLine = (published: string, modified: string, author: string) =>
+  `${BLOG.name} · ${longDate(published)}${modified !== published ? ` · Updated ${longDate(modified)}` : ''} · ${author}`
 const ours = (u: string) => u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith(SITE_URL + '/')
 
 test('the blog and every post are English pages that point at themselves: canonical, hreflang en and x-default, no Korean twin', () => {
@@ -27,9 +32,9 @@ test('the blog and every post are English pages that point at themselves: canoni
     expect(html).not.toContain('<link rel="alternate" hreflang="ko"')
     expect(html).not.toContain('og:locale:alternate')
     expect(html).toContain(`<meta property="og:url" content="${self}">`)
-    expect(html).toContain(`<meta property="og:image" content="${SITE_URL}${en.meta.ogImage}">`)
     expect(html).toContain('<meta name="robots" content="index, follow')
   }
+  expect(built(PAGE_FILES[BLOG.path])).toContain(`<meta property="og:image" content="${SITE_URL}${en.meta.ogImage}">`)
   expect(built(PAGE_FILES[BLOG.path])).toContain('<meta property="og:type" content="website">')
   for (const { html } of posts) expect(html).toContain('<meta property="og:type" content="article">')
 })
@@ -42,8 +47,15 @@ test('blog titles fit search results and descriptions are real sentences', () =>
     expect(description.length).toBeLessThanOrEqual(210)
     const html = decode(built(PAGE_FILES[path]))
     expect(html).toContain(`<title>${title}</title>`)
+    expect(html).toContain(`<meta property="og:title" content="${title}">`)
     expect(html).toContain(`<meta name="description" content="${description}">`)
   }
+  // Post descriptions fit a search result without being cut.
+  for (const { p } of posts) expect(p.description.length).toBeLessThanOrEqual(160)
+  // /blog: a small "Blog" label, then the heading that says what the blog is about.
+  const index = built(PAGE_FILES[BLOG.path])
+  expect(index.match(/<h1\b[\s\S]*?<\/h1>/g)!.map(h => visibleText(h))).toEqual([BLOG.h1])
+  expect(visibleText(index)).toContain(`${BLOG.name} ${BLOG.h1}`)
 })
 
 test('every post is listed on /blog, in the sitemap and llms.txt, and every English footer links the blog', () => {
@@ -53,7 +65,7 @@ test('every post is listed on /blog, in the sitemap and llms.txt, and every Engl
   for (const { p, path, url } of posts) {
     expect(attrs(index, 'href')).toContain(path)
     expect(visibleText(index)).toContain(`${longDate(p.published)} ${p.title} ${p.description}`)
-    expect(sitemap).toContain(`<loc>${url}</loc>\n    <lastmod>${p.published}</lastmod>\n    <xhtml:link rel="alternate" hreflang="en" href="${url}"/>\n    <xhtml:link rel="alternate" hreflang="x-default" href="${url}"/>\n  </url>`)
+    expect(sitemap).toContain(`<loc>${url}</loc>\n    <lastmod>${p.modified}</lastmod>\n    <xhtml:link rel="alternate" hreflang="en" href="${url}"/>\n    <xhtml:link rel="alternate" hreflang="x-default" href="${url}"/>\n  </url>`)
     expect(llms).toContain(`- [${p.title}](${url}): ${p.description}`)
   }
   for (const [path, file] of Object.entries(PAGE_FILES).filter(([path]) => !path.startsWith('/ko'))) {
@@ -128,12 +140,63 @@ test('JSON-LD: a BlogPosting that matches the visible post, by the site’s Orga
     expect(org).toEqual(organization())
     expect(post.headline).toBe(visibleText(html.match(/<h1\b[\s\S]*?<\/h1>/)![0]))
     expect(post.description).toBe(p.description)
-    expect(post.datePublished).toBe(html.match(/<time datetime="([^"]+)">/)![1])
-    expect(visibleText(html)).toContain(`${longDate(post.datePublished)} · ${org.name}`)
+    const times = [...html.matchAll(/<time datetime="([^"]+)">/g)].map(m => m[1])
+    expect(post.datePublished).toBe(p.published)
+    expect(post.dateModified).toBe(p.modified)
+    expect(times).toEqual(p.modified === p.published ? [p.published] : [p.published, p.modified])
+    expect(visibleText(html)).toContain(dateLine(post.datePublished, post.dateModified, org.name))
+    expect(post.image).toBe(SITE_URL + blogCard(p.slug))
     expect([post.inLanguage, post.url, post.mainEntityOfPage]).toEqual(['en', url, url])
     expect(post.author).toEqual({ '@id': org['@id'] })
     expect(post.publisher).toEqual({ '@id': org['@id'] })
     expect(crumbs.itemListElement.map((i: any) => i.item)).toEqual([`${SITE_URL}/`, SITE_URL + BLOG.path, url])
     expect(JSON.stringify(graph)).not.toMatch(/"offers?"|"price|priceCurrency|UnitPriceSpecification/i)
+    // The questions in the text stay visible headings only: no FAQPage (the home page keeps the site's FAQ schema).
+    expect(html).not.toContain('FAQPage')
   }
+})
+
+test('article dates: published and modified times on posts only, and "Updated" only when the text changed later', () => {
+  for (const { p, html } of posts) {
+    expect(p.modified >= p.published).toBe(true)
+    expect(p.modified).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(html).toContain(`<meta property="article:published_time" content="${p.published}">`)
+    expect(html).toContain(`<meta property="article:modified_time" content="${p.modified}">`)
+    expect(visibleText(html).includes('Updated ')).toBe(p.modified !== p.published)
+  }
+  for (const [path, file] of Object.entries(PAGE_FILES).filter(([path]) => !posts.some(x => x.path === path))) {
+    expect(built(file), path).not.toContain('property="article:')
+  }
+})
+
+test('each post has its own 1200x630 card, and the page’s social tags point at it', () => {
+  for (const { p, html } of posts) {
+    const png = readFileSync(join(root, 'public', blogCard(p.slug)))
+    expect(png.subarray(1, 4).toString()).toBe('PNG')
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630])
+    expect(existsSync(join(dist, blogCard(p.slug)))).toBe(true)
+    const card = SITE_URL + blogCard(p.slug)
+    expect(html).toContain(`<meta property="og:image" content="${card}">`)
+    expect(html).toContain(`<meta name="twitter:image" content="${card}">`)
+    expect(decode(html)).toContain(`<meta property="og:image:alt" content="${p.title}">`)
+    expect(decode(html)).toContain(`<meta name="twitter:image:alt" content="${p.title}">`)
+    expect(html.match(/<meta property="og:image" /g)).toHaveLength(1)
+  }
+})
+
+test('the English guides a post names link to it under "From the blog"; other guides and Korean guides do not', () => {
+  for (const { p } of posts) {
+    expect(p.relatedGuides.length).toBeGreaterThan(0)
+    for (const slug of p.relatedGuides) expect(EN_GUIDES.map(g => g.slug)).toContain(slug)
+  }
+  for (const g of EN_GUIDES) {
+    const html = built(PAGE_FILES[guidePath(g.slug, 'en')])
+    const related = posts.filter(({ p }) => p.relatedGuides.includes(g.slug))
+    const block = html.match(/<aside class="article-next article-blog"[\s\S]*?<\/aside>/)?.[0]
+    if (!related.length) { expect(block, g.slug).toBeUndefined(); continue }
+    expect(visibleText(block!)).toBe(`${BLOG.fromBlog} ${related.map(({ p }) => `${p.title} → ${p.description}`).join(' ')}`)
+    expect(attrs(block!, 'href')).toEqual(related.map(x => x.path))
+  }
+  for (const g of GUIDES) expect(built(PAGE_FILES[guidePath(g.slug)])).not.toContain('article-blog')
+  expect(built('index.html')).not.toContain('article-blog')
 })

@@ -2,7 +2,8 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<!-- Social card template (1200x630). scripts/og.ts fills the text through the query string and screenshots it. -->
+<!-- Social card template (1200x630). scripts/og.ts fills the text through the query string and screenshots it.
+     kind=post is a blog post's card: its title, smaller and kept left of the key visual, no chip. -->
 <style>
   @font-face { font-family: "Geist"; src: url("../src/assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; }
   @font-face { font-family: "Geist Mono"; src: url("../src/assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
@@ -26,6 +27,9 @@
   .brand svg { width: 44px; height: 44px; }
   h1 { position: absolute; left: 72px; top: 178px; width: 1060px; font-size: 84px; line-height: 1.06; letter-spacing: -0.045em; font-weight: 600; }
   body.ko h1 { font-size: 78px; line-height: 1.18; letter-spacing: -0.035em; font-weight: 700; }
+  body.post h1 { top: 170px; width: 900px; font-size: 72px; line-height: 1.1; letter-spacing: -0.04em; }
+  body.post .chip { display: none; }
+  body.post .foot { justify-content: flex-start; }
   h1 span { display: block; background: linear-gradient(100deg, #b8380a 0%, #de470f 60%, #f0561a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: 0.08em; }
   .foot { position: absolute; left: 72px; right: 72px; bottom: 60px; display: flex; align-items: center; justify-content: space-between; }
   .chip { display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 999px; border: 1px solid #d8d0c3; background: #fff; font-size: 24px; font-weight: 500; color: #514b45; }
@@ -41,11 +45,13 @@
   <b id="brand"></b>
 </div>
 <h1><b id="t1" style="font-weight:inherit"></b><span id="t2"></span></h1>
-<div class="foot"><span class="chip"><i></i><b id="chip" style="font-weight:inherit"></b></span><span class="url">ax.trina.app</span></div>
+<div class="foot"><span class="chip"><i></i><b id="chip" style="font-weight:inherit"></b></span><span class="url" id="url"></span></div>
 <script>
   const q = new URLSearchParams(location.search)
   if (q.get('lang') === 'ko') document.body.classList.add('ko')
+  if (q.get('kind') === 'post') document.body.classList.add('post')
   for (const id of ['brand', 't1', 't2', 'chip']) document.getElementById(id).textContent = q.get(id) || ''
+  document.getElementById('url').textContent = q.get('url') || 'ax.trina.app'
 </script>
 </body>
 </html>

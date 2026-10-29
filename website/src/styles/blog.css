@@ -3,6 +3,7 @@
 .blog-meta a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .blog-meta a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
+.blog-label { margin-bottom: 20px; }
 .blog-index { padding-bottom: 96px; }
 .blog-list { max-width: 820px; margin-top: 24px; }
 .blog-list li { padding: 28px 0; border-top: 1px solid var(--border); }
@@ -17,6 +18,8 @@ article.blog-post { padding-top: 72px; }
 .blog-text { color: var(--fg); font-size: 17px; line-height: 1.75; }
 .blog-text h1 { margin-top: 16px; font-size: clamp(32px, 5vw, 48px); line-height: 1.12; letter-spacing: -0.04em; }
 .blog-text h2 { margin-top: 52px; font-size: clamp(22px, 3vw, 27px); line-height: 1.25; letter-spacing: -0.025em; }
+.blog-text h3 { margin-top: 32px; font-size: 19px; line-height: 1.35; letter-spacing: -0.015em; }
+.blog-text h2 + h3 { margin-top: 20px; }
 .blog-text p, .blog-text ul, .blog-text ol, .blog-text table { margin-top: 18px; }
 .blog-text ul, .blog-text ol { padding-left: 22px; }
 .blog-text ul { list-style: disc; }

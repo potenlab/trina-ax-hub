@@ -48,9 +48,9 @@ the quote skill is not going to clone a repository.
 In the Claude apps, skills are available on Free, Pro, Max, Team and Enterprise plans, and a
 skill is uploaded as a ZIP of its folder. Skills require code execution to be enabled. [2]
 
-On Team and Enterprise, owners can provision skills for all users. Once an owner turns sharing
-on, people can share skills they made with specific colleagues — and with groups on Enterprise —
-or submit them to the organization's library. If the organization requires it, an owner or
+On Team and Enterprise, owners can provision skills for all users. Where the organization's settings
+allow it, people can share skills they made with specific colleagues — and with groups on Enterprise —
+or publish them to the organization's library. If the organization requires it, an owner or
 someone with permission to review checks a skill before it is published, and chooses who gets
 it. [2]
 
@@ -75,10 +75,10 @@ This is what we built [Trina AX](https://ax.trina.app/) to do, so here is how it
 - **Agent Skills folders work, with stricter rules.** Team skills live in the workspace's
   `skills/` folder, either as a folder with a `SKILL.md` entry point or as a single Markdown file
   with a `name` header. A `SKILL.md` needs both `name` (lowercase letters, numbers and hyphens,
-  matching its folder) and `description`, and every other field must be plain text. A Claude Code
-  skill that sets something like `disable-model-invocation: true`, or lists `allowed-tools` as a
-  YAML list, is skipped until those lines are changed. Skill text past 16,000 characters is cut
-  off. [3]
+  matching its folder) and `description`, and every other field must be plain text (a `metadata`
+  field may hold text values). A Claude Code skill that sets something like
+  `disable-model-invocation: true`, or lists `allowed-tools` as a YAML list, is skipped until those
+  lines are changed. Skill text past 16,000 characters is cut off. [3]
 - **Anyone suggests, a folder manager registers.** Under a useful answer, an employee selects
   *Suggest as skill*. A person allowed to manage team skills in the destination folder opens
   *Team skills → To review*, edits it if needed, and selects *Register* or *Turn down*. Changes
@@ -129,6 +129,39 @@ monthly plan by team size. Either way, Claude usage is billed by Anthropic, not 
 
 Many teams will use more than one. Engineers keep their repository skills; the quote skill and the
 weekly report skill go where sales and operations can reach them.
+
+## Questions people ask
+
+### Can I share one Claude skill with my whole team?
+
+Yes. Commit it to a repository's `.claude/skills/` folder for everyone who works there with Claude
+Code, or distribute it through a plugin or managed settings. [1] On Claude Team or Enterprise, an
+owner can provision it for all users, and where the organization's settings allow it, people can
+share skills they made with colleagues or publish them to the organization's library. [2] Or have it
+registered in the `skills/` folder of a workspace on a server run for your company, where people who
+can read that folder can use it. [5][6]
+
+### Do skills I enable in Claude also work in Claude Code?
+
+Yes, in one direction. Skills you enable in your Claude settings also load in Claude Code in your
+terminal when you sign in with the same Claude account (Claude Code v2.1.273 or later). They don't
+sync when Claude Code is signed in with an API key or runs on a cloud provider such as Amazon
+Bedrock. [2]
+
+### Can I share a skill with a group instead of one person at a time?
+
+On Enterprise plans, yes, once an owner has turned on sharing with groups. On Team, people share with
+specific colleagues or publish to the organization's library where publishing is turned on, and an
+owner can provision a skill for all users. [2]
+
+### Will a Claude Code skill work in Trina AX as it is?
+
+Not always — the rules are stricter. Claude Code treats every field as optional and uses the folder
+name when `name` is missing. [1] Trina AX needs `name` (matching the folder) and `description`
+written out, and every other field must be plain text (a `metadata` field may hold text values). So
+a skill without a `name` line, or one that sets `disable-model-invocation: true` or lists
+`allowed-tools` as a YAML list, is skipped until those lines are changed. Scripts bundled inside a
+skill are not run. [3]
 
 ## Try it
 

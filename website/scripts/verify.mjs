@@ -35,6 +35,7 @@ const pages = [
   { id: 'ko-first-week', path: '/ko/guide/first-week' },
   { id: 'en-blog', path: '/blog' },
   { id: 'en-blog-post', path: '/blog/share-claude-skills-with-your-team' },
+  { id: 'en-guide-use-skills', path: '/guide/use-skills' }, // ends with the "From the blog" block
   { id: '404', path: '/no-such-page', status: 404 },
 ]
 const viewports = [
@@ -47,7 +48,7 @@ const themes = ['light', 'dark']
 const keep = (id, w, theme) =>
   process.env.ALL_SHOTS === '1' ||
   ((id === 'en-home' || id === 'ko-home') && (w === 1280 || w === 360)) ||
-  (id.startsWith('en-blog') && (w === 1280 || w === 360)) ||
+  ((id.startsWith('en-blog') || id === 'en-guide-use-skills') && (w === 1280 || w === 360)) ||
   ((id === 'en-security' || id === 'ko-security') && w === 1280 && theme === 'light')
 
 const problems = []
@@ -261,7 +262,7 @@ try {
     const lk = await browser.newContext()
     const lp = await lk.newPage()
     const seen = new Set()
-    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week', '/blog', '/blog/share-claude-skills-with-your-team']) {
+    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week', '/blog', '/blog/share-claude-skills-with-your-team', '/guide/use-skills']) {
       await lp.goto(base + p, { waitUntil: 'domcontentloaded' })
       const hrefs = await lp.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')))
       const ids = await lp.$$eval('[id]', (els) => els.map((e) => e.id))

@@ -1,6 +1,7 @@
 // The English blog at /blog. Each post's text is src/blog/<slug>.en.md, copied unchanged from the blog-ops draft once it
 // is fact-checked (from its H1 to the trademark notice; no front matter, no fact-check notes). This file holds what the
-// pages add around the text: the date, the description and the sources it cites as [1], [2]...
+// pages add around the text: the dates, the description, the sources it cites as [1], [2]... and the guides that link
+// back to it. Each post has a 1200x630 card at public/blog/<slug>.png (bun run og).
 // English only for now: no Korean twin, so hreflang is the page itself plus x-default.
 import en from './en'
 import { guidePath } from './guides'
@@ -10,8 +11,11 @@ import { LINKS, ROUTES, abs } from '../site'
 export const BLOG = {
   path: '/blog',
   name: 'Blog',
-  title: 'Blog | Trina AX',
+  title: 'Trina AX Blog: using Claude across a whole team',
+  h1: 'Using Claude across a whole team',
   description: 'Articles from Trina Inc., the makers of Trina AX, on using Claude across a whole team.',
+  /** The heading of the block on an English guide that lists the posts about it. */
+  fromBlog: 'From the blog',
 } as const
 
 /** One document a source points at. Its URL is shown as written, without https://. */
@@ -21,15 +25,22 @@ export type Post = {
   /** The text's own H1. */
   title: string
   description: string
-  /** The day it goes live, in Korea (KST). The page, sitemap and JSON-LD all use it. */
+  /** The day it first went live, in Korea (KST). */
   published: string
+  /** The day the text last changed on the site (KST, the day that change is deployed). The sitemap uses it; the page
+   * shows "Updated" when it differs from published. */
+  modified: string
   /** The day the sources were read before publishing. */
   read: string
   /** [1] is the first entry. A source may name more than one document. */
   sources: SourceDoc[][]
+  /** English guide slugs whose pages link to this post under "From the blog". */
+  relatedGuides: string[]
 }
 
 export const blogPath = (slug: string) => `${BLOG.path}/${slug}`
+/** The post's social card (1200x630 PNG). */
+export const blogCard = (slug: string) => `${BLOG.path}/${slug}.png`
 
 const guide = (slug: string): SourceDoc => ({ title: EN_GUIDES.find(g => g.slug === slug)!.title, url: abs(guidePath(slug, 'en')) })
 const code = (file: string): SourceDoc => ({ title: `trina-app/trina-ax: ${file}`, url: `${LINKS.github}/blob/main/${file}` })
@@ -38,9 +49,11 @@ export const POSTS: Post[] = [
   {
     slug: 'share-claude-skills-with-your-team',
     title: 'How to share Claude skills with your whole team',
-    description: "Three ways to get one Claude skill to everyone on a team — a repository, Claude Team or Enterprise, or a workspace on your company's own server — and which fits when not everyone writes code.",
+    description: 'Three ways to share a Claude skill with your whole team (a repository, Claude Team or Enterprise, or a server run for your company) and when each one fits.',
     published: '2026-10-29',
+    modified: '2026-10-30',
     read: '2026-10-29',
+    relatedGuides: ['use-skills', 'review-skills'],
     sources: [
       [{ title: 'Extend Claude with skills', url: 'https://code.claude.com/docs/en/skills' }],
       [{ title: 'Use skills in Claude', url: 'https://support.claude.com/en/articles/12512180-use-skills-in-claude' }],

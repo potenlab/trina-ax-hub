@@ -6,6 +6,7 @@ import RoleDocument from './RoleDocument.astro'
 import ko from '../content/ko'
 import type { Copy } from '../content/en'
 import { EN_GUIDES } from '../content/guides-en'
+import { BLOG, POSTS, blogPath } from '../content/blog-en'
 import { GUIDES, guidePath, type Guide } from '../content/guides'
 import { ROUTES, abs, bookCall } from '../site'
 import '../styles/guide-article.css'
@@ -74,6 +75,8 @@ const w = lang === 'ko' ? {
   version: 'Product 0.2.2 · Checked October 28, 2026',
   back: '← All guides',
 }
+// English blog posts that name this guide (blog-en.ts relatedGuides). The blog has no Korean posts yet.
+const posts = lang === 'en' ? POSTS.filter(p => p.relatedGuides.includes(g.slug)) : []
 const role = g.roleId ? t.roles.items.find(r => r.id === g.roleId) : undefined
 const prompt = role?.q ?? g.prompt
 const next = articles.find(article => article.slug === g.next)!
@@ -128,6 +131,7 @@ const jsonLd = {
       <section class="article-section" id="problems"><h2>{w.problems}</h2>{g.problems.map(p => <div class="article-problem"><h3>{p.title}</h3><p>{p.body}</p></div>)}</section>
       {g.slug === 'hosting' && <p><a class="btn btn-primary" href={bookCall(lang)}>{t.nav.book}</a></p>}
       <aside class="article-next"><h2>{w.next}</h2><a href={guidePath(next.slug, lang)}>{next.title} →</a><p>{next.description}</p></aside>
+      {posts.length > 0 && <aside class="article-next article-blog" aria-labelledby="from-the-blog"><h2 id="from-the-blog">{BLOG.fromBlog}</h2>{posts.map(p => <><a href={blogPath(p.slug)}>{p.title} →</a><p>{p.description}</p></>)}</aside>}
       <p class="article-version">{w.version}</p>
       <a class="back" href={hub}>{w.back}</a>
     </div>
