@@ -1,0 +1,42 @@
+---
+// /blog/<slug>: one post. The text (H1 to the trademark notice) is src/blog/<slug>.en.md, rendered as written; each [n]
+// in it links to source n in the list below the text. Edit the Markdown, not this file, to change the wording.
+import type { MarkdownInstance } from 'astro'
+import en from '../content/en'
+import Base from '../layouts/Base.astro'
+import { BLOG, linkSources, longDate, type Post } from '../content/blog-en'
+import { blogPostingJsonLd } from '../seo'
+import { SITE_URL } from '../site'
+import Footer from './Footer.astro'
+import Nav from './Nav.astro'
+import '../styles/blog.css'
+
+interface Props { post: Post }
+const { post } = Astro.props
+const texts = import.meta.glob<MarkdownInstance<Record<string, never>>>('../blog/*.en.md', { eager: true })
+const text = texts[`../blog/${post.slug}.en.md`]
+if (!text) throw new Error(`src/blog/${post.slug}.en.md is missing`)
+const html = linkSources(await text.compiledContent(), post)
+const path = `${BLOG.path}/${post.slug}`
+const shown = (url: string) => url.replace(/^https:\/\//, '')
+---
+<Base t={en} path={path} alternates={{ en: path }} title={`${post.title} | ${en.brand}`} description={post.description} ogType="article" jsonLd={blogPostingJsonLd(en, post)}>
+  <Nav t={en} />
+  <main id="main" class="secpage blog">
+    <article class="container blog-post">
+      <p class="blog-meta"><a href={BLOG.path}>{BLOG.name}</a><span aria-hidden="true">·</span><time datetime={post.published}>{longDate(post.published)}</time><span aria-hidden="true">·</span>Trina Inc.</p>
+      <div class="blog-text" set:html={html} />
+      <section class="blog-sources" id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">Sources</h2>
+        <ol>
+          {post.sources.map((docs, i) => (
+            <li id={`source-${i + 1}`}><span class="source-n">[{i + 1}]</span> {docs.map((d, j) => <>{j > 0 && '; '}<cite>{d.title}</cite> · <a href={d.url} rel={d.url.startsWith(SITE_URL) ? undefined : 'noopener'}>{shown(d.url)}</a></>)} <span class="source-read">· read {post.read}</span></li>
+          ))}
+        </ol>
+      </section>
+    </article>
+    <div class="container blog-post"><a class="back" href={BLOG.path}>← All posts</a></div>
+  </main>
+  <Footer t={en} />
+  <script>import '../scripts/main'</script>
+</Base>

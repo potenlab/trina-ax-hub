@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { GUIDES, guidePath } from '../src/content/guides'
+import { BLOG, POSTS, blogPath } from '../src/content/blog-en'
 
 export const root = join(import.meta.dir, '..')
 export const dist = join(root, 'dist')
@@ -29,10 +30,15 @@ export const PAGE_FILES: Record<string, string> = {
     [guidePath(g.slug, 'en'), `guide/${g.slug}.html`],
     [`/en/guide/${g.slug}`, `en/guide/${g.slug}.html`],
   ])),
+  [BLOG.path]: 'blog.html',
+  ...Object.fromEntries(POSTS.map(p => [blogPath(p.slug), `blog/${p.slug}.html`])),
 }
 
 /** The English-only legal pages. */
 export const LEGAL_FILES = ['terms.html', 'privacy.html', 'refund.html']
+
+/** Blog posts. Besides our own addresses they link the outside sources they cite (test/blog.test.ts checks those). */
+export const BLOG_POST_FILES = POSTS.map(p => `blog/${p.slug}.html`)
 
 export function built(file: string): string {
   const p = join(dist, file)

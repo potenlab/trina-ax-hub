@@ -4,6 +4,7 @@ import { teamCopy } from './content/teams'
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import { GUIDES, guidePath } from './content/guides'
 import { EN_GUIDES } from './content/guides-en'
+import { BLOG, POSTS, blogPath, type Post } from './content/blog-en'
 import type { Copy } from './content/en'
 import { BROCHURES, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
@@ -15,14 +16,17 @@ export const PAGES: { route: RouteId; lastmod: string }[] = [
   { route: 'firstWeek', lastmod: '2026-10-29' },
 ]
 
-/** Additional canonical paths. Legal pages and brochures have no alternates; translated guides do. */
-export const SINGLE_PAGES: { path: string; lastmod: string; alternates?: Record<Lang, string> }[] = [
+/** Additional canonical paths. Legal pages and brochures have no alternates; translated guides do; the English-only
+ * blog lists itself as en and x-default. */
+export const SINGLE_PAGES: { path: string; lastmod: string; alternates?: { en: string; ko?: string } }[] = [
   ...Object.values(LEGAL).map(d => ({ path: d.path, lastmod: LEGAL_UPDATED })),
   ...Object.values(BROCHURES).map(b => ({ path: b.page, lastmod: KRW_REFERENCE.date })),
   ...GUIDES.flatMap(g => (['en', 'ko'] as const).map(lang => ({
     path: guidePath(g.slug, lang), lastmod: '2026-10-29',
     alternates: { en: guidePath(g.slug, 'en'), ko: guidePath(g.slug, 'ko') },
   }))),
+  { path: BLOG.path, lastmod: POSTS.map(p => p.published).sort().at(-1)!, alternates: { en: BLOG.path } },
+  ...POSTS.map(p => ({ path: blogPath(p.slug), lastmod: p.published, alternates: { en: blogPath(p.slug) } })),
 ]
 
 const LANGS: Lang[] = ['en', 'ko']
@@ -38,7 +42,7 @@ export function sitemapXml(pages = PAGES, single = SINGLE_PAGES): string {
     }),
   )
   for (const p of single) {
-    const alt = p.alternates ? [...LANGS, 'x-default'].map(lang => `    <xhtml:link rel="alternate" hreflang="${lang}" href="${abs(p.alternates![lang === 'ko' ? 'ko' : 'en'])}"/>`).join('\n') + '\n' : ''
+    const alt = p.alternates ? [...LANGS.filter(l => p.alternates![l]), 'x-default'].map(lang => `    <xhtml:link rel="alternate" hreflang="${lang}" href="${abs(p.alternates![lang === 'ko' ? 'ko' : 'en']!)}"/>`).join('\n') + '\n' : ''
     urls.push(`  <url>\n    <loc>${abs(p.path)}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n${alt}  </url>`)
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join('\n')}\n</urlset>\n`
@@ -136,6 +140,38 @@ export function breadcrumbJsonLd(t: Copy, crumbs: { name: string; route: RouteId
   }
 }
 
+/** A blog post as the page shows it: the headline is its H1, the date is the visible date, Trina Inc. wrote it. No offers. */
+export function blogPostingJsonLd(t: Copy, post: Post) {
+  const url = abs(blogPath(post.slug))
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      organization(),
+      {
+        '@type': 'BlogPosting',
+        '@id': `${url}#article`,
+        headline: post.title,
+        description: post.description,
+        datePublished: post.published,
+        inLanguage: 'en',
+        url,
+        mainEntityOfPage: url,
+        image: abs(t.meta.ogImage),
+        author: { '@id': ORG_ID },
+        publisher: { '@id': ORG_ID },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Trina AX', item: abs(ROUTES.home.en) },
+          { '@type': 'ListItem', position: 2, name: BLOG.name, item: abs(BLOG.path) },
+          { '@type': 'ListItem', position: 3, name: post.title, item: url },
+        ],
+      },
+    ],
+  }
+}
+
 // ---------- /llms.txt (https://llmstxt.org), English ----------
 
 export function llmsTxt(en: Copy, ko: Copy): string {
@@ -187,6 +223,8 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     `- [Guide](${abs(ROUTES.guide.en)}): ${en.guide.description}`,
     `- [The first week](${abs(ROUTES.firstWeek.en)}): ${en.firstWeek.description}`,
     ...EN_GUIDES.map(g => `- [${g.title}](${abs(guidePath(g.slug, 'en'))}): ${g.description}`),
+    `- [${BLOG.name}](${abs(BLOG.path)}): ${BLOG.description}`,
+    ...POSTS.map(p => `- [${p.title}](${abs(blogPath(p.slug))}): ${p.description}`),
     `- [Brochure (English PDF)](${abs(BROCHURES.en.pdf)}): five-page product introduction`,
     `- [Source code on GitHub](${LINKS.github}): AGPL-3.0-only`,
     `- [Permission model](${LINKS.permissions}): who sees what and how the AI is kept to it (Korean)`,

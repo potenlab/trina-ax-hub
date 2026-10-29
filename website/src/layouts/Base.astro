@@ -19,15 +19,17 @@ interface Props {
   route?: RouteId
   /** An explicit canonical path for a guide, brochure or legal page. */
   path?: string
-  /** Matching translated pages, when not part of ROUTES. */
-  alternates?: Record<'en' | 'ko', string>
+  /** Matching translated pages, when not part of ROUTES. An English-only page (the blog) gives just its own path. */
+  alternates?: { en: string; ko?: string }
   title?: string
   description?: string
   ogImage?: string
   ogAlt?: string
+  /** "article" for a blog post. */
+  ogType?: 'website' | 'article'
   jsonLd?: object
 }
-const { t, route, path, alternates, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, jsonLd } = Astro.props
+const { t, route, path, alternates, title = t.meta.title, description = t.meta.description, ogImage = t.meta.ogImage, ogAlt = t.meta.ogAlt, ogType = 'website', jsonLd } = Astro.props
 const lang = t.lang
 const locale = LOCALES[lang]
 const other = lang === 'en' ? 'ko' : 'en'
@@ -48,7 +50,7 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     {languagePaths && (
       <>
         <link rel="alternate" hreflang="en" href={abs(languagePaths.en)} />
-        <link rel="alternate" hreflang="ko" href={abs(languagePaths.ko)} />
+        {languagePaths.ko && <link rel="alternate" hreflang="ko" href={abs(languagePaths.ko)} />}
         <link rel="alternate" hreflang="x-default" href={abs(languagePaths.en)} />
       </>
     )}
@@ -63,7 +65,7 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Trina AX for LLMs (llms.txt)" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content="Trina AX" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -74,7 +76,7 @@ const robots = route || path ? 'index, follow, max-image-preview:large, max-snip
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogAlt} />
     <meta property="og:locale" content={locale.og} />
-    {languagePaths && <meta property="og:locale:alternate" content={LOCALES[other].og} />}
+    {languagePaths?.[other] && <meta property="og:locale:alternate" content={LOCALES[other].og} />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />

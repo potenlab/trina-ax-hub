@@ -5,7 +5,7 @@ import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
 import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
-import { LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
+import { BLOG_POST_FILES, LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
 const texts = files.map(([path, file]) => [path, visibleText(built(file))] as const)
@@ -107,7 +107,8 @@ describe('contact and links', () => {
 
   test('the only outside addresses are the product repository and trina.app', () => {
     // The legal pages also link the resellers' buyer terms and the Korean complaint bodies; they are checked below.
-    for (const [, file] of files.filter(([, f]) => !LEGAL_FILES.includes(f))) {
+    // Blog posts also link the documents they cite, only from their Sources list (test/blog.test.ts).
+    for (const [, file] of files.filter(([, f]) => !LEGAL_FILES.includes(f) && !BLOG_POST_FILES.includes(f))) {
       const html = built(file)
       for (const u of [...attrs(html, 'href'), ...attrs(html, 'src')]) {
         if (!/^https?:\/\//.test(u)) continue

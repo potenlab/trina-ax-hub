@@ -1,0 +1,48 @@
+/* /blog and its posts. A post's text is rendered Markdown (src/blog/*.en.md), so it is styled by element. */
+.blog-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; color: var(--fg-faint); }
+.blog-meta a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.blog-meta a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.blog-index { padding-bottom: 96px; }
+.blog-list { max-width: 820px; margin-top: 24px; }
+.blog-list li { padding: 28px 0; border-top: 1px solid var(--border); }
+.blog-list h2 { margin-top: 8px; font-size: clamp(22px, 3vw, 28px); line-height: 1.25; letter-spacing: -0.025em; }
+.blog-list h2 a { text-decoration: none; }
+.blog-list h2 a:hover { color: var(--accent); }
+.blog-list li > p:last-child { margin-top: 10px; color: var(--fg-muted); }
+
+.blog-post { max-width: 760px; }
+article.blog-post { padding-top: 72px; }
+.blog .blog-post .back { margin-bottom: 96px; }
+.blog-text { color: var(--fg); font-size: 17px; line-height: 1.75; }
+.blog-text h1 { margin-top: 16px; font-size: clamp(32px, 5vw, 48px); line-height: 1.12; letter-spacing: -0.04em; }
+.blog-text h2 { margin-top: 52px; font-size: clamp(22px, 3vw, 27px); line-height: 1.25; letter-spacing: -0.025em; }
+.blog-text p, .blog-text ul, .blog-text ol, .blog-text table { margin-top: 18px; }
+.blog-text ul, .blog-text ol { padding-left: 22px; }
+.blog-text ul { list-style: disc; }
+.blog-text ol { list-style: decimal; }
+.blog-text li::marker { color: var(--fg-faint); }
+.blog-text li + li { margin-top: 10px; }
+.blog-text a { color: var(--accent); text-underline-offset: 3px; }
+.blog-text a.cite { text-decoration: none; font-size: 0.85em; white-space: nowrap; }
+.blog-text a.cite:hover { text-decoration: underline; }
+.blog-text strong { font-weight: 650; }
+.blog-text code { padding: 1px 5px; border-radius: 5px; background: var(--inset); font-size: 0.86em; overflow-wrap: anywhere; }
+/* The comparison table scrolls sideways on a phone instead of squeezing four columns. */
+.blog-text table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 14.5px; line-height: 1.55; }
+.blog-text th, .blog-text td { min-width: 150px; padding: 10px 12px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.blog-text th { background: var(--bg-soft); font-weight: 600; }
+.blog-text td:first-child { font-weight: 600; }
+/* The trademark notice that ends every post. */
+.blog-text > p:last-child { margin-top: 44px; color: var(--fg-muted); font-size: 14.5px; }
+
+.blog-sources { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--fg-muted); font-size: 14.5px; line-height: 1.6; }
+.blog-sources h2 { color: var(--fg); font-size: 20px; letter-spacing: -0.02em; }
+.blog-sources ol { list-style: none; margin-top: 10px; padding: 0; }
+.blog-sources li { margin: 4px -8px 0; padding: 6px 8px; border-radius: 8px; overflow-wrap: anywhere; }
+.blog-sources li:target { background: var(--accent-soft); }
+.blog-sources cite { font-style: normal; color: var(--fg); }
+.blog-sources a { color: var(--accent); }
+.source-n { margin-right: 6px; color: var(--fg); font-weight: 600; }
+.source-read { white-space: nowrap; }
+@media (max-width: 600px) { article.blog-post { padding-top: 40px; } .blog-text { font-size: 16px; } }

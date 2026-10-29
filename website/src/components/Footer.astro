@@ -1,5 +1,6 @@
 ---
 import type { Copy } from '../content/en'
+import { BLOG } from '../content/blog-en'
 import { COMPANY, CONTACT_EMAIL, LEGAL, LINKS, ROUTES } from '../site'
 import Logo from './Logo.astro'
 
@@ -30,6 +31,7 @@ const biz: [string, string][] = [
         <a href={LINKS.company} rel="noopener">{l.company}</a>
         <a href={LINKS.github} rel="noopener">{l.github}</a>
         <a href={ROUTES.guide[t.lang]}>{l.guide}</a>
+        {lang === 'en' && <a href={BLOG.path}>{BLOG.name}</a>}
         <a href={ROUTES.security[t.lang]}>{l.security}</a>
         <a href={LEGAL.terms.path} hreflang="en">{l.terms}</a>
         <a href={LEGAL.privacy.path} hreflang="en">{l.privacy}</a>

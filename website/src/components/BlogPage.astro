@@ -1,0 +1,37 @@
+---
+// /blog: every post, newest first. English only for now (src/content/blog-en.ts).
+import en from '../content/en'
+import Base from '../layouts/Base.astro'
+import { BLOG, POSTS, blogPath, longDate } from '../content/blog-en'
+import { ROUTES } from '../site'
+import Footer from './Footer.astro'
+import Nav from './Nav.astro'
+import '../styles/blog.css'
+
+const posts = [...POSTS].sort((a, b) => b.published.localeCompare(a.published))
+---
+<Base t={en} path={BLOG.path} alternates={{ en: BLOG.path }} title={BLOG.title} description={BLOG.description}>
+  <Nav t={en} />
+  <main id="main" class="secpage blog">
+    <section class="secpage-hero">
+      <div class="container">
+        <h1>{BLOG.name}</h1>
+        <p class="secpage-lead">{BLOG.description}</p>
+      </div>
+    </section>
+    <div class="container blog-index">
+      <ul class="blog-list">
+        {posts.map(p => (
+          <li>
+            <p class="blog-meta"><time datetime={p.published}>{longDate(p.published)}</time></p>
+            <h2><a href={blogPath(p.slug)}>{p.title}</a></h2>
+            <p>{p.description}</p>
+          </li>
+        ))}
+      </ul>
+      <a class="back" href={ROUTES.home.en}>← {en.notFound.back}</a>
+    </div>
+  </main>
+  <Footer t={en} />
+  <script>import '../scripts/main'</script>
+</Base>

@@ -33,6 +33,8 @@ const pages = [
   { id: 'ko-guide', path: '/ko/guide' },
   { id: 'en-first-week', path: '/guide/first-week' },
   { id: 'ko-first-week', path: '/ko/guide/first-week' },
+  { id: 'en-blog', path: '/blog' },
+  { id: 'en-blog-post', path: '/blog/share-claude-skills-with-your-team' },
   { id: '404', path: '/no-such-page', status: 404 },
 ]
 const viewports = [
@@ -45,6 +47,7 @@ const themes = ['light', 'dark']
 const keep = (id, w, theme) =>
   process.env.ALL_SHOTS === '1' ||
   ((id === 'en-home' || id === 'ko-home') && (w === 1280 || w === 360)) ||
+  (id.startsWith('en-blog') && (w === 1280 || w === 360)) ||
   ((id === 'en-security' || id === 'ko-security') && w === 1280 && theme === 'light')
 
 const problems = []
@@ -203,6 +206,15 @@ try {
       const alts = await page.$$eval('link[rel=alternate][hreflang]', (els) => els.map((e) => `${e.getAttribute('hreflang')}=${e.getAttribute('href')}`))
       if (alts.length !== 3 || !alts.some((a) => a.startsWith('x-default=')) ) note('hreflang', `${p}: ${alts.join(', ')}`)
     }
+    // The blog is English only: the page itself and x-default.
+    for (const p of ['/blog', '/blog/share-claude-skills-with-your-team']) {
+      await page.goto(base + p, { waitUntil: 'domcontentloaded' })
+      const self = 'https://ax.trina.app' + p
+      const c = await page.getAttribute('link[rel=canonical]', 'href')
+      if (c !== self) note('canonical', `${p}: ${c}`)
+      const alts = await page.$$eval('link[rel=alternate][hreflang]', (els) => els.map((e) => `${e.getAttribute('hreflang')}=${e.getAttribute('href')}`))
+      if (alts.join(' ') !== `en=${self} x-default=${self}`) note('hreflang', `${p}: ${alts.join(', ')}`)
+    }
     await ctx.close()
 
     // mobile menu
@@ -249,7 +261,7 @@ try {
     const lk = await browser.newContext()
     const lp = await lk.newPage()
     const seen = new Set()
-    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week']) {
+    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week', '/blog', '/blog/share-claude-skills-with-your-team']) {
       await lp.goto(base + p, { waitUntil: 'domcontentloaded' })
       const hrefs = await lp.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')))
       const ids = await lp.$$eval('[id]', (els) => els.map((e) => e.id))
