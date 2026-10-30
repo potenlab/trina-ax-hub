@@ -92,7 +92,7 @@ export const POSTS: Post[] = [
     relatedGuides: ['desktop-app', 'team-files'],
     sources: [
       [{ title: 'Claude Code overview', url: 'https://code.claude.com/docs/en/overview' }],
-      [{ title: 'Set up Claude Code', url: 'https://code.claude.com/docs/en/setup' }],
+      [{ title: 'Advanced setup', url: 'https://code.claude.com/docs/en/setup' }],
       [{ title: 'Desktop application', url: 'https://code.claude.com/docs/en/desktop' }],
       [{ title: 'Cowork overview', url: 'https://claude.com/docs/cowork/overview' }],
       [{ title: 'Use Claude Cowork on web, desktop, and mobile', url: 'https://support.claude.com/en/articles/15520349-use-claude-cowork-on-web-desktop-and-mobile' }],
