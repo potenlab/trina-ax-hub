@@ -39,7 +39,7 @@ The Service is for businesses and other organizations, not for personal or house
 
 4.2 **What goes to Anthropic.** When a person uses Claude with Trina AX, what Claude reads to answer goes to Anthropic under your agreement with Anthropic. We are not a party to that transfer. Trina AX controls which folders each person can reach; it cannot control what Anthropic does with content once sent.
 
-4.3 **Anthropic's terms.** You must follow Anthropic's terms and usage policies. In particular, people must not share one Claude login.
+4.3 **Anthropic's terms.** Anthropic's plan terms and usage policies apply.
 
 ## 5. Our access to your server
 

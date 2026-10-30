@@ -392,7 +392,7 @@ const en = {
       title: 'The first week, as a checklist',
       items: [
         { who: 'Admin', title: 'Set folder permissions', body: 'Shared and team folders, and who can see each one.' },
-        { who: 'Owner / each person', title: 'Connect the AI', body: 'One company API key, or each person connects their own Claude plan.' },
+        { who: 'Owner / each person', title: 'Connect the AI', body: 'An admin adds one team connection for everyone. Sharing is on by default; personal connections take priority. A company API key is also an option.' },
         { who: 'Admin', title: 'Invite your team', body: 'Send each person an invite link.' },
         { who: 'Everyone', title: 'Make the first team skill', body: 'The task people repeat most, like a quote.' },
         { who: 'Owner', title: 'Make the first backup', body: 'Then check usage at the end of the week.' },
@@ -402,12 +402,12 @@ const en = {
   },
 
   paying: {
-    title: 'Own subscriptions, or one company key',
+    title: 'One team connection, personal connections first',
     body:
-      "Each person can connect their own Claude plan (Pro, Max or Team), or the company pays through one API key with a monthly limit per person. A person's own plan answers only that person's questions: sharing one subscription between people is against Claude's terms.",
+      "One team connection added by an admin can serve the whole team. Subscription sharing is on by default, and anyone who adds their own connection uses theirs first. You can also use a company API key with monthly limits per person. Each AI provider’s plan terms apply.",
     or: 'or',
     options: [
-      { title: 'Own subscriptions', chips: ['Pro', 'Max', 'Team'] },
+      { title: 'Team or personal subscription', chips: ['Pro', 'Max', 'Team'] },
       { title: 'One company key', chips: ['Monthly limit per person'] },
     ],
   },
@@ -543,7 +543,7 @@ const en = {
       },
       {
         q: 'Which Claude plan do we need?',
-        a: "Each person can connect their own Claude plan (Pro, Max or Team), or the company uses one API key with a monthly limit per person. Sharing one subscription between people is off by default, and we don't recommend it.",
+        a: "One team connection added by an admin can serve the whole team. Subscription sharing is on by default, and anyone who adds their own connection uses theirs first. You can also use a company API key with monthly limits per person. Each AI provider’s plan terms apply.",
       },
       {
         q: 'Where do our files live?',
@@ -689,7 +689,7 @@ const en = {
         items: [
           { title: 'Folders and permissions', to: 'folder-permissions' },
           { title: 'Inviting people', to: 'invite' },
-          { title: 'Connecting the AI: own plans or a company key', to: 'ai-connection' },
+          { title: 'Connecting the AI: team and personal connections', to: 'ai-connection' },
           { title: 'Usage and monthly limits', to: 'usage-limits' },
           { title: 'Reviewing and registering team skills', to: 'review-skills' },
           { title: 'Backups and rolling back files', to: 'backup' },
@@ -748,7 +748,7 @@ const en = {
     before: [
       'How many people, and in which teams',
       'Where the company files are today (PCs, a shared folder, a NAS)',
-      'Which Claude plans people have, or whether the company will use one API key',
+      'Which subscription or company API key to use for the team connection, and who has a personal connection',
       'One person to look after folders and permissions',
     ],
     daysTitle: 'Day by day',
@@ -756,7 +756,7 @@ const en = {
     timeLabel: 'Time',
     days: [
       { day: 'Day 1', title: 'Set folder permissions', who: 'Admin', time: '30 minutes', body: 'Open Admin → Folder permissions and set access to Shared and each team folder. Use Who sees what to preview access before selecting Save.' },
-      { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'The owner adds a company key in Admin → AI connections. If personal connections are enabled, each employee can add their own in Settings → AI connections.' },
+      { day: 'Day 1', title: 'Connect the AI', who: 'Owner or each person', time: '10 minutes', body: 'The owner adds a team connection in Admin → AI connections. Subscription sharing is on by default. Employees can add their own in Settings → AI connections; their personal connection takes priority. A company API key is also an option.' },
       { day: 'Day 2', title: 'Bring the files in', who: 'Admin', time: 'Depends on the files', body: 'Upload files from the Files screen, several at a time. On a server you run yourself, the owner can also link a shared folder or NAS mounted on that computer as a connected folder.' },
       { day: 'Day 3', title: 'Invite your team', who: 'Admin', time: '10 minutes', body: 'Open Admin → Members & invites → Invite link. Choose the role, groups and expiry, then Create link and Copy link. Share it with the notice below; invitations are not emailed automatically.' },
       { day: 'Day 4', title: 'Make the first team skill', who: 'Admin with one employee', time: '30 minutes', body: 'Choose a recurring task, such as a quote or weekly report. Use Suggest as skill below a useful answer. A person who manages the folder reviews it in Team skills → To review and selects Register.' },

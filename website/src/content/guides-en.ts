@@ -56,7 +56,7 @@ const articles: Translation[] = [
     slug: 'ai-connection', group: 'admin', title: 'Connect a company API key',
     description: 'Give employees access to a company Claude API key and understand which connection their questions use.',
     audience: 'The owner adding a company AI connection. Admins can view connections and check them again.',
-    before: ['Prepare a company-managed Claude API key and a team address that starts with https.', 'Employees using their own subscription add it in Settings → AI connections. This guide covers a company API key.'],
+    before: ['Prepare a company-managed Claude API key and a team address that starts with https.', 'One team connection can serve the whole team, with subscription sharing on by default. A personal connection added in Settings → AI connections takes priority. Each AI provider’s plan terms apply. This guide covers the company API key option.'],
     steps: [
       { title: 'Add the company connection', body: 'Open Admin → AI connections → Add connection. Under What do you want to connect?, choose Claude API key.' },
       { title: 'Enter its name and key', body: 'Enter a recognizable Name and paste the key in API key. If asked for Your password again, enter your own password. Do not paste the key into a chat or document.' },
@@ -66,7 +66,7 @@ const articles: Translation[] = [
     problems: [
       { title: 'You cannot add a connection', body: 'Only the owner can add a company connection. Adding AI connections also requires https. Reopen the secure company address if you are using http.' },
       { title: 'A different connection answers first', body: 'Connections are tried in this order: personal, assigned to a person, assigned to a group, then whole team. An employee’s personal connection takes priority for their questions.' },
-      { title: 'Employees want to use their own subscriptions', body: 'Enable Let members add their own AI connection. Employees can then open Settings → AI connections → Add connection, choose Claude subscription (Pro, Max, Team) and follow the instructions. Personal subscriptions serve that person’s requests; use an API key for shared company access.' },
+      { title: 'Employees want to use their own subscriptions', body: 'Enable Let members add their own AI connection. Employees can then open Settings → AI connections → Add connection, choose Claude subscription (Pro, Max, Team) and follow the instructions. Their personal connection takes priority over the team connection. Team subscription sharing is on by default; a company API key is another option.' },
     ], next: 'usage-limits',
   },
   {

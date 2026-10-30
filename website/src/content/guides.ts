@@ -76,7 +76,7 @@ export const GUIDES: Guide[] = [
     slug: 'ai-connection', group: 'admin', title: '회사 API 키 연결',
     description: '직원들이 회사 API 키로 AI를 쓰도록 연결하고, 개인 구독을 쓰는 경우와 구분해요.',
     audience: '회사 AI 연결을 추가하는 팀장이에요. 관리자는 연결을 조회하고 다시 확인할 수 있어요.',
-    before: ['회사가 관리하는 Claude API 키와 https로 시작하는 팀 주소가 필요해요.', '각자 구독을 쓰는 직원은 설정 → AI 연결에서 개인 연결을 추가해요. 이 글은 회사 키 하나를 연결하는 순서예요.'],
+    before: ['회사가 관리하는 Claude API 키와 https로 시작하는 팀 주소가 필요해요.', '팀 연결 하나로 팀 전체가 쓸 수 있고, 구독 공유는 기본으로 켜져 있어요. 설정 → AI 연결에서 자기 연결을 추가하면 그 연결을 먼저 써요. 각 AI 제공사의 요금제 약관이 적용돼요. 이 글은 회사 API 키를 연결하는 순서예요.'],
     steps: [
       { title: '회사 연결 추가', body: '관리자 → AI 연결 → 연결 추가를 눌러요. 무엇을 연결할까요?에서 Claude API 키를 골라요.' },
       { title: '이름과 키 입력', body: '이름에 회사에서 알아볼 이름을 적고 API 키 칸에 키를 넣어요. 비밀번호 다시 입력을 요구하면 본인의 비밀번호를 입력해요. 키를 채팅이나 문서에 붙여 넣지 않아요.' },
@@ -86,7 +86,7 @@ export const GUIDES: Guide[] = [
     problems: [
       { title: '연결 추가가 막힐 때', body: '회사 연결 추가는 팀장만 할 수 있어요. AI 연결은 https 주소에서 추가해요. http 주소라면 회사의 보안 연결 주소로 다시 열어요.' },
       { title: '회사 키보다 다른 연결이 먼저 쓰일 때', body: '개인 연결 → 사람 지정 → 그룹 지정 → 팀 전체 순서로 찾아요. 개인 구독을 연결한 직원의 질문에는 그 연결이 먼저 쓰여요.' },
-      { title: '각자 구독으로 쓰고 싶을 때', body: '팀원이 자기 AI 연결을 추가할 수 있게 하기를 켜요. 직원은 설정 → AI 연결 → 연결 추가 → Claude 구독 (Pro·Max·Team)을 고르고 화면 안내를 따라요. 개인 구독은 본인 요청에 쓰고, 회사 공용으로는 API 키를 사용해요.' },
+      { title: '각자 구독으로 쓰고 싶을 때', body: '팀원이 자기 AI 연결을 추가할 수 있게 하기를 켜요. 직원은 설정 → AI 연결 → 연결 추가 → Claude 구독 (Pro·Max·Team)을 고르고 화면 안내를 따라요. 자기 연결이 있으면 팀 연결보다 먼저 써요. 팀 구독 공유는 기본으로 켜져 있고, 회사 API 키를 쓸 수도 있어요.' },
     ],
     next: 'usage-limits', image: shot('ai-connection', '관리자 AI 연결 화면의 연결 추가와 사용 순서 안내', '개인 연결과 회사 연결의 사용 순서도 화면에서 확인할 수 있어요.'),
     sources: ['web/src/pages/admin/Credentials.tsx', 'web/src/i18n/ko.ts:credentials', 'server/src/credentials'],

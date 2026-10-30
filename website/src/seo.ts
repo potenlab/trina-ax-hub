@@ -183,7 +183,7 @@ export function llmsTxt(en: Copy, ko: Copy): string {
     '',
     `> ${en.meta.long}`,
     '',
-    "Trina AX is made by Trina Inc. (주식회사 트리나). The AI (Claude Code, and optionally Codex) runs on the company's own server: an office Mac mini or Linux server the company runs, or a server of the company's own on AWS in Seoul that Trina hosts. Employees sign in to the Trina AX app on the web, desktop or phone; every file tool checks the permissions of the person who asks. Each person can connect their own Claude plan, or the company uses one API key with monthly limits per person. The software is free and open source (AGPL-3.0-only); Trina hosting is a monthly plan by the number of people, setup included. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
+    "Trina AX is made by Trina Inc. (주식회사 트리나). The AI (Claude Code, and optionally Codex) runs on the company's own server: an office Mac mini or Linux server the company runs, or a server of the company's own on AWS in Seoul that Trina hosts. Employees sign in to the Trina AX app on the web, desktop or phone; every file tool checks the permissions of the person who asks. One team connection added by an admin can serve the whole team. Subscription sharing is on by default, and anyone who adds their own connection uses theirs first. You can also use a company API key with monthly limits per person. Each AI provider’s plan terms apply. The software is free and open source (AGPL-3.0-only); Trina hosting is a monthly plan by the number of people, setup included. Claude usage is billed by Anthropic, not by Trina. Trina AX is not affiliated with Anthropic.",
     '',
     '## What it does',
     '',
