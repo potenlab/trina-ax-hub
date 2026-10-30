@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
+import { POSTS, blogCard, blogPath } from '../src/content/blog-en'
 import { llmsTxt } from '../src/seo'
 import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
 import { parseHeaders } from '../scripts/serve-dist'
@@ -221,7 +222,7 @@ describe('content security policy (the page must work with script-src and style-
       expect(f, 'every file in /_astro/ has a content hash in its name').toMatch(/\.[A-Za-z0-9_-]{8}\.[a-z0-9]+$/)
       expect(cacheFor(`/_astro/${f}`)).toEqual(['public, max-age=31536000, immutable'])
     }
-    for (const path of ['/', '/blog', '/blog/share-claude-skills-with-your-team', '/blog/share-claude-skills-with-your-team.png', '/og.png', '/llms.txt', '/sitemap.xml', '/theme.js']) {
+    for (const path of ['/', '/blog', '/blog/share-claude-skills-with-your-team', '/blog/share-claude-skills-with-your-team.png', ...POSTS.flatMap(p => [blogPath(p.slug), blogCard(p.slug)]), '/og.png', '/llms.txt', '/sitemap.xml', '/theme.js']) {
       for (const v of cacheFor(path)) expect(v, path).not.toMatch(/immutable|max-age=31536000/)
     }
   })

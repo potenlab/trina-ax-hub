@@ -4,7 +4,7 @@ import { teamCopy } from './content/teams'
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import { GUIDES, guidePath } from './content/guides'
 import { EN_GUIDES } from './content/guides-en'
-import { AUTHORS, BLOG, POSTS, blogCard, blogPath, type Post } from './content/blog-en'
+import { AUTHORS, BLOG, POSTS, blogCard, blogPath, headline, type Post } from './content/blog-en'
 import type { Copy } from './content/en'
 import { BROCHURES, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
@@ -152,7 +152,7 @@ export function blogPostingJsonLd(post: Post) {
       {
         '@type': 'BlogPosting',
         '@id': `${url}#article`,
-        headline: post.title,
+        headline: headline(post),
         description: post.description,
         datePublished: post.published,
         dateModified: post.modified,

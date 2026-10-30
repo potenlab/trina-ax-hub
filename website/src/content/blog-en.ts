@@ -53,6 +53,8 @@ export type Post = {
 export const blogPath = (slug: string) => `${BLOG.path}/${slug}`
 /** The post's social card (1200x630 PNG). */
 export const blogCard = (slug: string) => `${BLOG.path}/${slug}.png`
+/** The title as the page's H1 shows it: the site's Markdown (smartypants) curls apostrophes. JSON-LD headline uses it. */
+export const headline = (post: Post) => post.title.replace(/'/g, '’')
 
 const guide = (slug: string): SourceDoc => ({ title: EN_GUIDES.find(g => g.slug === slug)!.title, url: abs(guidePath(slug, 'en')) })
 const code = (file: string): SourceDoc => ({ title: `trina-app/trina-ax: ${file}`, url: `${LINKS.github}/blob/main/${file}` })
@@ -77,6 +79,30 @@ export const POSTS: Post[] = [
       [{ title: en.meta.title, url: abs(ROUTES.home.en) }],
       [{ title: en.secPage.title, url: abs(ROUTES.security.en) }],
       [{ title: 'trina-app/trina-ax', url: LINKS.github }, { title: 'Trina AX hosting plans', url: abs(`${ROUTES.home.en}#pricing`) }],
+    ],
+  },
+  {
+    slug: 'claude-code-for-people-who-dont-code',
+    title: "Claude Code for people who don't code",
+    description: "Three ways to put Claude's agent to work without a terminal: the Code tab in Claude Desktop, Cowork, or a team workspace on a server run for your company.",
+    author: 'minjae-lee',
+    published: '2026-10-30',
+    modified: '2026-10-30',
+    read: '2026-10-30',
+    relatedGuides: ['desktop-app', 'team-files'],
+    sources: [
+      [{ title: 'Claude Code overview', url: 'https://code.claude.com/docs/en/overview' }],
+      [{ title: 'Set up Claude Code', url: 'https://code.claude.com/docs/en/setup' }],
+      [{ title: 'Desktop application', url: 'https://code.claude.com/docs/en/desktop' }],
+      [{ title: 'Cowork overview', url: 'https://claude.com/docs/cowork/overview' }],
+      [{ title: 'Use Claude Cowork on web, desktop, and mobile', url: 'https://support.claude.com/en/articles/15520349-use-claude-cowork-on-web-desktop-and-mobile' }],
+      [{ title: 'Claude Cowork architecture overview', url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview' }],
+      [{ title: 'Use Claude Cowork on Team and Enterprise plans', url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans' }],
+      [{ title: 'Trina AX for LLMs (llms.txt)', url: abs('/llms.txt') }, { title: en.meta.title, url: abs(ROUTES.home.en) }],
+      [guide('desktop-app'), guide('phone-app')],
+      [{ title: en.secPage.title, url: abs(ROUTES.security.en) }],
+      [{ title: 'trina-app/trina-ax', url: LINKS.github }],
+      [{ title: 'Self-hosted environments', url: 'https://code.claude.com/docs/en/self-hosted-environments' }],
     ],
   },
 ]

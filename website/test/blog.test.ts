@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
-import { AUTHORS, BLOG, POSTS, blogCard, blogPath, byline, longDate } from '../src/content/blog-en'
+import { AUTHORS, BLOG, POSTS, blogCard, blogPath, byline, headline, longDate } from '../src/content/blog-en'
 import { EN_GUIDES } from '../src/content/guides-en'
 import { GUIDES, guidePath } from '../src/content/guides'
 import { organization } from '../src/seo'
@@ -74,6 +74,14 @@ test('every post is listed on /blog, in the sitemap and llms.txt, and every Engl
   }
 })
 
+test('/blog lists every post once, newest first', () => {
+  const index = built(PAGE_FILES[BLOG.path])
+  const listed = [...index.matchAll(/<li>\s*<p class="blog-meta"><time datetime="([^"]+)">[\s\S]*?<h2><a href="([^"]+)">/g)].map(m => ({ published: m[1], path: m[2] }))
+  expect(listed.map(x => x.path).sort()).toEqual(posts.map(x => x.path).sort())
+  for (let i = 1; i < listed.length; i++) expect(listed[i - 1].published >= listed[i].published, listed[i].path).toBe(true)
+  for (const x of listed) expect(x.published).toBe(posts.find(y => y.path === x.path)!.p.published)
+})
+
 test('each post is the fact-checked text as written: its words in order, one H1, the trademark notice last', () => {
   expect(readdirSync(join(root, 'src/blog')).sort()).toEqual(POSTS.map(p => `${p.slug}.en.md`).sort())
   for (const { p, html } of posts) {
@@ -85,7 +93,8 @@ test('each post is the fact-checked text as written: its words in order, one H1,
     // The renderer changes no words (it only curls apostrophes). Link addresses and list numbers are not text on the page.
     const shown = visibleText(text(html))
     expect(words(shown)).toEqual(words(md.replace(/\]\([^)]*\)/g, ']').replace(/^\d+\. /gm, '')))
-    expect([...html.matchAll(/<h1\b[\s\S]*?<\/h1>/g)].map(m => visibleText(m[0]))).toEqual([p.title])
+    // The H1 is the title, with the apostrophes the renderer curls (the JSON-LD headline is the same text).
+    expect([...html.matchAll(/<h1\b[\s\S]*?<\/h1>/g)].map(m => visibleText(m[0]))).toEqual([headline(p)])
     expect(shown.endsWith(TRADEMARK)).toBe(true)
     // Tables: the first cell of every body row is a row header, so every data cell has a header.
     for (const body of html.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)) {
