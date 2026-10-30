@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { llmsTxt } from '../src/seo'
 import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
+import { parseHeaders } from '../scripts/serve-dist'
 import { BLOG_POST_FILES, LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
@@ -205,6 +206,24 @@ describe('content security policy (the page must work with script-src and style-
       expect(a.includes('src=') || a.includes('application/ld+json'), `inline script: <script${a}>`).toBe(true)
     }
     expect(html).not.toMatch(/\son[a-z]+="/) // no inline event handlers
+  })
+
+  // Lighthouse uses-long-cache-ttl: the build's hashed files are cached for a year. Nothing without a hash in its name
+  // (pages, social cards, llms.txt, the sitemap, theme.js) may be immutable, or a change would not reach visitors.
+  test('only the hashed build files under /_astro/ are cached for a year as immutable', () => {
+    const rules = parseHeaders(headers)
+    const cacheFor = (path: string) => rules.filter(r => r.pattern.endsWith('*') ? path.startsWith(r.pattern.slice(0, -1)) : r.pattern === path)
+      .map(r => r.headers['Cache-Control']).filter(Boolean)
+    expect(rules.filter(r => /immutable/.test(r.headers['Cache-Control'] ?? '')).map(r => r.pattern)).toEqual(['/_astro/*'])
+    const assets = readdirSync(join(root, 'dist/_astro'))
+    expect(assets.length).toBeGreaterThan(0)
+    for (const f of assets) {
+      expect(f, 'every file in /_astro/ has a content hash in its name').toMatch(/\.[A-Za-z0-9_-]{8}\.[a-z0-9]+$/)
+      expect(cacheFor(`/_astro/${f}`)).toEqual(['public, max-age=31536000, immutable'])
+    }
+    for (const path of ['/', '/blog', '/blog/share-claude-skills-with-your-team', '/blog/share-claude-skills-with-your-team.png', '/og.png', '/llms.txt', '/sitemap.xml', '/theme.js']) {
+      for (const v of cacheFor(path)) expect(v, path).not.toMatch(/immutable|max-age=31536000/)
+    }
   })
 
   test('wrangler.toml matches the deployment brief', () => {

@@ -2,7 +2,7 @@
 // /blog: every post, newest first. English only for now (src/content/blog-en.ts).
 import en from '../content/en'
 import Base from '../layouts/Base.astro'
-import { BLOG, POSTS, blogPath, longDate } from '../content/blog-en'
+import { AUTHORS, BLOG, POSTS, blogPath, longDate } from '../content/blog-en'
 import { ROUTES } from '../site'
 import Footer from './Footer.astro'
 import Nav from './Nav.astro'
@@ -24,7 +24,7 @@ const posts = [...POSTS].sort((a, b) => b.published.localeCompare(a.published))
       <ul class="blog-list">
         {posts.map(p => (
           <li>
-            <p class="blog-meta"><time datetime={p.published}>{longDate(p.published)}</time></p>
+            <p class="blog-meta"><time datetime={p.published}>{longDate(p.published)}</time><span aria-hidden="true">·</span>{AUTHORS[p.author].name}</p>
             <h2><a href={blogPath(p.slug)}>{p.title}</a></h2>
             <p>{p.description}</p>
           </li>

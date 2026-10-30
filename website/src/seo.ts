@@ -4,7 +4,7 @@ import { teamCopy } from './content/teams'
 // build time. The pricing section shows the hosting plans (PLANS in src/site.ts); the structured data has no offers.
 import { GUIDES, guidePath } from './content/guides'
 import { EN_GUIDES } from './content/guides-en'
-import { BLOG, POSTS, blogCard, blogPath, type Post } from './content/blog-en'
+import { AUTHORS, BLOG, POSTS, blogCard, blogPath, type Post } from './content/blog-en'
 import type { Copy } from './content/en'
 import { BROCHURES, KRW_REFERENCE, CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, LINKS, PLANS, ROUTES, SITE_URL, abs, usd, type Lang, type RouteId } from './site'
 
@@ -140,8 +140,9 @@ export function breadcrumbJsonLd(t: Copy, crumbs: { name: string; route: RouteId
   }
 }
 
-/** A blog post as the page shows it: the headline is its H1, the dates are the visible dates, the image is its card,
- * Trina Inc. wrote it. No offers, and no FAQPage for the questions in the text (the home page keeps the site's FAQ). */
+/** A blog post as the page shows it: the headline is its H1, the dates are the visible dates, the image is its card, the
+ * author is the person in the byline (working for Trina Inc., the publisher). No offers, and no FAQPage for the questions
+ * in the text (the home page keeps the site's FAQ). */
 export function blogPostingJsonLd(post: Post) {
   const url = abs(blogPath(post.slug))
   return {
@@ -159,7 +160,7 @@ export function blogPostingJsonLd(post: Post) {
         url,
         mainEntityOfPage: url,
         image: abs(blogCard(post.slug)),
-        author: { '@id': ORG_ID },
+        author: { '@type': 'Person', name: AUTHORS[post.author].name, jobTitle: AUTHORS[post.author].jobTitle, worksFor: { '@id': ORG_ID } },
         publisher: { '@id': ORG_ID },
       },
       {

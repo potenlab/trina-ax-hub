@@ -4,7 +4,7 @@
 import type { MarkdownInstance } from 'astro'
 import en from '../content/en'
 import Base from '../layouts/Base.astro'
-import { BLOG, blogCard, linkSources, longDate, type Post } from '../content/blog-en'
+import { AUTHORS, BLOG, blogCard, byline, linkSources, longDate, rowHeaders, type Post } from '../content/blog-en'
 import { blogPostingJsonLd } from '../seo'
 import { SITE_URL } from '../site'
 import Footer from './Footer.astro'
@@ -16,15 +16,15 @@ const { post } = Astro.props
 const texts = import.meta.glob<MarkdownInstance<Record<string, never>>>('../blog/*.en.md', { eager: true })
 const text = texts[`../blog/${post.slug}.en.md`]
 if (!text) throw new Error(`src/blog/${post.slug}.en.md is missing`)
-const html = linkSources(await text.compiledContent(), post)
+const html = rowHeaders(linkSources(await text.compiledContent(), post))
 const path = `${BLOG.path}/${post.slug}`
 const shown = (url: string) => url.replace(/^https:\/\//, '')
 ---
-<Base t={en} path={path} alternates={{ en: path }} title={`${post.title} | ${en.brand}`} description={post.description} ogType="article" ogImage={blogCard(post.slug)} ogAlt={post.title} article={{ published: post.published, modified: post.modified }} jsonLd={blogPostingJsonLd(post)}>
+<Base t={en} path={path} alternates={{ en: path }} title={`${post.title} | ${en.brand}`} description={post.description} ogType="article" ogImage={blogCard(post.slug)} ogAlt={post.title} article={{ published: post.published, modified: post.modified, author: AUTHORS[post.author].name }} jsonLd={blogPostingJsonLd(post)}>
   <Nav t={en} />
   <main id="main" class="secpage blog">
     <article class="container blog-post">
-      <p class="blog-meta"><a href={BLOG.path}>{BLOG.name}</a><span aria-hidden="true">·</span><time datetime={post.published}>{longDate(post.published)}</time>{post.modified !== post.published && <><span aria-hidden="true">·</span><span>Updated <time datetime={post.modified}>{longDate(post.modified)}</time></span></>}<span aria-hidden="true">·</span>Trina Inc.</p>
+      <p class="blog-meta"><a href={BLOG.path}>{BLOG.name}</a><span aria-hidden="true">·</span><time datetime={post.published}>{longDate(post.published)}</time>{post.modified !== post.published && <><span aria-hidden="true">·</span><span>Updated <time datetime={post.modified}>{longDate(post.modified)}</time></span></>}<span aria-hidden="true">·</span><span>{byline(post.author)}</span></p>
       <div class="blog-text" set:html={html} />
       <section class="blog-sources" id="sources" aria-labelledby="sources-title">
         <h2 id="sources-title">Sources</h2>

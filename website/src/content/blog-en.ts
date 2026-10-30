@@ -18,6 +18,17 @@ export const BLOG = {
   fromBlog: 'From the blog',
 } as const
 
+/** Who writes the posts: the two co-CEOs, with only the name and job title they gave (2026-10-30). No bios, photos or
+ * profile links: nothing was given, so nothing is made up. Posts alternate between them (blog-ops decides, from the
+ * draft's author: line). */
+export const AUTHORS = {
+  'dion-nam': { name: 'Dion Nam', jobTitle: 'Co-CEO, Trina Inc.' },
+  'minjae-lee': { name: 'Minjae Lee', jobTitle: 'Co-CEO, Trina Inc.' },
+} as const
+export type AuthorId = keyof typeof AUTHORS
+/** "By Dion Nam, Co-CEO, Trina Inc." */
+export const byline = (id: AuthorId) => `By ${AUTHORS[id].name}, ${AUTHORS[id].jobTitle}`
+
 /** One document a source points at. Its URL is shown as written, without https://. */
 export type SourceDoc = { title: string; url: string }
 export type Post = {
@@ -25,6 +36,7 @@ export type Post = {
   /** The text's own H1. */
   title: string
   description: string
+  author: AuthorId
   /** The day it first went live, in Korea (KST). */
   published: string
   /** The day the text last changed on the site (KST, the day that change is deployed). The sitemap uses it; the page
@@ -50,6 +62,7 @@ export const POSTS: Post[] = [
     slug: 'share-claude-skills-with-your-team',
     title: 'How to share Claude skills with your whole team',
     description: 'Three ways to share a Claude skill with your whole team (a repository, Claude Team or Enterprise, or a server run for your company) and when each one fits.',
+    author: 'dion-nam',
     published: '2026-10-29',
     modified: '2026-10-30',
     read: '2026-10-29',
@@ -71,6 +84,10 @@ export const POSTS: Post[] = [
 /** "2026-10-29" -> "October 29, 2026", the same on every machine. */
 export const longDate = (day: string) =>
   new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+
+/** In a post's tables the first cell of each body row names the row, so it is rendered as a row header (every data cell
+ * then has a header: WCAG 1.3.1, Lighthouse td-has-header). Only the blog does this; the site's Markdown settings stay. */
+export const rowHeaders = (html: string) => html.replace(/(<tr>\s*)<td>([\s\S]*?)<\/td>/g, '$1<th scope="row">$2</th>')
 
 /** Each [n] in the rendered text becomes a link to source n. A number without a source stops the build. */
 export function linkSources(html: string, post: Post): string {

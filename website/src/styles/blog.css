@@ -35,7 +35,8 @@ article.blog-post { padding-top: 72px; }
 .blog-text table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 14.5px; line-height: 1.55; }
 .blog-text th, .blog-text td { min-width: 150px; padding: 10px 12px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
 .blog-text th { background: var(--bg-soft); font-weight: 600; }
-.blog-text td:first-child { font-weight: 600; }
+/* Row headers (the first column) read like the old first column: bold, no header background. */
+.blog-text tbody th { background: none; }
 /* The trademark notice that ends every post. */
 .blog-text > p:last-child { margin-top: 44px; color: var(--fg-muted); font-size: 14.5px; }
 

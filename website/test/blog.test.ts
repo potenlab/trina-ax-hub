@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import en from '../src/content/en'
-import { BLOG, POSTS, blogCard, blogPath, longDate } from '../src/content/blog-en'
+import { AUTHORS, BLOG, POSTS, blogCard, blogPath, byline, longDate } from '../src/content/blog-en'
 import { EN_GUIDES } from '../src/content/guides-en'
 import { GUIDES, guidePath } from '../src/content/guides'
 import { organization } from '../src/seo'
@@ -17,9 +17,9 @@ const text = (html: string) => html.slice(html.indexOf('<div class="blog-text">'
 const sourceList = (html: string) => html.slice(html.indexOf('<section class="blog-sources"'), html.indexOf('</section>', html.indexOf('<section class="blog-sources"')))
 /** Words in order: typographic quotes, line breaks and Markdown marks do not count. */
 const words = (s: string) => s.toLowerCase().match(/[a-z0-9]+/g) ?? []
-/** The date line under a post's breadcrumb: published, "Updated" only when the text changed later, and the author. */
-const dateLine = (published: string, modified: string, author: string) =>
-  `${BLOG.name} · ${longDate(published)}${modified !== published ? ` · Updated ${longDate(modified)}` : ''} · ${author}`
+/** The date line under a post's breadcrumb: published, "Updated" only when the text changed later, and the byline. */
+const dateLine = (published: string, modified: string, by: string) =>
+  `${BLOG.name} · ${longDate(published)}${modified !== published ? ` · Updated ${longDate(modified)}` : ''} · ${by}`
 const ours = (u: string) => u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith(SITE_URL + '/')
 
 test('the blog and every post are English pages that point at themselves: canonical, hreflang en and x-default, no Korean twin', () => {
@@ -64,7 +64,7 @@ test('every post is listed on /blog, in the sitemap and llms.txt, and every Engl
   expect(llms).toContain(`- [${BLOG.name}](${SITE_URL}${BLOG.path}): ${BLOG.description}`)
   for (const { p, path, url } of posts) {
     expect(attrs(index, 'href')).toContain(path)
-    expect(visibleText(index)).toContain(`${longDate(p.published)} ${p.title} ${p.description}`)
+    expect(visibleText(index)).toContain(`${longDate(p.published)} · ${AUTHORS[p.author].name} ${p.title} ${p.description}`)
     expect(sitemap).toContain(`<loc>${url}</loc>\n    <lastmod>${p.modified}</lastmod>\n    <xhtml:link rel="alternate" hreflang="en" href="${url}"/>\n    <xhtml:link rel="alternate" hreflang="x-default" href="${url}"/>\n  </url>`)
     expect(llms).toContain(`- [${p.title}](${url}): ${p.description}`)
   }
@@ -87,6 +87,12 @@ test('each post is the fact-checked text as written: its words in order, one H1,
     expect(words(shown)).toEqual(words(md.replace(/\]\([^)]*\)/g, ']').replace(/^\d+\. /gm, '')))
     expect([...html.matchAll(/<h1\b[\s\S]*?<\/h1>/g)].map(m => visibleText(m[0]))).toEqual([p.title])
     expect(shown.endsWith(TRADEMARK)).toBe(true)
+    // Tables: the first cell of every body row is a row header, so every data cell has a header.
+    for (const body of html.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)) {
+      const rows = [...body[1].matchAll(/<tr>\s*(<t[hd][^>]*>)/g)].map(m => m[1])
+      expect(rows.length).toBeGreaterThan(0)
+      expect(new Set(rows)).toEqual(new Set(['<th scope="row">']))
+    }
     expect(p.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(longDate(p.published)).not.toBe('Invalid Date')
   }
@@ -132,7 +138,7 @@ test('links in a post go to pages that exist, including a guide and the pricing 
   }
 })
 
-test('JSON-LD: a BlogPosting that matches the visible post, by the site’s Organization, with no offers', () => {
+test('JSON-LD: a BlogPosting that matches the visible post, published by the site’s Organization, with no offers', () => {
   for (const { p, html, url } of posts) {
     const graph = jsonLd(html)['@graph']
     expect(graph.map((n: any) => n['@type'])).toEqual(['Organization', 'BlogPosting', 'BreadcrumbList'])
@@ -144,10 +150,10 @@ test('JSON-LD: a BlogPosting that matches the visible post, by the site’s Orga
     expect(post.datePublished).toBe(p.published)
     expect(post.dateModified).toBe(p.modified)
     expect(times).toEqual(p.modified === p.published ? [p.published] : [p.published, p.modified])
-    expect(visibleText(html)).toContain(dateLine(post.datePublished, post.dateModified, org.name))
+    expect(visibleText(html)).toContain(dateLine(post.datePublished, post.dateModified, byline(p.author)))
     expect(post.image).toBe(SITE_URL + blogCard(p.slug))
     expect([post.inLanguage, post.url, post.mainEntityOfPage]).toEqual(['en', url, url])
-    expect(post.author).toEqual({ '@id': org['@id'] })
+    expect(post.author).toEqual({ '@type': 'Person', name: AUTHORS[p.author].name, jobTitle: AUTHORS[p.author].jobTitle, worksFor: { '@id': org['@id'] } })
     expect(post.publisher).toEqual({ '@id': org['@id'] })
     expect(crumbs.itemListElement.map((i: any) => i.item)).toEqual([`${SITE_URL}/`, SITE_URL + BLOG.path, url])
     expect(JSON.stringify(graph)).not.toMatch(/"offers?"|"price|priceCurrency|UnitPriceSpecification/i)
@@ -199,4 +205,30 @@ test('the English guides a post names link to it under "From the blog"; other gu
   }
   for (const g of GUIDES) expect(built(PAGE_FILES[guidePath(g.slug)])).not.toContain('article-blog')
   expect(built('index.html')).not.toContain('article-blog')
+})
+
+test('authors: one of the two co-CEOs, with only a name and job title, and the same name on the page, in JSON-LD and in the meta', () => {
+  // Only what was given (2026-10-30): no bio, photo or profile link to make up.
+  expect(Object.keys(AUTHORS)).toEqual(['dion-nam', 'minjae-lee'])
+  for (const a of Object.values(AUTHORS)) {
+    expect(Object.keys(a).sort()).toEqual(['jobTitle', 'name'])
+    expect(a.jobTitle).toBe('Co-CEO, Trina Inc.')
+  }
+  for (const { p, html } of posts) {
+    expect(Object.keys(AUTHORS)).toContain(p.author)
+    const { name, jobTitle } = AUTHORS[p.author]
+    const person = jsonLd(html)['@graph'].find((n: any) => n['@type'] === 'BlogPosting').author
+    const org = organization()
+    expect(person['@type']).toBe('Person')
+    expect(person.worksFor).toEqual({ '@id': org['@id'] })
+    expect(Object.keys(person).sort()).toEqual(['@type', 'jobTitle', 'name', 'worksFor'])
+    expect([person.name, person.jobTitle]).toEqual([name, jobTitle])
+    expect(visibleText(html.match(/<p class="blog-meta">[\s\S]*?<\/p>/)![0]).endsWith(`By ${name}, ${jobTitle}`)).toBe(true)
+    expect(html).toContain(`<meta name="author" content="${name}">`)
+    expect(html).toContain(`<meta property="article:author" content="${name}">`)
+  }
+  // The author meta belongs to posts only.
+  for (const [path, file] of Object.entries(PAGE_FILES).filter(([path]) => !posts.some(x => x.path === path))) {
+    expect(built(file), path).not.toContain('<meta name="author"')
+  }
 })
