@@ -479,14 +479,14 @@ const en = {
     itCta: 'Send this to your IT lead',
   },
 
-  // Plan numbers (price, people, server size) come from PLANS in src/site.ts; {from}, {n}, {cpu}, {mem} and {disk}
+  // Plan numbers (price, people, server size) come from PLANS and FREE_PLAN in src/site.ts; {from}, {n}, {cpu}, {mem} and {disk}
   // are filled in from there.
   pricing: {
-    title: 'Free to run yourself.\nHosted by Trina from {from} a month',
+    title: 'Free to run yourself.\nHosted by Trina: free, or from {from} a month',
     corner: 'What you get',
     cols: ['Self-host', 'Trina hosting'],
     rows: [
-      { label: 'Price', a: 'Free · AGPL-3.0', b: 'From {from} a month, by plan' },
+      { label: 'Price', a: 'Free · AGPL-3.0', b: 'A free plan, or from {from} a month' },
       { label: 'Who runs it', a: 'You', b: 'Trina' },
       { label: 'Address', a: 'Your server or office Mac mini', b: 'your-company.trina.app' },
       { label: 'Updates and backups', a: 'You', b: 'Trina does them' },
@@ -501,6 +501,16 @@ const en = {
     people: 'Up to {n} people',
     server: 'Your own server: {cpu} vCPU, {mem} GB memory, {disk} GB storage',
     planCta: 'Get started',
+    free: {
+      name: 'Free',
+      teams: '1 free team per account',
+      running: '{n} answer running at a time',
+      server: 'Hosted in Seoul: {cpu} vCPU, {mem} GB memory, {disk} GB storage',
+      card: 'No credit card · Limited spots',
+      cta: 'Sign up free',
+      note:
+        'Free plan: your team connects its own AI, as on the paid plans: an API key or your own subscription. Each AI provider’s plan terms apply. Spots are limited, so a new free team may wait. A free team may be paused when unused for a long time. Upgrade to a paid plan any time, and your data stays in place.',
+    },
     custom: {
       name: 'Larger',
       price: 'Quoted',
@@ -509,7 +519,7 @@ const en = {
       cta: 'Book a call',
     },
     included:
-      'Every plan: a server on AWS in Seoul for your company alone, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
+      'Every paid plan: a server on AWS in Seoul for your company alone, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
     fine:
       'Prices are in US dollars, before tax. Plans are sold by our reseller (Merchant of Record), Polar or Creem as shown at checkout, which adds any sales tax or VAT. A plan renews every month until you cancel. Cancel any time from the billing portal linked in your receipt; it runs to the end of the month you paid for. Ask within 14 days of your first payment for a full refund.',
     termsLink: 'Terms',
@@ -517,7 +527,7 @@ const en = {
     blocks: [
       {
         title: 'Priced from the server',
-        body: "Each plan is your company's own AWS server, sized for its number of people. The price is that server plus Trina running it.",
+        body: "Each paid plan is your company's own AWS server, sized for its number of people. The price is that server plus Trina running it.",
       },
       {
         title: 'Who you pay for what',
@@ -539,7 +549,11 @@ const en = {
       },
       {
         q: 'Is it really free?',
-        a: 'The software is free (AGPL-3.0). Only hosting by Trina is paid: a monthly plan by the number of people, setup included. Claude usage is paid to Anthropic separately.',
+        a: 'The software is free (AGPL-3.0). Trina hosting has a free plan for small teams, and monthly paid plans by the number of people, setup included. Claude usage is paid to Anthropic separately.',
+      },
+      {
+        q: 'Is there a free plan?',
+        a: 'Yes. Each account gets 1 free hosted team for up to 3 members, with 1 answer running at a time and a small server in Seoul (2 vCPU, 2 GB memory, 5 GB storage). Your team connects its own AI. You need no credit card. Spots are limited, so a new free team may wait. A free team may be paused when unused for a long time. You can upgrade to a paid plan any time, and you do not need to move your data.',
       },
       {
         q: 'Which Claude plan do we need?',

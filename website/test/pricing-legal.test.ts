@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test'
 import en from '../src/content/en'
 import ko from '../src/content/ko'
-import { CONTACT_EMAIL, LEGAL, LEGAL_UPDATED, PLANS, RESELLERS, usd } from '../src/site'
+import { CONTACT_EMAIL, FREE_PLAN, LEGAL, LEGAL_UPDATED, LINKS, PLANS, RESELLERS, usd } from '../src/site'
 import { LEGAL_FILES, attrs, built, visibleText } from './helpers'
 
 describe('hosting plans', () => {
@@ -22,6 +22,22 @@ describe('hosting plans', () => {
         expect(card).toContain(String(p.memoryGb))
         expect(card).toContain(String(p.storageGb))
       }
+    })
+
+    test(`${file}: the Free card shows its limits from FREE_PLAN, links to sign-up and is not featured`, () => {
+      const start = section.indexOf('data-plan="free"')
+      const li = section.slice(section.lastIndexOf('<li', start), section.indexOf('</li>', start))
+      const card = visibleText(li)
+      expect(li).toContain('class="plan plan-free"')
+      expect(card).toContain(t.pricing.free.name)
+      expect(card).toContain(usd(FREE_PLAN.usd))
+      expect(card).toContain(t.pricing.people.replace('{n}', String(FREE_PLAN.people)))
+      for (const n of [FREE_PLAN.vcpu, FREE_PLAN.memoryGb, FREE_PLAN.storageGb]) expect(card).toContain(String(n))
+      expect(attrs(li, 'href')).toEqual([LINKS.signup])
+      expect(li).toContain('btn-secondary')
+      expect(li).not.toContain('btn-primary')
+      expect(text).toContain(t.pricing.free.note)
+      expect(t.faq.items.some((i) => i.a.includes(`${FREE_PLAN.memoryGb}GB`) || i.a.includes(`${FREE_PLAN.memoryGb} GB`))).toBe(true)
     })
 
     test(`${file}: the heading and the table start from the cheapest plan`, () => {

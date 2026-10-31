@@ -5,7 +5,7 @@ import en from '../src/content/en'
 import ko from '../src/content/ko'
 import { POSTS, blogCard, blogPath } from '../src/content/blog-en'
 import { llmsTxt } from '../src/seo'
-import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
+import { COMPANY, FREE_PLAN, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
 import { parseHeaders } from '../scripts/serve-dist'
 import { BLOG_POST_FILES, LEGAL_FILES, MONEY, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
@@ -21,7 +21,7 @@ describe('things the site must never say', () => {
   test.each([...files, [llms[0], 'llms.txt']])('%s: money amounts come from hosting plans and the dated KRW reference', (path, file) => {
     const text = visibleText(built(file).replace(/<figure class="team-result">[\s\S]*?<\/figure>/g, ''))
     const post = POSTS.find((p) => blogPath(p.slug) === path)
-    const allowed = new Set([...PLANS.map((p) => usd(p.usd)), ...(post?.amounts ?? [])])
+    const allowed = new Set([usd(FREE_PLAN.usd), ...PLANS.map((p) => usd(p.usd)), ...(post?.amounts ?? [])])
     for (const m of text.matchAll(MONEY)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
     for (const m of text.matchAll(/₩[\d,]+/g)) expect(new Set(PLANS.map(p => krw(p.usd))).has(m[0]), `unexpected KRW amount ${m[0]}`).toBe(true)
     expect(text).not.toMatch(/[€£¥]\s?\d/)
@@ -117,7 +117,7 @@ describe('contact and links', () => {
       for (const u of [...attrs(html, 'href'), ...attrs(html, 'src')]) {
         if (!/^https?:\/\//.test(u)) continue
         const ok =
-          u === KRW_REFERENCE.source || u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
+          u === KRW_REFERENCE.source || u === LINKS.signup || u === LINKS.github || u.startsWith(LINKS.github + '/') || u === 'https://trina.app' || u.startsWith('https://trina.app/') || u.startsWith('https://ax.trina.app/')
         expect(ok, `unexpected outside address ${u} in ${file}`).toBe(true)
       }
     }
