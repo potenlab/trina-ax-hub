@@ -169,8 +169,8 @@ describe('copy shape', () => {
     expect(shape(ko)).toEqual(shape(en))
   })
   test('English and Korean have the same number of FAQ items, questions, cards, roles and paths', () => {
-    expect(ko.faq.items.length).toBe(8)
-    expect(en.faq.items.length).toBe(8)
+    expect(ko.faq.items.length).toBe(9)
+    expect(en.faq.items.length).toBe(9)
     expect(ko.security.qa.length).toBe(6)
     expect(ko.secPage.promises.length).toBe(5)
     expect(ko.features.items.length).toBe(6)

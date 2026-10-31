@@ -1,9 +1,9 @@
 ---
-// Pricing: self-host versus Trina hosting as a two-column comparison, then the hosting plans (numbers from PLANS in
-// src/site.ts, words from the copy), what every plan includes, the billing terms the resellers ask us to show, and
+// Pricing: self-host versus Trina hosting as a two-column comparison, then the hosting plans (numbers from FREE_PLAN and
+// PLANS in src/site.ts; the Free card is muted, not featured, words from the copy), what every plan includes, the billing terms the resellers ask us to show, and
 // three small blocks. The table keeps its semantics (explicit roles) because on phones its rows become stacked cards.
 import type { Copy } from '../content/en'
-import { LEGAL, LINKS, PLANS, bookCall, usd, priceWithReference, krwNote, KRW_REFERENCE, quoteRequest, CONTACT_EMAIL } from '../site'
+import { FREE_PLAN, LEGAL, LINKS, PLANS, bookCall, usd, priceWithReference, krwNote, KRW_REFERENCE, quoteRequest, CONTACT_EMAIL } from '../site'
 import Lines from './Lines.astro'
 interface Props { t: Copy }
 const { t } = Astro.props
@@ -45,6 +45,14 @@ const book = bookCall(t.lang)
 
     <h3 class="plans-title" id="plans">{p.plansTitle}</h3>
     <ul class="plans">
+      <li class="plan plan-free" data-plan="free">
+        <h4 class="plan-name">{p.free.name}</h4>
+        <p class="plan-price"><span class="plan-amount">{usd(FREE_PLAN.usd)}</span> <span class="plan-per">{p.perMonth}</span></p>
+        <p class="plan-reference">{p.free.card}</p>
+        <p class="plan-people">{fill(p.people, { n: FREE_PLAN.people })}</p>
+        <p class="plan-server">{p.free.teams} · {fill(p.free.running, { n: FREE_PLAN.running })}<br />{fill(p.free.server, { cpu: FREE_PLAN.vcpu, mem: FREE_PLAN.memoryGb, disk: FREE_PLAN.storageGb })}</p>
+        <a class="btn btn-secondary btn-sm plan-cta" href={LINKS.signup} rel="noopener">{p.free.cta}</a>
+      </li>
       {PLANS.map((plan) => (
         <li class="plan" data-plan={plan.id}>
           <h4 class="plan-name">{p.plans[plan.id]}</h4>
@@ -63,6 +71,7 @@ const book = bookCall(t.lang)
         <a class="btn btn-secondary btn-sm plan-cta" href={book}>{p.custom.cta}</a>
       </li>
     </ul>
+    <p class="plans-fine plans-free-note">{p.free.note}</p>
     <p class="plans-fine krw-reference">{t.lang === 'ko'
       ? `${KRW_REFERENCE.date} 환율 기준 · 천 원 단위 반올림. 원화는 참고 금액이고 실제 결제는 달러 기준이에요.`
       : `Reference rate dated ${KRW_REFERENCE.date}, rounded to the nearest thousand won. KRW amounts are estimates; billing is in USD.`}

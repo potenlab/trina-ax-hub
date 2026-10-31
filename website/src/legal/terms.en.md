@@ -1,16 +1,18 @@
-**Effective date:** 2026-10-28\
+**Effective date:** 2026-10-31\
 **Provider:** Trina Inc. (주식회사 트리나), a company incorporated in the Republic of Korea\
 CEO Daehyeon Nam (남대현) · Business registration no. 414-81-10138 · Registered office: 27-8 Obong-ro, Sannae-myeon, Gyeongju-si, Gyeongsangbuk-do, Republic of Korea · +82 70-8064-3349 · contact@trina.app · https://ax.trina.app
 
-These Terms govern the paid services we provide for Trina AX and your use of the website https://ax.trina.app. Our main paid service is Trina AX hosting ("**Hosting**" or the "**Service**"). By placing an order or using the Service, you agree to these Terms on behalf of the organization you represent ("**Customer**", "**you**"). If you do not have authority to bind that organization, do not use the Service.
+These Terms govern the free and paid services we provide for Trina AX and your use of the website https://ax.trina.app. Our main paid service is Trina AX hosting ("**Hosting**" or the "**Service**"). By placing an order or using the Service, you agree to these Terms on behalf of the organization you represent ("**Customer**", "**you**"). If you do not have authority to bind that organization, do not use the Service.
 
 ## 1. What is free and what is paid
 
 1.1 **Trina AX software.** Trina AX connects a company's files, skills and usage to Claude for each employee, with folder permissions set per person. It is open-source software. Its license is stated in its source code, and your use of the software itself is governed by that license, not by these Terms. The source code of the version we run for you is available from the link in the product, or by email to contact@trina.app. Self-hosting Trina AX is free and is not covered by these Terms, except where we provide a paid service to you.
 
-1.2 **Hosting.** We run your own Trina AX server for you. Hosting is sold as monthly plans. Each plan has a limit on the number of people (accounts), a server size and an amount of storage. The plans, their limits and their prices are shown on the pricing section of https://ax.trina.app at the time of your order. If you need more people than your plan allows, you move to a higher plan.
+1.2 **Hosting.** We run your own Trina AX server for you. Hosting is offered as a free plan and as paid monthly plans. Each plan has a limit on the number of people (accounts), a server size and an amount of storage. The plans, their limits and their prices are shown on the pricing section of https://ax.trina.app at the time of your order. If you need more people than your plan allows, you move to a higher plan.
 
 1.3 **Custom services.** Larger setups are custom services under a written quote ("**Custom Services**"). Examples: more people than our largest plan allows, hosting in your own Amazon Web Services account, or installing Trina AX on your own server or an office Mac mini. Custom Services are contracted and invoiced directly by Trina Inc., not through the online checkout. These Terms apply to Custom Services unless the quote says otherwise.
+
+1.4 **Free plan.** The free plan has no charge and needs no payment card. Each account can have one free team. Free spots are limited, so a new free team may wait for a spot. We may pause a free team's server when it is not used for a long time. You can move to a paid plan at any time and keep your data.
 
 ## 2. Accounts and eligibility
 
@@ -29,7 +31,7 @@ The Service is for businesses and other organizations, not for personal or house
 - monitoring;
 - help by email from a person at Trina.
 
-3.4 **Start and support.** Your server is usually ready within 1 business day after your first payment. We email you its address when it is ready. We aim to reply to support emails within 1 Korean business day (09:00–18:00 KST). These are targets, not guarantees.
+3.4 **Start and support.** On a paid plan, your server is usually ready within 1 business day after your first payment. On the free plan, a new team may wait for a free spot. We email you its address when it is ready. We aim to reply to support emails within 1 Korean business day (09:00–18:00 KST). These are targets, not guarantees.
 
 3.5 **No uptime guarantee.** We use reasonable efforts to keep the Service available, but we do not guarantee a specific uptime unless a separate signed agreement says so. We announce planned maintenance in advance when practical.
 

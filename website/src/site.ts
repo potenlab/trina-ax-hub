@@ -30,10 +30,12 @@ export const LINKS = {
     ko: 'https://github.com/trina-app/trina-ax/blob/main/README.ko.md#%EC%8B%A4%ED%96%89%ED%95%98%EA%B8%B0',
   } satisfies Record<Lang, string>,
   company: 'https://trina.app',
+  // The console sign-up page (account.trina.app). The Free plan card links here.
+  signup: 'https://account.trina.app/signup',
 }
 
 /**
- * Trina hosting plans, the only prices on the site. Each plan is one company's own AWS server in Seoul (Amazon Lightsail,
+ * Trina hosting plans, the only prices on the site (with FREE_PLAN below). Each plan is one company's own AWS server in Seoul (Amazon Lightsail,
  * ap-northeast-2), sized for its number of people; the price is that server plus Trina running it (updates, backups,
  * monitoring, help). Lightsail Seoul list prices, 2026-10-27, per month (disk, IPv4 address and 4-6 TB transfer
  * included): 4 GB $24, 8 GB $44, 16 GB $84, so the server is about 60% of each price. Set on 2026-10-28 a little above
@@ -46,6 +48,13 @@ export const PLANS = [
   { id: 'business', usd: 129, people: 40, vcpu: 4, memoryGb: 16, storageGb: 320, server: 'Lightsail 16 GB' },
 ] as const
 export type PlanId = (typeof PLANS)[number]['id']
+
+/**
+ * The hosted Free plan (owner decision 2026-10-31), kept out of PLANS so that {from}, the KRW references and the brochure
+ * stay on the paid plans. One free team per account; capacity is capped, so new free teams may wait; a free team may be
+ * paused when unused for a long time; upgrade to a paid plan without moving data. Hosted in Seoul. No credit card.
+ */
+export const FREE_PLAN = { id: 'free', usd: 0, teams: 1, people: 3, running: 1, vcpu: 2, memoryGb: 2, storageGb: 5 } as const
 export const usd = (n: number) => `$${n}`
 
 /** Public daily reference, fetched once. USD remains the billing currency. */
@@ -83,7 +92,7 @@ export const LEGAL = {
   refund: { path: '/refund', title: 'Refund Policy', description: 'When and how Trina AX hosting payments are refunded, and how to cancel.' },
 } as const
 export type LegalId = keyof typeof LEGAL
-export const LEGAL_UPDATED = '2026-10-28'
+export const LEGAL_UPDATED = '2026-10-31'
 
 /** "Book a call" and every "도입 문의" button: a mail to Trina with the product in the subject. */
 export const bookCall = (lang: Lang) =>
