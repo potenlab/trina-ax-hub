@@ -7,7 +7,7 @@ import { POSTS, blogCard, blogPath } from '../src/content/blog-en'
 import { llmsTxt } from '../src/seo'
 import { COMPANY, LEGAL, LINKS, PLANS, ROUTES, bookCall, usd, krw, KRW_REFERENCE, quoteRequest } from '../src/site'
 import { parseHeaders } from '../scripts/serve-dist'
-import { BLOG_POST_FILES, LEGAL_FILES, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
+import { BLOG_POST_FILES, LEGAL_FILES, MONEY, PAGE_FILES, attrs, built, root, visibleText } from './helpers'
 
 const files = Object.entries(PAGE_FILES)
 const texts = files.map(([path, file]) => [path, visibleText(built(file))] as const)
@@ -17,10 +17,12 @@ describe('things the site must never say', () => {
   const everything: [string, string][] = [...texts.map(([p, t]): [string, string] => [p, t]), [llms[0], built('llms.txt')]]
 
   // Commercial prices come from PLANS. Explicitly labelled, fictional result previews may contain quote amounts.
-  test.each([...files, [llms[0], 'llms.txt']])('%s: money amounts come from hosting plans and the dated KRW reference', (_, file) => {
+  // A blog post may also quote other companies' prices, dated, from its sources: only those listed in its POSTS amounts.
+  test.each([...files, [llms[0], 'llms.txt']])('%s: money amounts come from hosting plans and the dated KRW reference', (path, file) => {
     const text = visibleText(built(file).replace(/<figure class="team-result">[\s\S]*?<\/figure>/g, ''))
-    const allowed = new Set(PLANS.map((p) => usd(p.usd)))
-    for (const m of text.matchAll(/\$\s?\d[\d,.]*/g)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
+    const post = POSTS.find((p) => blogPath(p.slug) === path)
+    const allowed = new Set([...PLANS.map((p) => usd(p.usd)), ...(post?.amounts ?? [])])
+    for (const m of text.matchAll(MONEY)) expect(allowed.has(m[0]), `unexpected amount ${m[0]}`).toBe(true)
     for (const m of text.matchAll(/₩[\d,]+/g)) expect(new Set(PLANS.map(p => krw(p.usd))).has(m[0]), `unexpected KRW amount ${m[0]}`).toBe(true)
     expect(text).not.toMatch(/[€£¥]\s?\d/)
     expect(text).not.toMatch(/\d[\d,.]*\s?(원(?!본)|만\s?원|KRW|JPY|EUR|won)(?![a-z])/i)

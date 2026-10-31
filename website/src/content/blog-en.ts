@@ -48,6 +48,9 @@ export type Post = {
   sources: SourceDoc[][]
   /** English guide slugs whose pages link to this post under "From the blog". */
   relatedGuides: string[]
+  /** Other companies' prices the text quotes from its sources, as written ("$2,400"). Only these and PLANS may appear on
+   * the post's page; Trina's own prices never go here (test/site.test.ts). */
+  amounts?: string[]
 }
 
 export const blogPath = (slug: string) => `${BLOG.path}/${slug}`
@@ -103,6 +106,39 @@ export const POSTS: Post[] = [
       [{ title: en.secPage.title, url: abs(ROUTES.security.en) }],
       [{ title: 'trina-app/trina-ax', url: LINKS.github }],
       [{ title: 'Self-hosted environments', url: 'https://code.claude.com/docs/en/self-hosted-environments' }],
+    ],
+  },
+  {
+    slug: 'claude-team-plan-seats-and-usage-limits',
+    title: 'Claude Team plan: usage limits and unused seats',
+    description: 'How Claude Team seats and usage limits work, how to find the seats nobody uses, and three ways to pay closer to what your team actually uses.',
+    author: 'dion-nam',
+    published: '2026-10-31',
+    modified: '2026-10-31',
+    read: '2026-10-31',
+    relatedGuides: ['usage-limits', 'ai-connection'],
+    // Anthropic's prices as its pages listed them on the read date.
+    amounts: ['$25', '$20', '$125', '$100', '$500', '$260', '$2,400', '$250', '$4,800', '$2', '$10', '$4', '$0.10', '$0.50'],
+    sources: [
+      [{ title: 'Pricing', url: 'https://claude.com/pricing' }],
+      [{ title: 'What is the Team plan?', url: 'https://support.claude.com/en/articles/9266767-what-is-the-team-plan' }],
+      [{ title: 'Purchase and manage seats on Team plans', url: 'https://support.claude.com/en/articles/12004354-purchase-and-manage-seats-on-team-plans' }],
+      [{ title: 'How do usage and length limits work?', url: 'https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work' }],
+      [{ title: 'Manage usage credits for Team and seat-based Enterprise plans', url: 'https://support.claude.com/en/articles/12005970-manage-usage-credits-for-team-and-seat-based-enterprise-plans' }],
+      [{ title: 'How is my Team plan bill calculated?', url: 'https://support.claude.com/en/articles/9267289-how-is-my-team-plan-bill-calculated' }],
+      [{ title: 'Monthly API credits for Max, Ultra, and Team plans', url: 'https://support.claude.com/en/articles/17154008' }],
+      [{ title: 'View usage analytics for Team and Enterprise plans', url: 'https://support.claude.com/en/articles/12883420-view-usage-analytics-for-team-and-enterprise-plans' }],
+      [
+        { title: 'What is the Enterprise plan?', url: 'https://support.claude.com/en/articles/9797531-what-is-the-enterprise-plan' },
+        { title: 'How am I billed for my Enterprise plan?', url: 'https://support.claude.com/en/articles/11526368-how-am-i-billed-for-my-enterprise-plan' },
+      ],
+      [{ title: 'Claude Code overview', url: 'https://code.claude.com/docs/en/overview' }],
+      [{ title: 'Workspaces', url: 'https://platform.claude.com/docs/en/manage-claude/workspaces' }],
+      [{ title: 'Trina AX for LLMs (llms.txt)', url: abs('/llms.txt') }, { title: en.meta.title, url: abs(ROUTES.home.en) }],
+      [guide('ai-connection')],
+      [guide('usage-limits')],
+      [{ title: en.secPage.title, url: abs(ROUTES.security.en) }],
+      [{ title: 'Authentication', url: 'https://code.claude.com/docs/en/authentication' }],
     ],
   },
 ]

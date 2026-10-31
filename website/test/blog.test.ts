@@ -6,8 +6,8 @@ import { AUTHORS, BLOG, POSTS, blogCard, blogPath, byline, headline, longDate } 
 import { EN_GUIDES } from '../src/content/guides-en'
 import { GUIDES, guidePath } from '../src/content/guides'
 import { organization } from '../src/seo'
-import { LINKS, SITE_URL } from '../src/site'
-import { PAGE_FILES, attrs, built, decode, dist, jsonLd, root, visibleText } from './helpers'
+import { LINKS, PLANS, SITE_URL, usd } from '../src/site'
+import { MONEY, PAGE_FILES, attrs, built, decode, dist, jsonLd, root, visibleText } from './helpers'
 
 const TRADEMARK = 'Claude is a trademark of Anthropic. Trina AX is made by Trina Inc. and is not affiliated with Anthropic.'
 const posts = POSTS.map(p => ({ p, path: blogPath(p.slug), url: SITE_URL + blogPath(p.slug), html: built(PAGE_FILES[blogPath(p.slug)]) }))
@@ -105,6 +105,19 @@ test('each post is the fact-checked text as written: its words in order, one H1,
     expect(p.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(longDate(p.published)).not.toBe('Invalid Date')
   }
+})
+
+// The money guard (test/site.test.ts) lets a post's page show PLANS and the post's own amounts, and nothing else.
+test('every amount a post lists is in its text', () => {
+  for (const { p } of posts) {
+    const inText = new Set(markdown(p.slug).match(MONEY) ?? [])
+    for (const a of p.amounts ?? []) expect(inText.has(a), `${p.slug}: ${a} is not in the text`).toBe(true)
+  }
+})
+
+test('a post’s amounts never include a Trina hosting price (that one must keep matching PLANS)', () => {
+  const plans = new Set(PLANS.map(p => usd(p.usd)))
+  for (const { p } of posts) for (const a of p.amounts ?? []) expect(plans.has(a), `${p.slug}: ${a} is a PLANS price`).toBe(false)
 })
 
 test('every [n] in a post links to its source, every source is cited, and the list gives title, public URL and read date', () => {

@@ -40,6 +40,9 @@ export const LEGAL_FILES = ['terms.html', 'privacy.html', 'refund.html']
 /** Blog posts. Besides our own addresses they link the outside sources they cite (test/blog.test.ts checks those). */
 export const BLOG_POST_FILES = POSTS.map(p => `blog/${p.slug}.html`)
 
+/** A dollar amount ending in a digit, so a full stop or comma after it is not part of it ("$260." is "$260"). */
+export const MONEY = /\$\s?\d+(?:[.,]\d+)*/g
+
 export function built(file: string): string {
   const p = join(dist, file)
   if (!existsSync(p)) throw new Error(`dist/${file} is missing: run \`bun run build\` first (\`bun run test\` does it for you)`)
