@@ -69,7 +69,7 @@ export const POSTS: Post[] = [
     description: 'Three ways to share a Claude skill with your whole team (a repository, Claude Team or Enterprise, or a server run for your company) and when each one fits.',
     author: 'dion-nam',
     published: '2026-10-29',
-    modified: '2026-11-01',
+    modified: '2026-11-02',
     read: '2026-10-29',
     relatedGuides: ['use-skills', 'review-skills'],
     sources: [

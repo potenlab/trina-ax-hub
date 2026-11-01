@@ -93,8 +93,8 @@ This is what we built [Trina AX](https://ax.trina.app/) to do, so here is how it
   clearly matches a skill, the AI is instructed to read it, follow it and name the skill it used.
   [6][7][3]
 - **Usage you can see.** Admins see usage by person, model and skill, and can export it as CSV.
-  One team connection added by an admin can serve the whole team. Subscription sharing is on by
-  default, and anyone who adds their own connection uses theirs first. A company API key with
+  An admin connects the company’s AI account once, and the whole team can work with it. Anyone
+  who adds their own connection uses theirs first. A company API key with
   monthly limits per person is also an option. Each AI provider’s plan terms apply. [6]
 
 **What it doesn't do.** The runtime does not execute scripts bundled inside a skill, and a skill's

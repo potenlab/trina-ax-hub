@@ -56,7 +56,7 @@ const articles: Translation[] = [
     slug: 'ai-connection', group: 'admin', title: 'Connect a company API key',
     description: 'Give employees access to a company Claude API key and understand which connection their questions use.',
     audience: 'The owner adding a company AI connection. Admins can view connections and check them again.',
-    before: ['Prepare a company-managed Claude API key and a team address that starts with https.', 'One team connection can serve the whole team, with subscription sharing on by default. A personal connection added in Settings → AI connections takes priority. Each AI provider’s plan terms apply. This guide covers the company API key option.'],
+    before: ['Prepare a company-managed Claude API key and a team address that starts with https.', 'One company account can serve the whole team. A personal connection added in Settings → AI connections takes priority. Each AI provider’s plan terms apply. This guide covers the company API key option.'],
     steps: [
       { title: 'Add the company connection', body: 'Open Admin → AI connections → Add connection. Under What do you want to connect?, choose Claude API key.' },
       { title: 'Enter its name and key', body: 'Enter a recognizable Name and paste the key in API key. If asked for Your password again, enter your own password. Do not paste the key into a chat or document.' },

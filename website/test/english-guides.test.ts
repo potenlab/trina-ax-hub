@@ -96,7 +96,7 @@ test('first-week checklist names exact actions and links to the detailed guides'
     expect(attrs(html, 'href')).toContain(guidePath(slug, 'en'))
   }
   expect(text).toContain('The owner selects Back up now')
-  expect(text).toContain('The owner adds a team connection')
+  expect(text).toContain('The owner connects the company’s AI account')
   expect(attrs(html, 'data-copy')).toContain(en.firstWeek.noticeText)
 })
 
