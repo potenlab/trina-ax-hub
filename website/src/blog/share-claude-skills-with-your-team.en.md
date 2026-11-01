@@ -103,8 +103,9 @@ running bundled scripts, or on frontmatter fields Trina AX doesn't accept, Way 1
 better home for them. Trina AX is also new: its own security page describes it as a pre-release
 with no security certification yet. [8]
 
-The software is open source under AGPL-3.0 and free to install yourself; Trina also hosts it on a
-monthly plan by team size. Either way, Claude usage is billed by Anthropic, not by Trina. [6][9]
+The software is open source under AGPL-3.0 and free to install yourself; Trina also hosts it, with a
+free plan for small teams (limited spots) and monthly paid plans by team size. Either way, Claude usage
+is billed by Anthropic, not by Trina. [6][9]
 
 ## Side by side
 

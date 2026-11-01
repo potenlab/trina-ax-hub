@@ -89,7 +89,8 @@ it works there.
 operators administer it and so can read stored files and chats. [8] What the AI reads to answer is
 sent to Anthropic under your Claude plan's terms. [8] Trina AX is also new: its own security page
 describes it as a pre-release with no security certification yet. [10] The software is open source
-under AGPL-3.0 and free to install yourself, and Trina's hosting is a monthly plan by team size. [8][11]
+under AGPL-3.0 and free to install yourself, and Trina's hosting has a free plan for small teams
+(limited spots) and monthly paid plans by team size. [8][11]
 Claude usage is billed by Anthropic, not by Trina. [8]
 
 ## Side by side

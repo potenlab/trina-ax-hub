@@ -119,16 +119,17 @@ before, or Trina's hosted plan, where Trina's operators administer the server an
 files and chats. [12] What the AI reads to answer goes to Anthropic under your Claude plan's terms. [12]
 People work in the Trina AX app rather than in Claude's own apps. [12] Trina AX is new: its security
 page describes it as a pre-release with no security certification yet. [15] The software is free to
-install yourself (AGPL-3.0); Trina hosting is $39 a month for up to 5 people, $69 for up to 15 and $129
-for up to 40, before tax and with setup included, and larger teams get a quote. [12]
+install yourself (AGPL-3.0); Trina hosting has a free plan for up to 3 members, with limited spots, and
+paid plans at $39 a month for up to 5 people, $69 for up to 15 and $129 for up to 40, before tax and with
+setup included; larger teams get a quote. [12]
 
 ## Side by side
 
 | | Team | Usage-based Enterprise | Claude Console (Claude Code) | Trina AX (company API key) |
 | --- | --- | --- | --- | --- |
 | What you pay Anthropic | $25 / $125 per seat a month, or $20 / $100 billed annually [1] | $20 per seat a month, billed annually, plus usage at API rates [1][9] | Usage at API rates, pay as you go [1][16] | Usage at API rates [1][12] |
-| Smallest size | 2 members [2] | 20 seats self-serve, 50 sales-assisted [9] | No seats [1][16] | Your own server, or a hosted plan for up to 5 people [12] |
-| A seat someone barely uses | Paid in full; its usage can't move to someone else [2][3] | Seat fee only, no included usage; seats can't be removed mid-term on self-serve [9] | No seats [1][16] | No Anthropic seat on an API key; Trina hosting is priced by team size (up to 5, 15 or 40 people) [1][12] |
+| Smallest size | 2 members [2] | 20 seats self-serve, 50 sales-assisted [9] | No seats [1][16] | No minimum: install it yourself, or a free hosted plan for up to 3 members (limited spots) [12] |
+| A seat someone barely uses | Paid in full; its usage can't move to someone else [2][3] | Seat fee only, no included usage; seats can't be removed mid-term on self-serve [9] | No seats [1][16] | No Anthropic seat on an API key; Trina hosting is free for up to 3 members (limited spots), then priced by team size (up to 5, 15 or 40 people) [1][12] |
 | Heavy users | Premium seat or usage credits [3][5] | Spend limits per user [9] | Per-user monthly spend limit [11] | Per-person monthly token or spending limit, warn or block [14] |
 | Who it is for | Everyone, in Claude's apps [1] | Everyone, in Claude's apps [1][9] | People who work in Claude Code, without the desktop app [10][16] | Everyone, in the Trina AX app [12] |
 | Other costs | Usage credits if you turn them on; on an annual plan, the year up front [5][6] | Annual commitment; prepaid usage credits on self-serve [1][9] | — | A server you run, or Trina hosting [12] |

@@ -37,9 +37,11 @@ const pages = [
   { id: 'en-blog-post', path: '/blog/share-claude-skills-with-your-team' },
   { id: 'en-blog-post-2', path: '/blog/claude-code-for-people-who-dont-code' },
   { id: 'en-blog-post-3', path: '/blog/claude-team-plan-seats-and-usage-limits' },
+  { id: 'en-blog-post-4', path: '/blog/claude-projects-for-teams-files-and-access' },
   { id: 'en-guide-use-skills', path: '/guide/use-skills' }, // ends with the "From the blog" block
   { id: 'en-guide-desktop-app', path: '/guide/desktop-app' }, // the same block, for the second post
   { id: 'en-guide-usage-limits', path: '/guide/usage-limits' }, // and for the third
+  { id: 'en-guide-folder-permissions', path: '/guide/folder-permissions' }, // and for the fourth
   { id: '404', path: '/no-such-page', status: 404 },
 ]
 const viewports = [
@@ -52,7 +54,7 @@ const themes = ['light', 'dark']
 const keep = (id, w, theme) =>
   process.env.ALL_SHOTS === '1' ||
   ((id === 'en-home' || id === 'ko-home') && (w === 1280 || w === 360)) ||
-  ((id.startsWith('en-blog') || id === 'en-guide-use-skills' || id === 'en-guide-desktop-app' || id === 'en-guide-usage-limits') && (w === 1280 || w === 360)) ||
+  ((id.startsWith('en-blog') || id === 'en-guide-use-skills' || id === 'en-guide-desktop-app' || id === 'en-guide-usage-limits' || id === 'en-guide-folder-permissions') && (w === 1280 || w === 360)) ||
   ((id === 'en-security' || id === 'ko-security') && w === 1280 && theme === 'light')
 
 const problems = []
@@ -212,7 +214,7 @@ try {
       if (alts.length !== 3 || !alts.some((a) => a.startsWith('x-default=')) ) note('hreflang', `${p}: ${alts.join(', ')}`)
     }
     // The blog is English only: the page itself and x-default.
-    for (const p of ['/blog', '/blog/share-claude-skills-with-your-team', '/blog/claude-code-for-people-who-dont-code', '/blog/claude-team-plan-seats-and-usage-limits']) {
+    for (const p of ['/blog', '/blog/share-claude-skills-with-your-team', '/blog/claude-code-for-people-who-dont-code', '/blog/claude-team-plan-seats-and-usage-limits', '/blog/claude-projects-for-teams-files-and-access']) {
       await page.goto(base + p, { waitUntil: 'domcontentloaded' })
       const self = 'https://ax.trina.app' + p
       const c = await page.getAttribute('link[rel=canonical]', 'href')
@@ -266,7 +268,7 @@ try {
     const lk = await browser.newContext()
     const lp = await lk.newPage()
     const seen = new Set()
-    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week', '/blog', '/blog/share-claude-skills-with-your-team', '/blog/claude-code-for-people-who-dont-code', '/blog/claude-team-plan-seats-and-usage-limits', '/guide/use-skills', '/guide/desktop-app', '/guide/team-files', '/guide/usage-limits', '/guide/ai-connection']) {
+    for (const p of ['/', '/ko/', '/security', '/ko/security', '/guide', '/ko/guide', '/guide/first-week', '/ko/guide/first-week', '/blog', '/blog/share-claude-skills-with-your-team', '/blog/claude-code-for-people-who-dont-code', '/blog/claude-team-plan-seats-and-usage-limits', '/blog/claude-projects-for-teams-files-and-access', '/guide/use-skills', '/guide/desktop-app', '/guide/team-files', '/guide/usage-limits', '/guide/ai-connection', '/guide/folder-permissions']) {
       await lp.goto(base + p, { waitUntil: 'domcontentloaded' })
       const hrefs = await lp.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')))
       const ids = await lp.$$eval('[id]', (els) => els.map((e) => e.id))
