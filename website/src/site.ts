@@ -79,7 +79,6 @@ export const BROCHURES = {
 /** The resellers that run the online checkout (Merchant of Record). The legal pages name them and their buyer terms. */
 export const RESELLERS = [
   { name: 'Polar', entity: 'Polar Software, Inc.', buyerTerms: 'https://polar.sh/legal/checkout-buyer-terms' },
-  { name: 'Creem', entity: 'Armitage Labs OÜ', buyerTerms: 'https://www.creem.io/buyer-terms' },
 ] as const
 
 /**
@@ -92,7 +91,7 @@ export const LEGAL = {
   refund: { path: '/refund', title: 'Refund Policy', description: 'When and how Trina AX hosting payments are refunded, and how to cancel.' },
 } as const
 export type LegalId = keyof typeof LEGAL
-export const LEGAL_UPDATED = '2026-10-31'
+export const LEGAL_UPDATED = '2026-11-01'
 
 /** "Book a call" and every "도입 문의" button: a mail to Trina with the product in the subject. */
 export const bookCall = (lang: Lang) =>

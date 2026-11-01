@@ -70,7 +70,7 @@ uv run --with 'fonttools[woff]' python -I scripts/build-pretendard.py /path/to/P
 
 ## Rules this site keeps
 
-No money figures other than the hosting plan prices from `PLANS` and their rounded reference values from `KRW_REFERENCE` (next to them: renewal, cancellation, refund and the reseller, which Polar and Creem review), no customer names or quotes, no "YC", no star counter, no product other than Trina AX, no
+No money figures other than the hosting plan prices from `PLANS` and their rounded reference values from `KRW_REFERENCE` (next to them: renewal, cancellation, refund and the reseller, which Polar reviews), no customer names or quotes, no "YC", no star counter, no product other than Trina AX, no
 inline scripts or style attributes (the CSP allows none), no external requests at runtime. `test/site.test.ts` checks these.
 
 ## Images (Higgsfield, 2026-10-26)

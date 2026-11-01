@@ -521,7 +521,7 @@ const en = {
     included:
       'Every paid plan: a server on AWS in Seoul for your company alone, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
     fine:
-      'Prices are in US dollars, before tax. Plans are sold by our reseller (Merchant of Record), Polar or Creem as shown at checkout, which adds any sales tax or VAT. A plan renews every month until you cancel. Cancel any time from the billing portal linked in your receipt; it runs to the end of the month you paid for. Ask within 14 days of your first payment for a full refund.',
+      'Prices are in US dollars, before tax. Plans are sold by our reseller and Merchant of Record, Polar, which adds any sales tax or VAT. A plan renews every month until you cancel. Cancel any time from the billing portal linked in your receipt; it runs to the end of the month you paid for. Ask within 14 days of your first payment for a full refund.',
     termsLink: 'Terms',
     refundLink: 'Refund policy',
     blocks: [
