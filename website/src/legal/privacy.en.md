@@ -29,7 +29,7 @@ The website https://ax.trina.app is hosted on Cloudflare (Workers) and uses Clou
 
 We share personal information only:
 - (a) with the processors listed in §5, so they can perform services for us;
-- (b) with our online reseller and Merchant of Record: **Polar Software, Inc.** (USA) or **Creem**, operated by **Armitage Labs OÜ** (Estonia), as shown at checkout. When you buy through our online checkout, the reseller collects your payment and billing details and processes them as an independent controller under its own privacy policy. It shares with us the order details we need: name, email, company, country, tax ID and items purchased;
+- (b) with our online reseller and Merchant of Record: **Polar Software, Inc.** (USA). When you buy through our online checkout, the reseller collects your payment and billing details and processes them as an independent controller under its own privacy policy. It shares with us the order details we need: name, email, company, country, tax ID and items purchased;
 - (c) when required by law or a valid order from a public authority;
 - (d) to protect the rights, property or safety of our customers or others.
 
@@ -45,7 +45,7 @@ We use the following service providers. Some are outside Korea or work over a gl
 |---|---|---|---|---|---|
 | Amazon Web Services, Inc. | Republic of Korea (AWS Asia Pacific (Seoul) region). Hosted customer content is not transferred abroad | Each customer's server: files, database, logs and backups | Running customer servers (Hosting) | Over the network, continuously while the customer uses Hosting | Contract term, then deleted as in §6 |
 | Cloudflare, Inc. | United States; traffic passes through its global network | Traffic to `<company>.trina.app`, including IP addresses and request content, which Cloudflare decrypts and re-encrypts at its network edge; website request logs and cookieless analytics | DNS, TLS and proxy for customer server addresses; hosting and analytics for ax.trina.app | Over the network, on each request | Traffic: processed in transit; website logs: up to 90 days |
-| Polar Software, Inc. or Armitage Labs OÜ (Creem), as shown at checkout. Independent controllers for payment data | United States / Estonia | Name, email, company, billing address, country, tax ID, payment details | Online checkout, tax and invoicing | Over the network when you check out and at each renewal | Per the reseller's own policy |
+| Polar Software, Inc. Independent controller for payment data | United States | Name, email, company, billing address, country, tax ID, payment details | Online checkout, tax and invoicing | Over the network when you check out and at each renewal | Per the reseller's own policy |
 | Kakao Corp. | Republic of Korea | Emails you send us; recipient addresses and content of service emails we send | Business email (Daum mail) | Over the network when an email is sent or received | Per our retention in §1 |
 
 We use the National Tax Service's Hometax system only to issue electronic tax invoices to customers contracted directly by quote.

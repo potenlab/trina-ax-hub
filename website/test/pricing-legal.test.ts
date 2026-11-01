@@ -1,4 +1,4 @@
-// The hosting plans and the legal pages: what the payment resellers (Polar, Creem) look for in a review, and that the
+// The hosting plans and the legal pages: what the payment reseller (Polar) looks for in a review, and that the
 // numbers on the page are the ones in PLANS.
 import { describe, expect, test } from 'bun:test'
 import en from '../src/content/en'
@@ -94,6 +94,21 @@ describe('legal pages', () => {
       expect(body).not.toMatch(/171211-0015476/) // corporate registration number: not needed here
     })
   }
+
+  test('only Polar sells; only the merchant can refund, so the refund path goes through us', () => {
+    const all = LEGAL_FILES.map((f) => visibleText(built(f))).join(' ')
+    expect(all).not.toMatch(/Creem|Armitage|Estonia|as shown at checkout/)
+    const refund = visibleText(built('refund.html'))
+    expect(refund).not.toMatch(/customer portal/)
+    expect(refund).toContain('email support@trina.app with your order number')
+  })
+
+  test('the terms keep the free plan open to change: no promise of forever, 30 days notice', () => {
+    const terms = visibleText(built('terms.html'))
+    expect(terms).toContain('We can change or end the free plan. We tell you at least 30 days before.')
+    const pages = LEGAL_FILES.map((f) => visibleText(built(f))).join(' ')
+    expect(pages).not.toMatch(/free forever|always free|no time limit/i)
+  })
 
   test('the resellers are named with their buyer terms', () => {
     const terms = built('terms.html')

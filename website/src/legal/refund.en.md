@@ -1,7 +1,7 @@
 **Effective date:** 2026-10-28\
 Provider: Trina Inc. (주식회사 트리나), Republic of Korea · contact@trina.app
 
-Trina AX itself is free, open-source software. This policy covers what you pay us for: Trina AX hosting ("**Hosting**" or the "**Service**", sold as monthly plans) and custom services under a written quote. Online orders are processed by our reseller and Merchant of Record, **Polar Software, Inc.** or **Creem** (operated by Armitage Labs OÜ), as shown at checkout.
+Trina AX itself is free, open-source software. This policy covers what you pay us for: Trina AX hosting ("**Hosting**" or the "**Service**", sold as monthly plans) and custom services under a written quote. Online orders are processed by our reseller and Merchant of Record, **Polar Software, Inc.**
 
 ## 1. How billing works
 
@@ -35,7 +35,7 @@ Trina AX itself is free, open-source software. This policy covers what you pay u
 
 ## 6. How to request a refund
 
-- **Online orders (paid through Polar or Creem):** request it from the reseller's customer portal or the link in your receipt email, or email contact@trina.app with your order number and we will process it with the reseller. Refunds go back to the original payment method. Banks usually take 5–10 business days to show it.
+- **Online orders (paid through Polar):** email support@trina.app with your order number. We refund through the provider. Refunds go back to the original payment method. Banks usually take 5–10 business days to show it.
 - **Customers contracted directly by quote:** email contact@trina.app. We refund to your bank account (or cancel the card payment) within 7 business days of approval and issue an amended electronic tax invoice (수정세금계산서) where one was issued.
 
 ## 7. Your statutory rights

@@ -12,7 +12,7 @@ These Terms govern the free and paid services we provide for Trina AX and your u
 
 1.3 **Custom services.** Larger setups are custom services under a written quote ("**Custom Services**"). Examples: more people than our largest plan allows, hosting in your own Amazon Web Services account, or installing Trina AX on your own server or an office Mac mini. Custom Services are contracted and invoiced directly by Trina Inc., not through the online checkout. These Terms apply to Custom Services unless the quote says otherwise.
 
-1.4 **Free plan.** The free plan has no charge and needs no payment card. Each account can have one free team. Free spots are limited, so a new free team may wait for a spot. We may pause a free team's server when it is not used for a long time. You can move to a paid plan at any time and keep your data.
+1.4 **Free plan.** The free plan has no charge and needs no payment card. Each account can have one free team. Free spots are limited, so a new free team may wait for a spot. We may pause a free team's server when it is not used for a long time. You can move to a paid plan at any time and keep your data. We can change or end the free plan. We tell you at least 30 days before.
 
 ## 2. Accounts and eligibility
 
@@ -57,9 +57,8 @@ You must not use the Service to: break the law; infringe others' rights; store o
 
 ## 8. Prices, payment and taxes
 
-8.1 **Online orders.** Online orders are processed by our online reseller, which is the **Merchant of Record** for the order. The reseller is either **Polar Software, Inc.** (USA) or **Creem**, operated by **Armitage Labs OÜ** (Estonia, registry code 16977866), as shown at checkout. The reseller sells the subscription to you, collects payment, adds applicable sales tax, VAT or GST, and issues your invoices and receipts. It handles payment-related questions and refunds together with us. When you buy through the online checkout, you also agree to the reseller's buyer terms:
+8.1 **Online orders.** Online orders are processed by our online reseller, which is the **Merchant of Record** for the order. The reseller is **Polar Software, Inc.** (USA). The reseller sells the subscription to you, collects payment, adds applicable sales tax, VAT or GST, and issues your invoices and receipts. It handles payment-related questions and refunds together with us. When you buy through the online checkout, you also agree to the reseller's buyer terms:
 - Polar: https://polar.sh/legal/checkout-buyer-terms
-- Creem: https://www.creem.io/buyer-terms
 
 8.2 **Customers in Korea.** Customers in the Republic of Korea use the same online checkout and are charged in US dollars; the card must allow international payments. Alternatively, you can contract with us directly by quote (§8.3).
 
