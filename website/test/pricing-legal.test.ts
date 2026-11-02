@@ -34,12 +34,13 @@ describe('hosting plans', () => {
       expect(card).toContain(t.pricing.free.name)
       expect(card).toContain(usd(FREE_PLAN.usd))
       expect(card).toContain(t.pricing.people.replace('{n}', String(FREE_PLAN.people)))
-      for (const n of [FREE_PLAN.vcpu, FREE_PLAN.memoryGb, FREE_PLAN.storageGb]) expect(card).toContain(String(n))
+      expect(card).toContain(String(FREE_PLAN.storageGb))
+      expect(card).not.toMatch(/vCPU|memory|메모리/)
       expect(attrs(li, 'href')).toEqual([LINKS.signup])
       expect(li).toContain('btn-secondary')
       expect(li).not.toContain('btn-primary')
       expect(text).toContain(t.pricing.free.note)
-      expect(t.faq.items.some((i) => i.a.includes(`${FREE_PLAN.memoryGb}GB`) || i.a.includes(`${FREE_PLAN.memoryGb} GB`))).toBe(true)
+      expect(t.faq.items.some((i) => i.a.includes(`${FREE_PLAN.storageGb}GB`) || i.a.includes(`${FREE_PLAN.storageGb} GB`))).toBe(true)
     })
 
     test(`${file}: the heading and the table start from the cheapest plan`, () => {

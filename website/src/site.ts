@@ -54,7 +54,7 @@ export type PlanId = (typeof PLANS)[number]['id']
  * stay on the paid plans. One free team per account; capacity is capped, so new free teams may wait; a free team may be
  * paused when unused for a long time; upgrade to a paid plan without moving data. Hosted in Seoul. No credit card.
  */
-export const FREE_PLAN = { id: 'free', usd: 0, teams: 1, people: 3, running: 1, vcpu: 2, memoryGb: 2, storageGb: 5 } as const
+export const FREE_PLAN = { id: 'free', usd: 0, teams: 1, people: 3, running: 1, storageGb: 5 } as const
 export const usd = (n: number) => `$${n}`
 
 /** Public daily reference, fetched once. USD remains the billing currency. */

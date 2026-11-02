@@ -480,7 +480,7 @@ const en = {
   },
 
   // Plan numbers (price, people, AI answers, storage) come from PLANS and FREE_PLAN in src/site.ts; {from}, {n}, {answers},
-  // {disk}, and {cpu} and {mem} (the Free card only) are filled in from there.
+  // {disk} are filled in from there.
   pricing: {
     title: 'Free to run yourself.\nHosted by Trina: free, or from {from} a month',
     corner: 'What you get',
@@ -507,7 +507,7 @@ const en = {
       name: 'Free',
       teams: '1 free team per account',
       running: '{n} answer running at a time',
-      server: 'Hosted in Seoul: {cpu} vCPU, {mem} GB memory, {disk} GB storage',
+      server: 'Hosted in Seoul: {disk} GB storage',
       card: 'No credit card · Limited spots',
       cta: 'Sign up free',
       note:
@@ -555,7 +555,7 @@ const en = {
       },
       {
         q: 'Is there a free plan?',
-        a: 'Yes. Each account gets 1 free hosted team for up to 3 members, with 1 answer running at a time and a small server in Seoul (2 vCPU, 2 GB memory, 5 GB storage). Your team connects its own AI. You need no credit card. Spots are limited, so a new free team may wait. A free team may be paused when unused for a long time. You can upgrade to a paid plan any time, and you do not need to move your data.',
+        a: 'Yes. Each account gets 1 free hosted team for up to 3 members, with 1 answer running at a time and a small server in Seoul (5 GB storage). Your team connects its own AI. You need no credit card. Spots are limited, so a new free team may wait. A free team may be paused when unused for a long time. You can upgrade to a paid plan any time, and you do not need to move your data.',
       },
       {
         q: 'Which Claude plan do we need?',

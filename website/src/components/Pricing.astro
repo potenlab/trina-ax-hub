@@ -50,7 +50,7 @@ const book = bookCall(t.lang)
         <p class="plan-price"><span class="plan-amount">{usd(FREE_PLAN.usd)}</span> <span class="plan-per">{p.perMonth}</span></p>
         <p class="plan-reference">{p.free.card}</p>
         <p class="plan-people">{fill(p.people, { n: FREE_PLAN.people })}</p>
-        <p class="plan-server">{p.free.teams} · {fill(p.free.running, { n: FREE_PLAN.running })}<br />{fill(p.free.server, { cpu: FREE_PLAN.vcpu, mem: FREE_PLAN.memoryGb, disk: FREE_PLAN.storageGb })}</p>
+        <p class="plan-server">{p.free.teams} · {fill(p.free.running, { n: FREE_PLAN.running })}<br />{fill(p.free.server, { disk: FREE_PLAN.storageGb })}</p>
         <a class="btn btn-secondary btn-sm plan-cta" href={LINKS.signup} rel="noopener">{p.free.cta}</a>
       </li>
       {PLANS.map((plan) => (
