@@ -73,7 +73,7 @@ and folder permissions. This is what we built [Trina AX](https://ax.trina.app/) 
 it works there.
 
 - **Where it runs.** Claude Code runs on a server for the company: an office Mac mini or Linux server
-  the company runs, or a server for the company alone on AWS in Seoul that Trina hosts. [8]
+  the company runs, or a private Trina AX server for the company, in Seoul, that Trina hosts. [8]
 - **Where people use it.** In a browser; in desktop apps for Mac and Windows once an admin has added
   them; or on a phone by adding the company address to the home screen, where that address can be
   reached. Employees don't have to install anything to start. [8][9]

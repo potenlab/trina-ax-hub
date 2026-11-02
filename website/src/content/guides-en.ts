@@ -11,7 +11,7 @@ const articles: Translation[] = [
     before: ['Choose how many people will use it and one task to try first.', 'Name someone at your company who can decide who should see each folder.'],
     steps: [
       { title: 'Outline your first task', body: 'Email Trina with your team size, the file formats you use and the task you want to try. Start with one small folder before moving all your files.' },
-      { title: 'Check your server and address', body: 'Trina prepares a dedicated AWS server in Seoul and your company address. Sign in at the address you receive and check that your account has the Owner role.' },
+      { title: 'Check your server and address', body: 'Trina prepares a private Trina AX server for your company in Seoul, and your company address. Sign in at the address you receive and check that your account has the Owner role.' },
       { title: 'Decide who can use what', body: 'Open Admin → Folder permissions to choose who can see your files. Decide how to connect the AI, then invite employees from Members & invites. Trina runs the server; your company decides who can access the content.' },
       { title: 'Try one real task', body: 'Ask one employee to open New chat and try a small task. Check that they can see the right folders and that the answer is useful before inviting more people.' },
     ],

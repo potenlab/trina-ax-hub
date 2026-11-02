@@ -90,7 +90,7 @@ export const POSTS: Post[] = [
     description: "Three ways to put Claude's agent to work without a terminal: the Code tab in Claude Desktop, Cowork, or a team workspace on a server run for your company.",
     author: 'minjae-lee',
     published: '2026-10-30',
-    modified: '2026-11-01',
+    modified: '2026-11-02',
     read: '2026-10-30',
     relatedGuides: ['desktop-app', 'team-files'],
     sources: [
@@ -114,11 +114,12 @@ export const POSTS: Post[] = [
     description: 'How Claude Team seats and usage limits work, how to find the seats nobody uses, and three ways to pay closer to what your team actually uses.',
     author: 'dion-nam',
     published: '2026-10-31',
-    modified: '2026-11-01',
+    modified: '2026-11-02',
     read: '2026-10-31',
     relatedGuides: ['usage-limits', 'ai-connection'],
     // Anthropic's prices as its pages listed them on the read date.
-    amounts: ['$25', '$20', '$125', '$100', '$500', '$260', '$2,400', '$250', '$4,800', '$2', '$10', '$4', '$0.10', '$0.50'],
+    // $100 (a Premium seat billed annually) is in this post but not here: it equals the Team price, so PLANS allows it. Add it back if Team changes.
+    amounts: ['$25', '$20', '$125', '$500', '$260', '$2,400', '$250', '$4,800', '$2', '$10', '$4', '$0.10', '$0.50'],
     sources: [
       [{ title: 'Pricing', url: 'https://claude.com/pricing' }],
       [{ title: 'What is the Team plan?', url: 'https://support.claude.com/en/articles/9266767-what-is-the-team-plan' }],
@@ -147,7 +148,7 @@ export const POSTS: Post[] = [
     description: 'How a shared Claude project, a Cowork project and Ask Your Org give a team shared context, and when company folders with per-person access fit better.',
     author: 'minjae-lee',
     published: '2026-11-01',
-    modified: '2026-11-01',
+    modified: '2026-11-02',
     read: '2026-11-01',
     relatedGuides: ['folder-permissions', 'team-files'],
     sources: [

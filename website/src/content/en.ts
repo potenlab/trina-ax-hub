@@ -370,7 +370,7 @@ const en = {
         caption: 'Trina sets up and runs the server. Updates, backups and help from a person included.',
         steps: [
           { title: 'A 30-minute call', body: 'Tell us how many people you are and how you work. We pick the plan and the first team skill together.' },
-          { title: 'Your own server, ready', body: 'We set up a server for your company alone on AWS in Seoul, at your-company.trina.app.' },
+          { title: 'Your private server, ready', body: 'We set up a private Trina AX server for your company, in Seoul, at your-company.trina.app.' },
           { title: 'Invite your team', body: 'Set the folder permissions and send invite links. People sign in on the web or in the apps.' },
         ],
         cta: 'Book a 30-minute call',
@@ -424,7 +424,7 @@ const en = {
       session: 'Signed-in session',
       server: {
         title: "Your company's server",
-        hosted: 'Hosted by Trina: your own AWS server in Seoul',
+        hosted: 'Hosted by Trina: a private Trina AX server for your company, in Seoul',
         self: 'Installed yourself: an office Mac mini or your server',
         parts: ['Permission check', 'AI engine (Claude Code)', 'Files, chats, records'],
         stays: 'Stays on the server',
@@ -447,7 +447,7 @@ const en = {
       },
       {
         q: "Is our data mixed with other companies'?",
-        a: "No. On a hosted plan each company has a server of its own, on AWS in Seoul.",
+        a: "No. On a hosted plan each company has a private server of its own, in Seoul.",
       },
       {
         q: 'What happens when someone leaves?',
@@ -479,8 +479,8 @@ const en = {
     itCta: 'Send this to your IT lead',
   },
 
-  // Plan numbers (price, people, server size) come from PLANS and FREE_PLAN in src/site.ts; {from}, {n}, {cpu}, {mem} and {disk}
-  // are filled in from there.
+  // Plan numbers (price, people, AI answers, storage) come from PLANS and FREE_PLAN in src/site.ts; {from}, {n}, {answers},
+  // {disk}, and {cpu} and {mem} (the Free card only) are filled in from there.
   pricing: {
     title: 'Free to run yourself.\nHosted by Trina: free, or from {from} a month',
     corner: 'What you get',
@@ -499,7 +499,9 @@ const en = {
     plans: { starter: 'Starter', team: 'Team', business: 'Business' },
     perMonth: '/ month',
     people: 'Up to {n} people',
-    server: 'Your own server: {cpu} vCPU, {mem} GB memory, {disk} GB storage',
+    answers: '{answers} AI answers at the same time',
+    storage: '{disk} GB storage',
+    privateServer: 'A private server for your company',
     planCta: 'Get started',
     free: {
       name: 'Free',
@@ -519,15 +521,15 @@ const en = {
       cta: 'Book a call',
     },
     included:
-      'Every paid plan: a server on AWS in Seoul for your company alone, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
+      'Every paid plan: a private Trina AX server for your company in Seoul, your-company.trina.app, setup and connection, updates, backups, monitoring and help from a person at Trina.',
     fine:
       'Prices are in US dollars, before tax. Plans are sold by our reseller and Merchant of Record, Polar, which adds any sales tax or VAT. A plan renews every month until you cancel. Cancel any time from the billing portal linked in your receipt; it runs to the end of the month you paid for. Ask within 14 days of your first payment for a full refund.',
     termsLink: 'Terms',
     refundLink: 'Refund policy',
     blocks: [
       {
-        title: 'Priced from the server',
-        body: "Each paid plan is your company's own AWS server, sized for its number of people. The price is that server plus Trina running it.",
+        title: 'Priced by team size',
+        body: 'Each paid plan is a private Trina AX server for your company, sized for its number of people. The price includes hosting and Trina running it.',
       },
       {
         title: 'Who you pay for what',
@@ -561,7 +563,11 @@ const en = {
       },
       {
         q: 'Where do our files live?',
-        a: "On your company's server: your own AWS server in Seoul if Trina hosts it, or your server or office Mac mini if you run it. File contents go to Anthropic only when the AI reads them to answer.",
+        a: "On your company's server: a private Trina AX server in Seoul if Trina hosts it, or your server or office Mac mini if you run it. File contents go to Anthropic only when the AI reads them to answer.",
+      },
+      {
+        q: 'How much CPU and memory do I get?',
+        a: 'Plans are sized for their number of people. We change the server under a plan when we need to, and your limits for people, AI answers and storage stay the same. If you need fixed specifications, install Trina AX on your own server.',
       },
       {
         q: "Can someone see another team's folder?",
@@ -652,7 +658,7 @@ const en = {
     ],
     runsTitle: 'Where it runs',
     runs: [
-      { title: 'Hosted by Trina', body: 'Your own AWS server in Seoul, at your-company.trina.app.' },
+      { title: 'Hosted by Trina', body: 'A private Trina AX server for your company, in Seoul, at your-company.trina.app.' },
       { title: 'Office Mac mini', body: 'A Mac mini in your office. You are the administrator.' },
       { title: 'Linux server', body: 'A Linux server of yours. You are the administrator.' },
     ],

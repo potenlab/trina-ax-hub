@@ -35,17 +35,17 @@ export const LINKS = {
 }
 
 /**
- * Trina hosting plans, the only prices on the site (with FREE_PLAN below). Each plan is one company's own AWS server in Seoul (Amazon Lightsail,
- * ap-northeast-2), sized for its number of people; the price is that server plus Trina running it (updates, backups,
- * monitoring, help). Lightsail Seoul list prices, 2026-10-27, per month (disk, IPv4 address and 4-6 TB transfer
- * included): 4 GB $24, 8 GB $44, 16 GB $84, so the server is about 60% of each price. Set on 2026-10-28 a little above
- * managed OpenClaw hosts at the same size (xCloud, Agent37, GetClaw: $20-100), which run on cheaper clouds.
+ * Trina hosting plans, the only prices on the site (with FREE_PLAN below). Each plan is a private Trina AX server for one company, in Seoul.
+ * The public limits are people, AI answers at the same time (running) and storage. We can change the server under a
+ * plan, so the site gives no CPU, memory or server type. These limits match SEED_PLANS in trina-cloud src/teams/plans.ts.
+ * Prices (owner decision 2026-11-02): the first prices assumed one fixed cloud server per team, and that is no longer how
+ * plans run, so the price now pays for the limits, hosting and Trina running it (updates, backups, monitoring, help).
  * Prices are in US dollars, before tax, billed monthly by the reseller (Merchant of Record).
  */
 export const PLANS = [
-  { id: 'starter', usd: 39, people: 5, vcpu: 2, memoryGb: 4, storageGb: 80, server: 'Lightsail 4 GB' },
-  { id: 'team', usd: 69, people: 15, vcpu: 2, memoryGb: 8, storageGb: 160, server: 'Lightsail 8 GB' },
-  { id: 'business', usd: 129, people: 40, vcpu: 4, memoryGb: 16, storageGb: 320, server: 'Lightsail 16 GB' },
+  { id: 'starter', usd: 50, people: 5, running: 2, storageGb: 80 },
+  { id: 'team', usd: 100, people: 15, running: 3, storageGb: 160 },
+  { id: 'business', usd: 200, people: 40, running: 6, storageGb: 320 },
 ] as const
 export type PlanId = (typeof PLANS)[number]['id']
 

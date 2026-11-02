@@ -102,7 +102,7 @@ work in Claude Code and don't need the desktop app.
 
 This is what we built [Trina AX](https://ax.trina.app/) to do, so here is how it works there. Claude
 Code runs on a server for the company: an office Mac mini or Linux server the company runs, or a
-server for the company alone on AWS in Seoul that Trina hosts. People use it in the Trina AX app on
+private Trina AX server for the company, in Seoul, that Trina hosts. People use it in the Trina AX app on
 the web, desktop or phone. [12]
 
 - **One company key.** The owner adds a company Claude API key and chooses who uses it: the whole team,
@@ -120,7 +120,7 @@ files and chats. [12] What the AI reads to answer goes to Anthropic under your C
 People work in the Trina AX app rather than in Claude's own apps. [12] Trina AX is new: its security
 page describes it as a pre-release with no security certification yet. [15] The software is free to
 install yourself (AGPL-3.0); Trina hosting has a free plan for up to 3 members, with limited spots, and
-paid plans at $39 a month for up to 5 people, $69 for up to 15 and $129 for up to 40, before tax and with
+paid plans at $50 a month for up to 5 people, $100 for up to 15 and $200 for up to 40, before tax and with
 setup included; larger teams get a quote. [12]
 
 ## Side by side

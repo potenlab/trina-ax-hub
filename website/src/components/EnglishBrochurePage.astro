@@ -57,7 +57,7 @@ const brochure = BROCHURES.en
       <h2>Two ways to start</h2>
       <p>Both use the same software. Employees sign in at your company address.</p>
       <div class="brochure-split">
-        <article><h3>Hosted by Trina</h3><ol><li>Choose a first task on a 30-minute call.</li><li>Trina prepares your dedicated AWS server in Seoul and company address.</li><li>Set folder permissions and invite employees.</li></ol><p>Trina handles setup, updates, backups and monitoring.</p></article>
+        <article><h3>Hosted by Trina</h3><ol><li>Choose a first task on a 30-minute call.</li><li>Trina prepares a private Trina AX server for your company in Seoul, and your company address.</li><li>Set folder permissions and invite employees.</li></ol><p>Trina handles setup, updates, backups and monitoring.</p></article>
         <article><h3>Install it yourself</h3><ol><li>Prepare an office Mac mini or your own server.</li><li>Follow the installation guide.</li><li>Set folder permissions and invite employees.</li></ol><p>The software is free. You need someone who can manage a server.</p></article>
       </div>
       <h3>Your first-week checklist</h3>
@@ -70,9 +70,9 @@ const brochure = BROCHURES.en
     </section>
     <section class="brochure-sheet">
       <p class="brochure-kicker">For your buying decision</p>
-      <h2>Your own server,<br />with operation included</h2>
+      <h2>A private server,<br />with operation included</h2>
       <div class="brochure-prices">
-        {PLANS.map(p => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ month</small></p><p>{krwNote(p.usd, 'en')}</p><p>Up to {p.people} people · {p.memoryGb} GB memory<br />{p.storageGb} GB storage</p></article>)}
+        {PLANS.map(p => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ month</small></p><p>{krwNote(p.usd, 'en')}</p><p>Up to {p.people} people<br />{p.running} AI answers at the same time<br />{p.storageGb} GB storage</p></article>)}
       </div>
       <p class="brochure-caption">KRW reference: {KRW_REFERENCE.date}, rounded to the nearest thousand. Source: <a href={KRW_REFERENCE.source}>{KRW_REFERENCE.provider}</a>. Billing is in USD. AI usage and taxes are separate. For more than {PLANS[PLANS.length - 1].people} people, ask for a quote.</p>
       <h3>Understand the security boundaries</h3>

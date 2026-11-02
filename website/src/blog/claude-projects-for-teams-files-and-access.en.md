@@ -88,7 +88,7 @@ answer goes to the model provider (Anthropic, and OpenAI if Codex is turned on) 
 terms. [9] Trina AX is new: its security page describes it as a pre-release with no security
 certification yet. [9] The software is free to install yourself (AGPL-3.0). Trina hosting has a free
 plan for up to 3 members, with one answer running at a time and 5 GB of storage, limited spots and a
-pause when unused for a long time, and paid plans from $39 a month. Claude usage is billed by
+pause when unused for a long time, and paid plans from $50 a month. Claude usage is billed by
 Anthropic, not by Trina. [7]
 
 ## Side by side

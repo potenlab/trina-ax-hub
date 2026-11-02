@@ -56,7 +56,7 @@ import '../styles/brochure.css'
       <h2>시작하는 두 가지 방법</h2>
       <p>어느 쪽이든 같은 소프트웨어예요. 직원은 회사 주소로 들어와요.</p>
       <div class="brochure-split">
-        <article><h3>트리나 호스팅</h3><ol><li>30분 상담으로 맡길 일을 정해요.</li><li>트리나가 회사 전용 AWS 서울 서버와 주소를 준비해요.</li><li>폴더 권한을 정하고 직원을 초대해요.</li></ol><p>설치·업데이트·백업·모니터링은 트리나가 맡아요.</p></article>
+        <article><h3>트리나 호스팅</h3><ol><li>30분 상담으로 맡길 일을 정해요.</li><li>트리나가 서울의 회사 전용 트리나 AX 서버와 주소를 준비해요.</li><li>폴더 권한을 정하고 직원을 초대해요.</li></ol><p>설치·업데이트·백업·모니터링은 트리나가 맡아요.</p></article>
         <article><h3>직접 설치</h3><ol><li>사무실 맥 미니나 회사 서버를 준비해요.</li><li>설치 안내에 따라 서버를 설정해요.</li><li>폴더 권한을 정하고 직원을 초대해요.</li></ol><p>소프트웨어는 무료예요. 서버를 다룰 담당자가 필요해요.</p></article>
       </div>
       <h3>첫 주에 준비할 다섯 가지</h3>
@@ -71,7 +71,7 @@ import '../styles/brochure.css'
       <p class="brochure-kicker">도입을 검토하는 분께</p>
       <h2>회사 전용 서버와<br />운영을 포함한 비용</h2>
       <div class="brochure-prices">
-        {PLANS.map((p) => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ 월</small></p><p>{krwNote(p.usd, 'ko')}</p><p>최대 {p.people}명 · 메모리 {p.memoryGb}GB<br />저장공간 {p.storageGb}GB</p></article>)}
+        {PLANS.map((p) => <article><h3>{t.pricing.plans[p.id]}</h3><p class="brochure-price">{usd(p.usd)} <small>/ 월</small></p><p>{krwNote(p.usd, 'ko')}</p><p>최대 {p.people}명<br />동시에 AI 답변 {p.running}개<br />저장공간 {p.storageGb}GB</p></article>)}
       </div>
       <p class="brochure-caption">{KRW_REFERENCE.date} 환율 기준 · 천 원 단위 반올림 · 출처: <a href={KRW_REFERENCE.source}>{KRW_REFERENCE.provider}</a>. 원화는 참고 금액이고 실제 결제는 달러 기준이에요. AI 사용료와 세금은 별도예요. 40명이 넘으면 별도 견적을 안내해 드려요.</p>
       <h3>도입 전에 확인할 보안 범위</h3>

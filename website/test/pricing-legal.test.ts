@@ -12,15 +12,17 @@ describe('hosting plans', () => {
     const section = html.slice(html.indexOf('id="pricing"'), html.indexOf('</section>', html.indexOf('id="pricing"')))
     const text = visibleText(section)
 
-    test(`${file}: every plan shows its name, price, people and server`, () => {
+    test(`${file}: every plan shows its name, price, people, AI answers and storage, and no server size`, () => {
       expect([...section.matchAll(/class="plan"/g)].length + [...section.matchAll(/class="plan plan-custom"/g)].length).toBe(PLANS.length + 1)
       for (const p of PLANS) {
         const card = visibleText(section.slice(section.indexOf(`data-plan="${p.id}"`), section.indexOf('</li>', section.indexOf(`data-plan="${p.id}"`))))
         expect(card).toContain(t.pricing.plans[p.id])
         expect(card).toContain(usd(p.usd))
         expect(card).toContain(t.pricing.people.replace('{n}', String(p.people)))
-        expect(card).toContain(String(p.memoryGb))
-        expect(card).toContain(String(p.storageGb))
+        expect(card).toContain(t.pricing.answers.replace('{answers}', String(p.running)))
+        expect(card).toContain(t.pricing.storage.replace('{disk}', String(p.storageGb)))
+        expect(card).toContain(t.pricing.privateServer)
+        expect(card).not.toMatch(/vCPU|memory|메모리|AWS|Lightsail/)
       }
     })
 
@@ -43,7 +45,7 @@ describe('hosting plans', () => {
     test(`${file}: the heading and the table start from the cheapest plan`, () => {
       expect(Math.min(...PLANS.map((p) => p.usd))).toBe(PLANS[0].usd)
       expect(text).toContain(usd(PLANS[0].usd))
-      expect(section).not.toMatch(/\{(from|n|cpu|mem|disk)\}/)
+      expect(section).not.toMatch(/\{(from|n|answers|cpu|mem|disk)\}/)
     })
 
     test(`${file}: billing terms next to the prices (renewal, cancellation, refund, reseller) and links to terms and refunds`, () => {
@@ -57,15 +59,31 @@ describe('hosting plans', () => {
     })
   }
 
-  test('PLANS: ascending prices and sizes, people within what the server holds', () => {
+  test('PLANS: ascending prices and limits', () => {
     for (let i = 1; i < PLANS.length; i++) {
       expect(PLANS[i].usd).toBeGreaterThan(PLANS[i - 1].usd)
       expect(PLANS[i].people).toBeGreaterThan(PLANS[i - 1].people)
-      expect(PLANS[i].memoryGb).toBeGreaterThan(PLANS[i - 1].memoryGb)
+      expect(PLANS[i].running).toBeGreaterThan(PLANS[i - 1].running)
+      expect(PLANS[i].storageGb).toBeGreaterThan(PLANS[i - 1].storageGb)
     }
     // the larger-company card starts where the biggest plan ends
     expect(en.pricing.custom.people).toContain(String(PLANS.at(-1)!.people))
     expect(ko.pricing.custom.people).toContain(String(PLANS.at(-1)!.people))
+  })
+})
+
+describe('hosted copy', () => {
+  test('the marketing pages keep Seoul and do not sell an AWS server', () => {
+    for (const file of ['index.html', 'ko/index.html', 'security.html', 'ko/security.html', 'brochure.html', 'ko/brochure.html', 'llms.txt']) {
+      const text = file.endsWith('.txt') ? built(file) : visibleText(built(file))
+      expect(text, file).toMatch(/Seoul|서울/)
+      expect(text, file).not.toMatch(/AWS server|on AWS in Seoul|AWS 서울|Lightsail/)
+    }
+  })
+
+  test('both FAQs say how CPU and memory work without a number', () => {
+    expect(en.faq.items.find((i) => i.q === 'How much CPU and memory do I get?')?.a).toContain('install Trina AX on your own server')
+    expect(ko.faq.items.find((i) => i.q === 'CPU와 메모리는 얼마나 되나요?')?.a).toContain('회사 서버에 직접 설치')
   })
 })
 
